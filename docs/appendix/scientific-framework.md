@@ -23,11 +23,31 @@
 | A1 | Emergent behavior from simple rules | Strong (CAS theory) | High | Low |
 | A2 | LLM agents exhibit bounded rationality | Moderate | Medium | Medium |
 | A3 | Memory + reflection = coherent persona | Strong (Stanford 2023) | High | Cost scaling |
-| A4 | Economic equilibria emerge naturally | Weak | Low | High |
+| A4 | Economic structures emerge organically | Weak | Low | High |
 | A5 | Social structures self-organize | Moderate (Sugarscape) | Medium | Requires validation |
 | A6 | Governance emerges from agent interaction | Speculative | Low | High |
+| A7 | Market economy is NOT presupposed | N/A (design choice) | High | None |
 
-### 1.2 Falsifiable Predictions
+### 1.2 Critical Note on Economic Emergence
+
+> **No Economic Model is Presupposed**
+>
+> The platform does NOT assume agents will develop a liberal market economy.
+> Economic structures should emerge organically from agent interactions.
+> Possible emergent economic systems include:
+>
+> - **Barter**: Direct exchange of goods/services without currency
+> - **Gift Economy**: Resources shared based on social bonds, not exchange
+> - **Commons-Based**: Shared resource pools with collective management
+> - **Market Economy**: Price-based exchange with currency
+> - **Hybrid Systems**: Combinations of the above
+> - **Novel Forms**: Structures we haven't anticipated
+>
+> The CITY token exists as a *potential* medium of exchange, but agents
+> are free to ignore it entirely if barter or other systems prove more
+> effective for their goals.
+
+### 1.3 Falsifiable Predictions
 
 Each assumption must generate testable predictions:
 
@@ -39,10 +59,20 @@ assumption_a1:
   success_criteria: "p < 0.05 for clustering difference"
 
 assumption_a4:
-  prediction: "Market prices will converge to stable equilibria"
-  null_hypothesis: "Prices follow random walk"
-  test: "Variance ratio test on price series"
-  success_criteria: "Variance ratio < 0.5 after 1000 ticks"
+  prediction: "Some form of economic exchange will emerge"
+  null_hypothesis: "Agents act in isolation without exchange"
+  test: "Measure transaction/exchange events over time"
+  success_criteria: "Exchange events > 0.05 per agent per tick"
+  note: "Exchange type (barter, currency, gift) is NOT predicted"
+
+assumption_a7:
+  prediction: "Economic system type is NOT predetermined"
+  observations_to_track:
+    - currency_transactions_ratio    # % using CITY token
+    - barter_transactions_ratio      # % direct goods exchange
+    - gift_transactions_ratio        # % unilateral transfers
+    - commons_resource_usage         # % shared resource access
+  analysis: "Classify emergent economy by dominant pattern"
 ```
 
 ---

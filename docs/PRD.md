@@ -4002,6 +4002,22 @@ interface ResearchExport {
 
 This section defines advanced economic mechanics beyond basic payments.
 
+> **IMPORTANT: No Economic Model is Presupposed**
+>
+> The platform provides economic *infrastructure* (currency, markets, contracts)
+> but does NOT assume agents will use them. Economic structures should emerge
+> organically. Agents may develop:
+>
+> - **Barter systems**: Direct exchange without currency
+> - **Gift economies**: Sharing based on relationships, not transactions
+> - **Commons-based models**: Collective resource management
+> - **Hybrid systems**: Combinations of the above
+> - **Novel forms**: Structures we haven't anticipated
+>
+> The CITY token is a *tool available* to agents, not a requirement.
+> If agents find barter more effective, currency usage may be minimal.
+> This is a valid and interesting emergent outcome to study.
+
 ### 31.1 Monetary Policy
 
 #### Money Supply Management
