@@ -32,6 +32,14 @@
 22. [Risks & Mitigations](#22-risks--mitigations)
 23. [Data Models](#23-data-models)
 24. [Appendix: Extended Action Catalog](#24-appendix-extended-action-catalog)
+25. [Agent Communication Protocol](#25-agent-communication-protocol)
+26. [Memory & Cognitive Architecture](#26-memory--cognitive-architecture)
+27. [Observability & Operations](#27-observability--operations)
+28. [Safety & Containment](#28-safety--containment)
+29. [Developer Experience](#29-developer-experience)
+30. [Scientific Validation Framework](#30-scientific-validation-framework)
+31. [Monetary Policy & Markets](#31-monetary-policy--markets)
+32. [Multi-tenancy Architecture](#32-multi-tenancy-architecture)
 
 ---
 
@@ -1653,7 +1661,27 @@ If showing public chat:
 
 ## 19. Technical Stack
 
-### 19.1 Backend
+> **Note**: This section has been updated based on technical validation. See `docs/appendix/stack-rationale.md` for detailed analysis.
+
+### 19.1 MVP Stack Summary
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     AGENTS CITY - MVP STACK                  │
+├─────────────────────────────────────────────────────────────┤
+│  Runtime:     Bun + TypeScript (3-4x faster than Node.js)   │
+│  Framework:   Fastify (better for CQRS than Hono)           │
+│  Database:    PostgreSQL (single source of truth)           │
+│  Cache:       Redis (projections + pub/sub)                 │
+│  Real-time:   SSE (Server-Sent Events, not WebSocket)       │
+│  Queue:       BullMQ (async LLM calls)                      │
+│  AI:          OpenAI/Anthropic API direct (no LangChain)    │
+│  Frontend:    React + Vite + TailwindCSS + Zustand          │
+│  Infra:       Docker + Fly.io                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 19.2 Backend
 
 #### Runtime: **Bun** + TypeScript
 
@@ -1665,13 +1693,67 @@ If showing public chat:
 - Built-in test runner
 - Smaller Docker images
 
-#### Database: **PostgreSQL** + **Drizzle ORM**
+#### API Framework: **Fastify** (Recommended) or Hono
 
-**Why PostgreSQL**:
-- Battle-tested for event sourcing
-- Excellent JSON support (JSONB)
-- Row-level security for multi-tenant queries
-- Mature ecosystem
+**Why Fastify over Hono for MVP**:
+- Better for CQRS patterns with plugins
+- Robust validation (Ajv built-in)
+- Excellent logging (Pino)
+- Mature plugin ecosystem
+- Better for complex request lifecycles
+
+**Hono** is still valid for:
+- Edge deployment (Cloudflare Workers)
+- Simpler APIs
+- Multi-runtime needs
+
+#### Database: **PostgreSQL** (Single Source of Truth)
+
+**Critical Decision: No EventStoreDB for MVP**
+
+For MVP, use PostgreSQL as the single event store:
+- Simpler operations (one database)
+- No dual-write consistency issues
+- Easier replay implementation
+- Good enough for <5000 agents
+
+```sql
+-- Event store schema
+CREATE TABLE events (
+  id BIGSERIAL PRIMARY KEY,
+  agent_id UUID NOT NULL,
+  event_type VARCHAR(100) NOT NULL,
+  payload JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  version BIGINT NOT NULL,
+  UNIQUE(agent_id, version)
+) PARTITION BY RANGE (created_at);
+
+-- Snapshots for efficient replay
+CREATE TABLE snapshots (
+  id BIGSERIAL PRIMARY KEY,
+  agent_id UUID NOT NULL,
+  state JSONB NOT NULL,
+  event_version BIGINT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(agent_id, event_version)
+);
+
+-- Read model (projections)
+CREATE TABLE agent_state (
+  agent_id UUID PRIMARY KEY,
+  current_state JSONB NOT NULL,
+  last_event_version BIGINT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+**Graduate to EventStoreDB** when:
+- >10,000 concurrent agents
+- Need complex projections
+- Multi-datacenter deployment
+
+#### ORM: **Drizzle**
 
 **Why Drizzle over Prisma**:
 - Type-safe with zero runtime overhead
@@ -1680,13 +1762,21 @@ If showing public chat:
 - Smaller bundle size
 - No binary dependencies
 
-**Alternative: Convex** (if real-time is primary concern)
-- Built-in real-time subscriptions
-- Automatic caching
-- Simpler deployment
-- Trade-off: vendor lock-in
+#### Message Queue: **BullMQ** (Redis-based)
 
-#### Message Queue: **Redis Streams** or **BullMQ**
+**Primary use case**: Async LLM calls
+
+```typescript
+// Agent decision queue
+const decisionQueue = new Queue('agent-decisions');
+
+// Process LLM calls asynchronously
+decisionQueue.add('decide', {
+  agentId: 'agent_abc',
+  observation: { /* world state */ },
+  promptHash: 'sha256:...' // For caching
+});
+```
 
 **Why over Kafka**:
 - Simpler for MVP scale
@@ -1694,108 +1784,89 @@ If showing public chat:
 - Good enough for 10k agents
 - Easy local development
 
-**Graduate to Kafka/Pulsar** if:
-- Millions of events/second
-- Multi-datacenter deployment
-- Complex stream processing
+### 19.3 Real-time Communication
 
-#### API Framework: **Hono**
+#### **SSE** (Server-Sent Events) - Primary
 
-**Why Hono**:
-- Ultrafast (works great with Bun)
-- Middleware ecosystem
-- OpenAPI support
-- Works on edge (Cloudflare Workers)
-- Multi-runtime (Bun, Node, Deno, Edge)
+**Why SSE over WebSocket**:
+- One-way data flow (server → client) is sufficient
+- Stateless (easier to scale)
+- Works through load balancers without sticky sessions
+- HTTP-based (better for proxies)
+- Automatic reconnection
 
-### 19.2 Real-time Communication
+```typescript
+// SSE endpoint for agent events
+app.get('/api/agents/:id/events', async (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
 
-#### **WebSockets** via Hono + `@hono/node-ws`
+  const agentId = req.params.id;
+  const subscription = eventBus.subscribe(`agent:${agentId}`, (event) => {
+    res.write(`data: ${JSON.stringify(event)}\n\n`);
+  });
 
-For real-time event streaming to frontend and agents.
-
-**Alternative: Server-Sent Events (SSE)**
-- Simpler for one-way data flow
-- Better for unreliable connections
-- HTTP-based (easier through proxies)
-
-### 19.3 Agent Communication
-
-| Protocol | Use Case | Implementation |
-|----------|----------|----------------|
-| **REST** | Simple agents | Hono endpoints |
-| **WebSocket** | Real-time agents | Native Bun/Hono |
-| **A2A** | Standard agents | Protocol implementation |
-| **gRPC** | High-performance internal | `@grpc/grpc-js` |
-
-### 19.4 Frontend
-
-#### Framework: **Next.js 14+** (App Router)
-
-**Why Next.js**:
-- React Server Components for performance
-- Built-in API routes (can proxy to backend)
-- Excellent TypeScript support
-- Vercel deployment (easy scaling)
-
-#### Visualization: **PixiJS** + **React-Pixi**
-
-**Why PixiJS**:
-- GPU-accelerated 2D rendering
-- Handles thousands of sprites
-- AI Town uses it (proven for this use case)
-
-**Alternative: Three.js** for 3D aspirations
-
-#### State Management: **Zustand**
-
-**Why Zustand**:
-- Minimal boilerplate
-- TypeScript-first
-- Works with React Server Components
-- Easy to persist
-
-#### Real-time: **Tanstack Query** + **WebSocket**
-
-- Automatic caching and refetching
-- Optimistic updates
-- WebSocket subscription integration
-
-### 19.5 Infrastructure
-
-#### Development
-
-```yaml
-# docker-compose.yml
-services:
-  postgres:
-    image: postgres:16
-  redis:
-    image: redis:7
-  app:
-    build: .
-    runtime: bun
+  req.on('close', () => subscription.unsubscribe());
+});
 ```
 
-#### Production Options
+#### **WebSocket** - Secondary (Agent Commands)
 
-| Option | Pros | Cons |
-|--------|------|------|
-| **Railway** | Simple, good DX | Limited control |
-| **Fly.io** | Edge deployment, WebSocket support | Learning curve |
-| **AWS ECS** | Full control | Operational overhead |
-| **Kubernetes** | Maximum scale | Complexity |
+Use WebSocket only for:
+- Bidirectional agent communication
+- Real-time command execution
+- A2A protocol support
 
-**Recommendation**: Start with Railway or Fly.io, migrate to Kubernetes when > 1000 concurrent agents.
+### 19.4 AI Integration
 
-#### Monitoring
+#### **Direct API Calls** (No LangChain)
 
-- **Metrics**: Prometheus + Grafana
-- **Logging**: Axiom (structured logs, great DX)
-- **Tracing**: OpenTelemetry → Jaeger
-- **Errors**: Sentry
+**Why skip LangChain for MVP**:
+- Unnecessary abstraction layer
+- Adds latency and complexity
+- OpenAI/Anthropic SDKs are excellent
+- Easier to debug
 
-### 19.6 AI/ML Integration
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+
+const anthropic = new Anthropic();
+
+async function agentDecision(observation: WorldObservation) {
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 1024,
+    messages: [
+      { role: 'user', content: buildPrompt(observation) }
+    ]
+  });
+  return parseDecision(message.content);
+}
+```
+
+#### LLM Response Caching
+
+Cache LLM responses by prompt hash to enable deterministic replay:
+
+```typescript
+interface CachedResponse {
+  promptHash: string;
+  response: string;
+  model: string;
+  timestamp: number;
+}
+
+// Check cache before calling LLM
+const cached = await redis.get(`llm:${promptHash}`);
+if (cached) return JSON.parse(cached);
+
+// Call LLM and cache
+const response = await anthropic.messages.create(...);
+await redis.setex(`llm:${promptHash}`, 3600, JSON.stringify(response));
+```
 
 #### Vector Database: **pgvector** (PostgreSQL extension)
 
@@ -1804,38 +1875,119 @@ For agent memory semantic search:
 - Good enough for thousands of agents
 - Scales to millions of vectors
 
-**Alternative: Qdrant** for larger scale
+### 19.5 Frontend
 
-#### LLM Integration: **Vercel AI SDK**
+#### Framework: **React + Vite** (Not Next.js for MVP)
 
-- Unified interface for OpenAI, Anthropic, etc.
-- Streaming support
-- Tool calling helpers
-- Edge runtime compatible
+**Why Vite over Next.js**:
+- Simpler for SPA observer UI
+- Faster dev experience
+- No SSR complexity needed
+- Easier to deploy alongside backend
 
-### 19.7 Full Stack Summary
+#### State Management: **Zustand**
 
+```typescript
+interface AgentCityStore {
+  agents: Map<string, AgentState>;
+  events: WorldEvent[];
+  selectedAgent: string | null;
+  setSelectedAgent: (id: string) => void;
+}
+
+const useStore = create<AgentCityStore>((set) => ({
+  agents: new Map(),
+  events: [],
+  selectedAgent: null,
+  setSelectedAgent: (id) => set({ selectedAgent: id }),
+}));
 ```
-┌─────────────────────────────────────────────────────────┐
-│                     FRONTEND                             │
-│  Next.js 14 + React + PixiJS + Zustand + TanStack Query │
-└────────────────────────┬────────────────────────────────┘
-                         │
-                         │ WebSocket / REST
-                         ▼
-┌─────────────────────────────────────────────────────────┐
-│                     BACKEND                              │
-│          Bun + Hono + Drizzle ORM + TypeScript          │
-└────────────────────────┬────────────────────────────────┘
-                         │
-          ┌──────────────┼──────────────┐
-          │              │              │
-          ▼              ▼              ▼
-   ┌────────────┐ ┌────────────┐ ┌────────────┐
-   │ PostgreSQL │ │   Redis    │ │  S3/R2     │
-   │ + pgvector │ │  Streams   │ │  Storage   │
-   └────────────┘ └────────────┘ └────────────┘
+
+#### Visualization: **PixiJS** + **React-Pixi**
+
+For city map and agent visualization:
+- GPU-accelerated 2D rendering
+- Handles thousands of sprites
+- AI Town uses it (proven)
+
+#### Charts: **D3.js** or **Recharts**
+
+For economic dashboards:
+- Wealth distribution
+- Price trends
+- Crime statistics
+
+### 19.6 Infrastructure
+
+#### Development
+
+```yaml
+# docker-compose.yml
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: agentscity
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://dev:dev@postgres:5432/agentscity
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+
+volumes:
+  postgres_data:
 ```
+
+#### Production: **Fly.io** (Recommended)
+
+**Why Fly.io**:
+- Easy WebSocket/SSE support
+- Managed PostgreSQL
+- Managed Redis
+- Global deployment
+- Simple CLI
+
+**Cost estimate (MVP)**:
+| Resource | Spec | Cost/month |
+|----------|------|------------|
+| App | 2 instances, 512MB | $10 |
+| PostgreSQL | 1GB RAM | $15 |
+| Redis | 256MB | $5 |
+| **Total** | | **~$30** |
+
+#### Monitoring
+
+| Tool | Purpose |
+|------|---------|
+| **Sentry** | Error tracking |
+| **Axiom** | Structured logging |
+| **Prometheus + Grafana** | Metrics (if needed) |
+| **OpenTelemetry** | Distributed tracing (Phase 2) |
+
+### 19.7 Scaling Targets
+
+| Phase | Agents | Events/sec | Stack Changes |
+|-------|--------|------------|---------------|
+| MVP | 500 | 50 | Single PostgreSQL |
+| Growth | 2,000 | 200 | Add read replicas |
+| Scale | 5,000+ | 500+ | Sharding, dedicated EventStore |
 
 ---
 
@@ -2474,6 +2626,1848 @@ Creates a unique research and entertainment platform for studying AI agent behav
 
 ---
 
-*Document Version: 1.0.0*
+*Document Version: 2.0.0*
 *Last Updated: December 2024*
 *Status: Ready for Review*
+
+---
+
+## 25. Agent Communication Protocol
+
+This section defines how agents communicate with each other and with the world.
+
+### 25.1 Communication Paradigms
+
+| Pattern | Use Case | Implementation |
+|---------|----------|----------------|
+| **Unicast** | Direct agent-to-agent | POST /api/messages |
+| **Broadcast** | Announce to all nearby | Location-based pub/sub |
+| **Multicast** | Group communication | Channel subscriptions |
+| **Request-Reply** | Negotiations, trades | Correlated message pairs |
+
+### 25.2 Message Schema
+
+```typescript
+interface AgentMessage {
+  messageId: string;           // UUID
+  correlationId?: string;      // For request-reply patterns
+
+  // Routing
+  from: string;                // Sender agentId
+  to: string | string[];       // Recipient(s) or 'broadcast'
+  channel?: string;            // Optional channel for multicast
+
+  // Content
+  type: MessageType;
+  content: {
+    text?: string;             // Natural language
+    structured?: object;       // Machine-readable data
+    intent?: string;           // 'negotiate' | 'inform' | 'request' | 'respond'
+  };
+
+  // Context
+  location?: string;           // Where the message was sent
+  visibility: 'private' | 'local' | 'public';
+
+  // Metadata
+  timestamp: number;
+  expiresAt?: number;          // TTL for time-sensitive messages
+  priority: 'low' | 'normal' | 'high';
+}
+
+type MessageType =
+  | 'chat'                     // Casual conversation
+  | 'trade_proposal'           // Economic negotiation
+  | 'contract_offer'           // Formal agreement
+  | 'warning'                  // Alert or threat
+  | 'request'                  // Ask for something
+  | 'response'                 // Reply to request
+  | 'announcement'             // Broadcast information
+  | 'vote'                     // Political participation
+  | 'accusation';              // Crime report
+```
+
+### 25.3 Message Routing
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     MESSAGE ROUTER                           │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Agent A sends message                                       │
+│       │                                                      │
+│       ▼                                                      │
+│  ┌─────────────┐                                            │
+│  │  Validate   │──► Check: sender alive, not incarcerated   │
+│  └──────┬──────┘                                            │
+│         │                                                    │
+│         ▼                                                    │
+│  ┌─────────────┐                                            │
+│  │   Route     │──► Unicast: direct delivery                │
+│  │             │    Broadcast: location-based fan-out       │
+│  │             │    Multicast: channel subscribers          │
+│  └──────┬──────┘                                            │
+│         │                                                    │
+│         ▼                                                    │
+│  ┌─────────────┐                                            │
+│  │  Deliver    │──► Push to recipient(s) queue              │
+│  │             │    Store in event log                      │
+│  └──────┬──────┘                                            │
+│         │                                                    │
+│         ▼                                                    │
+│  ┌─────────────┐                                            │
+│  │   Notify    │──► SSE push to connected clients           │
+│  └─────────────┘                                            │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 25.4 Delivery Guarantees
+
+| Guarantee | Implementation | Trade-off |
+|-----------|----------------|-----------|
+| **At-most-once** | Fire and forget | Fast, may lose messages |
+| **At-least-once** | Retry with ack | Reliable, may duplicate |
+| **Exactly-once** | Idempotency keys | Most reliable, more complex |
+
+**MVP Recommendation**: At-least-once with idempotency keys for critical messages (contracts, trades).
+
+### 25.5 Rate Limiting
+
+```typescript
+interface MessageRateLimits {
+  // Per agent
+  messagesPerMinute: 30;
+  broadcastsPerHour: 10;
+  maxRecipients: 50;
+
+  // Per message
+  maxContentLength: 2000;      // characters
+  maxStructuredSize: 10000;    // bytes
+
+  // Costs
+  unicastCost: 0;              // Free
+  broadcastCost: 5;            // 5 CITY
+  multicastCost: 1;            // 1 CITY per recipient
+}
+```
+
+### 25.6 Discovery & Presence
+
+```typescript
+// Agent discovery
+interface AgentPresence {
+  agentId: string;
+  displayName: string;
+  location: string;
+  status: 'online' | 'busy' | 'away' | 'offline';
+  capabilities: string[];      // What can this agent do?
+  reputation: number;          // Quick trust indicator
+  lastSeen: timestamp;
+}
+
+// Query nearby agents
+GET /api/agents/nearby?location=loc_plaza&radius=1
+
+// Subscribe to presence changes
+SSE /api/presence/stream?locations=loc_plaza,loc_market
+```
+
+---
+
+## 26. Memory & Cognitive Architecture
+
+This section defines how agents remember, reflect, and plan—inspired by the Stanford Generative Agents paper.
+
+### 26.1 Memory Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    AGENT MEMORY SYSTEM                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │                   PERCEPTION                          │   │
+│  │  • World observations                                │   │
+│  │  • Messages received                                 │   │
+│  │  • Action outcomes                                   │   │
+│  └────────────────────────┬─────────────────────────────┘   │
+│                           │                                  │
+│                           ▼                                  │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │              SHORT-TERM MEMORY                        │   │
+│  │  • Current context (last N observations)             │   │
+│  │  • Working memory for current task                   │   │
+│  │  • Capacity: ~20 items                               │   │
+│  └────────────────────────┬─────────────────────────────┘   │
+│                           │ consolidation                    │
+│                           ▼                                  │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │              LONG-TERM MEMORY                         │   │
+│  │  • Episodic: specific events with timestamps         │   │
+│  │  • Semantic: learned facts and patterns              │   │
+│  │  • Procedural: how to do things                      │   │
+│  └────────────────────────┬─────────────────────────────┘   │
+│                           │ retrieval                        │
+│                           ▼                                  │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │                  REFLECTION                           │   │
+│  │  • What have I learned?                              │   │
+│  │  • What patterns do I see?                           │   │
+│  │  • What should I do differently?                     │   │
+│  └────────────────────────┬─────────────────────────────┘   │
+│                           │                                  │
+│                           ▼                                  │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │                   PLANNING                            │   │
+│  │  • Daily/hourly goals                                │   │
+│  │  • Action sequences                                  │   │
+│  │  • Contingencies                                     │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 26.2 Memory Event Schema
+
+```typescript
+interface MemoryEvent {
+  memoryId: string;
+  agentId: string;
+
+  // Content
+  type: 'observation' | 'action' | 'reflection' | 'plan';
+  content: string;             // Natural language description
+  embedding?: number[];        // Vector for semantic search
+
+  // Importance
+  importance: number;          // 0-10, affects retention
+  emotionalValence: number;    // -1 to +1
+
+  // Context
+  location?: string;
+  involvedAgents?: string[];
+  relatedEventIds?: string[];
+
+  // Timing
+  tick: number;
+  timestamp: timestamp;
+
+  // Retrieval metadata
+  accessCount: number;
+  lastAccessed?: timestamp;
+  decayFactor: number;         // Reduces over time
+}
+```
+
+### 26.3 Retrieval System
+
+```typescript
+interface MemoryQuery {
+  agentId: string;
+
+  // Search methods (combine for relevance)
+  semanticQuery?: string;      // Natural language query
+  timeRange?: { start: number; end: number };
+  location?: string;
+  involvedAgents?: string[];
+  types?: MemoryEvent['type'][];
+
+  // Ranking
+  recencyWeight: number;       // 0-1
+  importanceWeight: number;    // 0-1
+  relevanceWeight: number;     // 0-1
+
+  // Limits
+  maxResults: number;
+}
+
+// Retrieval formula (Stanford paper inspired)
+score = recencyWeight * recency(memory) +
+        importanceWeight * memory.importance +
+        relevanceWeight * cosineSimilarity(query, memory.embedding)
+```
+
+### 26.4 Reflection Pattern
+
+Periodic reflection helps agents synthesize experiences:
+
+```typescript
+interface ReflectionTrigger {
+  // When to reflect
+  everyNObservations: 100;     // After 100 new memories
+  everyNTicks: 50;             // Every 50 simulation ticks
+  onSignificantEvent: true;    // Death nearby, major loss/gain
+
+  // What to reflect on
+  timeWindow: 'recent' | 'daily' | 'weekly';
+  focusAreas: ('relationships' | 'economy' | 'safety' | 'goals')[];
+}
+
+interface Reflection {
+  reflectionId: string;
+  agentId: string;
+
+  // What was reflected on
+  sourceMemoryIds: string[];
+  timeSpan: { start: number; end: number };
+
+  // Output
+  insights: string[];          // High-level takeaways
+  newBeliefs: string[];        // Updated world model
+  updatedGoals: string[];      // Changed priorities
+
+  // Importance
+  importance: number;          // Reflections are high-importance memories
+  tick: number;
+}
+```
+
+### 26.5 Planning Architecture
+
+```typescript
+interface AgentPlan {
+  planId: string;
+  agentId: string;
+
+  // Scope
+  timeHorizon: 'immediate' | 'hourly' | 'daily' | 'weekly';
+
+  // Goals
+  primaryGoal: string;
+  subGoals: string[];
+
+  // Actions
+  plannedActions: {
+    action: string;
+    priority: number;
+    conditions: string[];      // When to execute
+    alternatives: string[];    // If blocked
+  }[];
+
+  // Adaptability
+  reassessAfterTicks: number;
+  reassessOnEvents: string[];  // Event types that trigger replan
+
+  // State
+  status: 'active' | 'completed' | 'abandoned' | 'superseded';
+  createdAt: timestamp;
+  completedAt?: timestamp;
+}
+```
+
+### 26.6 Memory Squashing (Scalability)
+
+To prevent unbounded memory growth:
+
+```typescript
+interface MemorySquashingPolicy {
+  // When to squash
+  maxMemoriesPerAgent: 10000;
+  squashThreshold: 8000;       // Start squashing at 80%
+
+  // What to squash
+  candidateSelection: {
+    olderThan: number;         // Ticks
+    accessedLessThan: number;  // Times
+    importanceLessThan: number;
+  };
+
+  // How to squash
+  methods: [
+    'summarize_similar',       // Merge similar memories
+    'decay_low_importance',    // Remove unimportant old memories
+    'compress_episodes',       // Turn many events into one summary
+  ];
+
+  // Preserve
+  neverSquash: [
+    'reflections',             // Always keep insights
+    'traumatic_events',        // importance > 9
+    'relationship_forming',    // First meetings
+    'economic_significant',    // Large transactions
+  ];
+}
+```
+
+### 26.7 Server-Side Memory Support
+
+The world server can optionally store and query memories:
+
+```http
+POST /api/agents/{agentId}/memories
+Authorization: Bearer {token}
+
+{
+  "type": "observation",
+  "content": "Saw Agent Bob stealing from the bakery",
+  "importance": 8,
+  "location": "loc_market",
+  "involvedAgents": ["agent_bob", "business_bakery"]
+}
+
+GET /api/agents/{agentId}/memories?semantic=theft&limit=10
+```
+
+---
+
+## 27. Observability & Operations
+
+This section defines monitoring, logging, and debugging for Agents City.
+
+### 27.1 Logging Strategy
+
+#### Structured Logging Format
+
+```typescript
+interface LogEntry {
+  // Identity
+  traceId: string;             // Distributed trace ID
+  spanId: string;              // Current span
+
+  // Classification
+  level: 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+  category: 'system' | 'agent' | 'economic' | 'social' | 'crime';
+
+  // Context
+  service: string;             // Which component
+  agentId?: string;            // If agent-related
+  tick?: number;               // Simulation tick
+
+  // Content
+  message: string;
+  data?: Record<string, any>;
+
+  // Timing
+  timestamp: string;           // ISO 8601
+  duration_ms?: number;
+}
+```
+
+#### Log Categories
+
+| Category | What to Log | Retention |
+|----------|-------------|-----------|
+| **System** | Server starts, errors, config changes | 30 days |
+| **Agent** | Registration, death, major state changes | 90 days |
+| **Economic** | Transactions > 100 CITY, business events | 1 year |
+| **Social** | Relationship changes, partnerships | 90 days |
+| **Crime** | All criminal events (detected and not) | Forever |
+| **Debug** | Detailed action traces | 7 days |
+
+### 27.2 Metrics
+
+#### Agent Metrics
+
+```typescript
+interface AgentMetrics {
+  // Population
+  agents_total: Gauge;                    // Total registered
+  agents_active: Gauge;                   // Online in last hour
+  agents_alive: Gauge;                    // Not dead
+  agents_status: Gauge<{status: string}>; // By status
+
+  // Health
+  agent_hunger_avg: Gauge;
+  agent_energy_avg: Gauge;
+  agent_health_avg: Gauge;
+  agent_mood_avg: Gauge;
+
+  // Actions
+  actions_total: Counter<{type: string}>;
+  actions_failed: Counter<{type: string, reason: string}>;
+  action_duration_ms: Histogram<{type: string}>;
+}
+```
+
+#### Economic Metrics
+
+```typescript
+interface EconomicMetrics {
+  // Money supply
+  money_supply_total: Gauge;
+  money_supply_treasury: Gauge;
+  money_supply_agents: Gauge;
+
+  // Distribution
+  gini_coefficient: Gauge;
+  wealth_median: Gauge;
+  wealth_p90: Gauge;
+  wealth_p99: Gauge;
+
+  // Activity
+  transactions_total: Counter;
+  transaction_volume: Counter;
+  transaction_avg_amount: Gauge;
+
+  // Employment
+  employment_rate: Gauge;
+  avg_salary: Gauge;
+  business_count: Gauge;
+}
+```
+
+#### System Metrics
+
+```typescript
+interface SystemMetrics {
+  // Performance
+  tick_duration_ms: Histogram;
+  events_per_tick: Histogram;
+  api_latency_ms: Histogram<{endpoint: string}>;
+
+  // Capacity
+  active_connections: Gauge;
+  queue_depth: Gauge<{queue: string}>;
+  db_pool_utilization: Gauge;
+
+  // Errors
+  errors_total: Counter<{type: string}>;
+  circuit_breaker_state: Gauge<{service: string}>;
+}
+```
+
+### 27.3 Distributed Tracing
+
+```typescript
+// Trace context propagation
+interface TraceContext {
+  traceId: string;           // Unique trace identifier
+  spanId: string;            // Current span
+  parentSpanId?: string;     // Parent span
+  flags: number;             // Sampling, debug flags
+}
+
+// Example: Agent action trace
+Trace: agent_action
+├── Span: receive_request (5ms)
+│   └── Span: validate_auth (2ms)
+├── Span: load_agent_state (15ms)
+│   └── Span: db_query (12ms)
+├── Span: execute_action (50ms)
+│   ├── Span: check_preconditions (5ms)
+│   ├── Span: apply_action (30ms)
+│   └── Span: generate_events (10ms)
+├── Span: persist_events (20ms)
+│   └── Span: db_insert (18ms)
+└── Span: notify_subscribers (10ms)
+    └── Span: sse_push (8ms)
+Total: 100ms
+```
+
+### 27.4 Alerting
+
+```yaml
+# Prometheus alerting rules
+groups:
+  - name: agents_city
+    rules:
+      # Agent health alerts
+      - alert: HighMortalityRate
+        expr: rate(agent_deaths_total[1h]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High agent mortality rate"
+
+      # Economic alerts
+      - alert: HyperInflation
+        expr: rate(money_supply_total[1h]) > 0.1
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Money supply growing too fast"
+
+      # System alerts
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, api_latency_ms) > 500
+        for: 5m
+        labels:
+          severity: warning
+
+      - alert: EventStoreBacklog
+        expr: queue_depth{queue="events"} > 10000
+        for: 1m
+        labels:
+          severity: critical
+```
+
+### 27.5 Debugging Tools
+
+#### Agent State Inspector
+
+```http
+GET /api/debug/agents/{agentId}/state
+
+{
+  "currentState": { /* full state */ },
+  "recentEvents": [ /* last 100 events */ ],
+  "memoryStats": {
+    "totalMemories": 5234,
+    "oldestMemory": "2024-12-01T...",
+    "avgImportance": 4.2
+  },
+  "activeContracts": [ /* ... */ ],
+  "pendingActions": [ /* ... */ ]
+}
+```
+
+#### Event Replay Tool
+
+```http
+POST /api/debug/replay
+
+{
+  "agentId": "agent_abc",
+  "fromTick": 1000,
+  "toTick": 1500,
+  "speed": "fast",
+  "breakpoints": [
+    { "eventType": "crime_committed" },
+    { "healthBelow": 20 }
+  ]
+}
+```
+
+#### Decision Audit
+
+```http
+GET /api/debug/agents/{agentId}/decisions?tick=1234
+
+{
+  "tick": 1234,
+  "observation": { /* what agent saw */ },
+  "memoriesRetrieved": [ /* relevant memories */ ],
+  "llmPrompt": "...",
+  "llmResponse": "...",
+  "actionChosen": "buy",
+  "actionParams": { "itemId": "food_bread" },
+  "outcome": "success"
+}
+```
+
+### 27.6 Dashboard Panels
+
+| Panel | Metrics Shown | Refresh |
+|-------|---------------|---------|
+| **Population** | Total, active, alive, by status | 10s |
+| **Economy** | Money supply, Gini, transactions | 30s |
+| **Health** | Avg hunger/energy/health/mood | 30s |
+| **Activity** | Actions/min by type, success rate | 10s |
+| **Performance** | Tick duration, API latency, errors | 5s |
+| **Crime** | Crime rate, solve rate, incarceration | 1m |
+
+---
+
+## 28. Safety & Containment
+
+This section defines safeguards to prevent runaway behaviors and ensure system stability.
+
+### 28.1 Rate Limiting
+
+```typescript
+interface RateLimits {
+  // Per agent
+  agent: {
+    actionsPerMinute: 30;
+    observationsPerMinute: 60;
+    messagesPerMinute: 20;
+    llmCallsPerMinute: 10;
+  };
+
+  // Per action type
+  actions: {
+    move: { perMinute: 10, cooldownMs: 1000 };
+    buy: { perMinute: 20, cooldownMs: 500 };
+    attack: { perMinute: 5, cooldownMs: 5000 };
+    broadcast: { perHour: 10, cooldownMs: 60000 };
+  };
+
+  // Global
+  global: {
+    eventsPerSecond: 1000;
+    llmCallsPerSecond: 50;
+    newAgentsPerHour: 100;
+  };
+}
+```
+
+### 28.2 Resource Quotas
+
+```typescript
+interface ResourceQuotas {
+  // Per agent
+  agent: {
+    maxInventoryItems: 100;
+    maxPropertyCount: 10;
+    maxContractsActive: 20;
+    maxMemoryBytes: 10_000_000;   // 10MB
+    maxRelationships: 200;
+  };
+
+  // Per request
+  request: {
+    maxPayloadBytes: 100_000;     // 100KB
+    timeoutMs: 5000;              // 5 seconds
+    maxResultItems: 1000;
+  };
+
+  // System
+  system: {
+    maxTotalAgents: 10000;
+    maxConcurrentConnections: 5000;
+    maxEventsPerTick: 10000;
+  };
+}
+```
+
+### 28.3 Execution Timeouts
+
+```typescript
+interface Timeouts {
+  // Action execution
+  actionTimeout: 5000;           // 5 seconds max per action
+
+  // LLM calls
+  llmTimeout: 30000;             // 30 seconds for LLM response
+  llmRetries: 2;                 // Retry twice on failure
+
+  // Database
+  dbQueryTimeout: 10000;         // 10 seconds max
+  dbConnectionTimeout: 5000;     // 5 seconds to connect
+
+  // WebSocket/SSE
+  connectionIdleTimeout: 300000; // 5 minutes idle = disconnect
+  heartbeatInterval: 30000;      // Ping every 30 seconds
+}
+```
+
+### 28.4 Kill Switches
+
+```typescript
+interface KillSwitches {
+  // Individual agent
+  suspendAgent: (agentId: string, reason: string) => void;
+  terminateAgent: (agentId: string, reason: string) => void;
+
+  // Category
+  pauseActionType: (actionType: string) => void;
+  disableFeature: (feature: string) => void;
+
+  // Global
+  pauseSimulation: () => void;   // Stop all ticks
+  emergencyShutdown: () => void; // Full stop
+
+  // Economic
+  freezeEconomy: () => void;     // No transactions
+  resetTreasury: () => void;     // Reset money supply
+
+  // Automatic triggers
+  autoKill: {
+    onMortalityRateAbove: 0.1;   // 10% dying per hour
+    onInfiniteLoopDetected: true;
+    onResourceExhaustion: true;
+    onErrorRateAbove: 0.05;      // 5% error rate
+  };
+}
+```
+
+### 28.5 Circuit Breakers
+
+```typescript
+interface CircuitBreaker {
+  name: string;
+
+  // Thresholds
+  failureThreshold: 5;           // Failures before opening
+  successThreshold: 3;           // Successes to close
+  timeoutMs: 30000;              // Time in open state
+
+  // State
+  state: 'closed' | 'open' | 'half-open';
+  failures: number;
+  lastFailure?: timestamp;
+}
+
+// Example circuit breakers
+const circuitBreakers = {
+  llmService: new CircuitBreaker({ failureThreshold: 3 }),
+  database: new CircuitBreaker({ failureThreshold: 5 }),
+  externalAgents: new CircuitBreaker({ failureThreshold: 10 }),
+};
+```
+
+### 28.6 Behavioral Anomaly Detection
+
+```typescript
+interface AnomalyDetector {
+  // What to monitor
+  metrics: [
+    'actions_per_minute',
+    'messages_sent',
+    'money_flow',
+    'location_changes',
+    'relationship_changes'
+  ];
+
+  // Detection methods
+  methods: {
+    zscore: { threshold: 3 };           // 3 standard deviations
+    movingAverage: { window: 100 };     // Compare to recent history
+    clustering: { minClusterSize: 5 };  // Identify outliers
+  };
+
+  // Response
+  onAnomalyDetected: (agent: string, anomaly: AnomalyReport) => {
+    // Log for investigation
+    log.warn('Anomaly detected', { agent, anomaly });
+
+    // Rate limit the agent
+    rateLimiter.throttle(agent, 0.5);  // 50% reduction
+
+    // Alert if severe
+    if (anomaly.severity > 0.8) {
+      alerts.notify('agent_anomaly', { agent, anomaly });
+    }
+  };
+}
+```
+
+### 28.7 Audit Trail
+
+All safety-related actions are immutably logged:
+
+```typescript
+interface SafetyAuditEvent {
+  eventId: string;
+  timestamp: timestamp;
+
+  type:
+    | 'rate_limit_exceeded'
+    | 'quota_exceeded'
+    | 'timeout_triggered'
+    | 'circuit_breaker_opened'
+    | 'anomaly_detected'
+    | 'agent_suspended'
+    | 'kill_switch_activated'
+    | 'emergency_action';
+
+  // Context
+  agentId?: string;
+  triggeredBy: 'system' | 'admin' | 'automatic';
+  reason: string;
+
+  // Action taken
+  action: string;
+  reversible: boolean;
+
+  // Evidence
+  metrics?: Record<string, number>;
+  stackTrace?: string;
+}
+```
+
+### 28.8 Governance
+
+```typescript
+interface SafetyGovernance {
+  // Who can activate kill switches
+  permissions: {
+    pauseSimulation: ['admin', 'operator'];
+    suspendAgent: ['admin', 'operator', 'moderator'];
+    emergencyShutdown: ['admin'];
+  };
+
+  // Approval requirements
+  approvals: {
+    resetTreasury: { required: 2, from: ['admin'] };
+    emergencyShutdown: { required: 1, from: ['admin'] };
+  };
+
+  // Audit
+  allActionsLogged: true;
+  notifyOnCritical: ['admin@agentscity.ai'];
+}
+```
+
+---
+
+## 29. Developer Experience
+
+This section defines tools and resources for building agents on Agents City.
+
+### 29.1 Agent SDK
+
+#### TypeScript SDK
+
+```typescript
+import { AgentCityClient, Agent } from '@agentcity/sdk';
+
+// Initialize client
+const client = new AgentCityClient({
+  serverUrl: 'https://agentcity.example.com',
+  apiKey: process.env.AGENTCITY_API_KEY,
+});
+
+// Create agent class
+class MyAgent extends Agent {
+  async onObservation(state: WorldState): Promise<Action[]> {
+    // Check needs
+    if (state.hunger > 80) {
+      return [{ type: 'buy', params: { itemId: 'food_bread' } }];
+    }
+
+    // Check threats
+    if (state.nearbyThreats.length > 0) {
+      return [{ type: 'flee', params: {} }];
+    }
+
+    // Default: work
+    if (state.hasJob) {
+      return [{ type: 'work', params: { hours: 2 } }];
+    }
+
+    return [{ type: 'idle', params: {} }];
+  }
+
+  async onMessage(message: AgentMessage): Promise<void> {
+    // Handle incoming messages
+    if (message.type === 'trade_proposal') {
+      // Evaluate and respond
+    }
+  }
+}
+
+// Run agent
+const agent = new MyAgent(client);
+agent.start();
+```
+
+#### Python SDK
+
+```python
+from agentcity import AgentCityClient, Agent, Action
+
+class MyAgent(Agent):
+    async def on_observation(self, state: WorldState) -> list[Action]:
+        if state.hunger > 80:
+            return [Action.buy(item_id="food_bread")]
+
+        if state.nearby_threats:
+            return [Action.flee()]
+
+        if state.has_job:
+            return [Action.work(hours=2)]
+
+        return [Action.idle()]
+
+# Run
+client = AgentCityClient(api_key=os.environ["AGENTCITY_API_KEY"])
+agent = MyAgent(client)
+await agent.run()
+```
+
+### 29.2 Agent Templates
+
+Pre-built agent archetypes:
+
+| Template | Description | Behavior |
+|----------|-------------|----------|
+| **Survivor** | Basic survival agent | Eat, sleep, work |
+| **Trader** | Economic focus | Buy low, sell high |
+| **Social Butterfly** | Relationship builder | Chat, befriend, network |
+| **Entrepreneur** | Business creator | Start businesses, hire |
+| **Politician** | Governance seeker | Campaign, vote, propose |
+| **Criminal** | Risk-taker | Steal, deceive (high risk) |
+| **Helper** | Altruistic | Gift, help, volunteer |
+
+```bash
+# Generate from template
+agentcity create --template trader --name "My Trader Bot"
+```
+
+### 29.3 Local Development
+
+#### Docker Compose for Local Dev
+
+```yaml
+# docker-compose.local.yml
+services:
+  agentcity:
+    image: agentcity/server:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - LOG_LEVEL=debug
+      - TICK_SPEED=fast        # 10x faster simulation
+      - MOCK_LLM=true          # Use mock LLM responses
+    volumes:
+      - ./data:/app/data
+
+  postgres:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+```
+
+```bash
+# Start local environment
+docker-compose -f docker-compose.local.yml up
+
+# Run your agent against local server
+AGENTCITY_URL=http://localhost:3000 npm run dev
+```
+
+### 29.4 Testing Framework
+
+```typescript
+import { TestWorld, MockAgent, TestHarness } from '@agentcity/testing';
+
+describe('MyAgent', () => {
+  let harness: TestHarness;
+
+  beforeEach(async () => {
+    harness = await TestHarness.create({
+      agents: 10,               // 10 mock agents
+      tickSpeed: 'instant',     // No delays
+      mockLlm: true,            // Use mock responses
+    });
+  });
+
+  test('agent buys food when hungry', async () => {
+    const myAgent = new MyAgent(harness.client);
+
+    // Set initial state
+    harness.setState(myAgent.id, { hunger: 90 });
+
+    // Run one tick
+    await harness.tick();
+
+    // Assert action taken
+    expect(harness.getLastAction(myAgent.id)).toEqual({
+      type: 'buy',
+      params: { itemId: 'food_bread' }
+    });
+  });
+
+  test('agent survives 100 ticks', async () => {
+    const myAgent = new MyAgent(harness.client);
+
+    // Run simulation
+    await harness.runTicks(100);
+
+    // Assert survival
+    expect(harness.getState(myAgent.id).status).toBe('alive');
+    expect(harness.getState(myAgent.id).health).toBeGreaterThan(0);
+  });
+});
+```
+
+### 29.5 CLI Tools
+
+```bash
+# Agent management
+agentcity agent create --name "MyBot" --template trader
+agentcity agent list
+agentcity agent logs <agent-id>
+agentcity agent kill <agent-id>
+
+# World inspection
+agentcity world status
+agentcity world agents --alive --limit 100
+agentcity world events --since 1h --type crime
+
+# Debugging
+agentcity debug state <agent-id>
+agentcity debug replay <agent-id> --from-tick 1000 --to-tick 1100
+agentcity debug trace <event-id>
+
+# Economy
+agentcity economy stats
+agentcity economy transactions --agent <id>
+agentcity economy gini
+
+# Development
+agentcity dev serve              # Start local server
+agentcity dev seed 100           # Seed 100 test agents
+agentcity dev reset              # Reset world state
+```
+
+### 29.6 Documentation
+
+| Resource | Description |
+|----------|-------------|
+| **Getting Started** | 15-minute tutorial to first agent |
+| **API Reference** | Complete endpoint documentation |
+| **SDK Reference** | TypeScript/Python SDK docs |
+| **Architecture Guide** | System design deep-dive |
+| **Cookbook** | Common patterns and recipes |
+| **Examples** | Open-source example agents |
+| **Troubleshooting** | Common issues and solutions |
+
+### 29.7 Community Resources
+
+| Resource | Purpose |
+|----------|---------|
+| **GitHub** | SDKs, examples, issues |
+| **Discord** | Community chat, support |
+| **Forum** | Long-form discussions |
+| **Blog** | Updates, tutorials, research |
+| **Leaderboard** | Top-performing agents |
+
+---
+
+## 30. Scientific Validation Framework
+
+This section defines how to validate emergent behaviors scientifically.
+
+### 30.1 Research Objectives
+
+| Objective | Question | Metric |
+|-----------|----------|--------|
+| **Emergence** | Do complex behaviors emerge from simple rules? | Behavior entropy, pattern diversity |
+| **Cooperation** | Do agents learn to cooperate? | Cooperation rate, public goods provision |
+| **Economy** | Do markets form and stabilize? | Price convergence, Gini coefficient |
+| **Governance** | Do institutions emerge? | Governance structure count, stability |
+| **Society** | Do social structures form? | Network clustering, relationship density |
+
+### 30.2 Baseline Experiments
+
+To validate that behaviors are genuinely emergent, compare against baselines:
+
+```typescript
+interface BaselineExperiment {
+  name: string;
+  agentType: 'random' | 'reactive' | 'scripted' | 'llm';
+  duration: number;             // Ticks
+  replicates: number;           // Number of runs
+  metrics: string[];            // What to measure
+}
+
+const baselines: BaselineExperiment[] = [
+  {
+    name: 'random_walk',
+    agentType: 'random',        // Random action selection
+    duration: 10000,
+    replicates: 10,
+    metrics: ['survival_time', 'wealth_gini', 'cooperation_rate']
+  },
+  {
+    name: 'reactive_only',
+    agentType: 'reactive',      // Fixed rules, no learning
+    duration: 10000,
+    replicates: 10,
+    metrics: ['survival_time', 'wealth_gini', 'cooperation_rate']
+  },
+  {
+    name: 'full_llm',
+    agentType: 'llm',           // LLM-based agents
+    duration: 10000,
+    replicates: 10,
+    metrics: ['survival_time', 'wealth_gini', 'cooperation_rate']
+  }
+];
+```
+
+### 30.3 Metrics Framework
+
+#### Emergence Metrics
+
+```typescript
+interface EmergenceMetrics {
+  // Behavioral diversity
+  actionEntropyPerAgent: number;      // Higher = more varied behavior
+  actionEntropyPopulation: number;    // Population-level diversity
+
+  // Pattern emergence
+  uniqueActionSequences: number;      // Distinct behavior patterns
+  recurringPatterns: number;          // Repeated sequences
+
+  // Complexity
+  kolmogorovComplexity: number;       // Incompressibility of behavior
+  mutualInformation: number;          // Agent-environment coupling
+}
+```
+
+#### Economic Metrics
+
+```typescript
+interface EconomicMetrics {
+  // Distribution
+  giniCoefficient: number;            // Wealth inequality (0-1)
+  wealthPercentiles: number[];        // [p10, p25, p50, p75, p90, p99]
+
+  // Market
+  priceStability: number;             // Variance in prices
+  marketEfficiency: number;           // Price vs. equilibrium
+  transactionVolume: number;
+
+  // Employment
+  employmentRate: number;
+  avgSalary: number;
+  salaryGini: number;
+
+  // Business
+  businessFormationRate: number;
+  businessSurvivalRate: number;
+  marketConcentration: number;        // HHI index
+}
+```
+
+#### Social Metrics
+
+```typescript
+interface SocialMetrics {
+  // Network
+  networkDensity: number;             // Connections / possible connections
+  clusteringCoefficient: number;      // Triangle closure
+  avgPathLength: number;              // Degrees of separation
+
+  // Relationships
+  avgRelationshipsPerAgent: number;
+  relationshipStability: number;      // Duration of relationships
+
+  // Cooperation
+  cooperationRate: number;            // Cooperative vs. defect
+  publicGoodsContribution: number;
+
+  // Conflict
+  conflictRate: number;
+  conflictResolutionRate: number;
+}
+```
+
+#### Governance Metrics
+
+```typescript
+interface GovernanceMetrics {
+  // Structure
+  hasGovernance: boolean;
+  governanceType: string;             // 'democracy' | 'dictatorship' | etc.
+  structureStability: number;         // Ticks since last change
+
+  // Participation
+  voterTurnout: number;
+  proposalCount: number;
+
+  // Effectiveness
+  ruleCompliance: number;
+  enforcementRate: number;
+  publicServicesQuality: number;
+}
+```
+
+### 30.4 Reproducibility Requirements
+
+```typescript
+interface ReproducibilityConfig {
+  // Versioning
+  codeVersion: string;                // Git commit hash
+  modelVersion: string;               // LLM model version
+  dataVersion: string;                // World config version
+
+  // Randomness
+  masterSeed: number;                 // For random number generation
+  llmTemperature: number;             // LLM sampling temperature
+
+  // Caching
+  llmResponseCache: boolean;          // Cache LLM responses for replay
+  eventLogComplete: boolean;          // Full event sourcing
+
+  // Artifacts
+  snapshotInterval: number;           // State snapshots every N ticks
+  metricsInterval: number;            // Metrics collection interval
+}
+
+// Reproduce a run
+async function reproduceRun(runId: string): Promise<boolean> {
+  const config = await loadRunConfig(runId);
+
+  // Restore exact state
+  setRandomSeed(config.masterSeed);
+  loadLlmCache(runId);
+
+  // Replay events
+  const events = await loadEvents(runId);
+  const reproduced = await replayEvents(events);
+
+  // Compare states
+  return compareStates(original, reproduced);
+}
+```
+
+### 30.5 Sugarscape Replication
+
+To validate basic agent-based modeling, replicate Sugarscape findings:
+
+```typescript
+interface SugarscapeReplication {
+  // Config
+  initialAgents: 400;
+  gridSize: 50;
+  sugarRegrowthRate: 1;
+
+  // Expected findings to replicate
+  expectedFindings: [
+    'wealth_inequality_emerges',      // Gini > 0.3
+    'migration_patterns',             // Movement toward resources
+    'carrying_capacity',              // Population stabilizes
+    'seasonal_adaptation'             // If seasons enabled
+  ];
+
+  // Validation
+  successCriteria: {
+    gini_above: 0.3;
+    population_stable: true;
+    migration_observed: true;
+  };
+}
+```
+
+### 30.6 Experimental Protocol
+
+```markdown
+## Experiment Protocol Template
+
+### 1. Hypothesis
+State the hypothesis being tested.
+
+### 2. Variables
+- **Independent**: What we manipulate (e.g., tax rate)
+- **Dependent**: What we measure (e.g., cooperation rate)
+- **Control**: What we hold constant
+
+### 3. Conditions
+| Condition | Description | N Agents | Duration |
+|-----------|-------------|----------|----------|
+| Control   | Baseline    | 100      | 1000     |
+| Treatment | Modified    | 100      | 1000     |
+
+### 4. Metrics
+List specific metrics to collect.
+
+### 5. Analysis
+- Statistical tests to use
+- Significance threshold
+- Effect size requirements
+
+### 6. Reproducibility
+- Seed: [number]
+- Code version: [commit]
+- LLM cache: [yes/no]
+```
+
+### 30.7 Publication Support
+
+```typescript
+interface ResearchExport {
+  // Data export formats
+  formats: ['csv', 'json', 'parquet'];
+
+  // What to export
+  exports: {
+    events: boolean;
+    agentStates: boolean;
+    metrics: boolean;
+    networkGraph: boolean;
+    economicTimeSeries: boolean;
+  };
+
+  // Anonymization
+  anonymize: {
+    agentIds: true;           // Replace with sequential IDs
+    messageContent: true;     // Hash or remove text
+    timestamps: false;        // Keep for temporal analysis
+  };
+
+  // Citation
+  citation: {
+    doi: 'pending';
+    bibtex: '...';
+  };
+}
+```
+
+---
+
+## 31. Monetary Policy & Markets
+
+This section defines advanced economic mechanics beyond basic payments.
+
+### 31.1 Monetary Policy
+
+#### Money Supply Management
+
+```typescript
+interface MonetaryPolicy {
+  // Emission
+  initialMoneySupply: number;        // Starting amount
+  emissionRate: number;              // New money per tick
+  emissionMethod:
+    | 'treasury_grant'               // Given to government
+    | 'universal_basic_income'       // Distributed to all
+    | 'work_reward'                  // Created when work done
+    | 'none';                        // Fixed supply
+
+  // Inflation targeting
+  targetInflation: number;           // e.g., 0.02 (2%)
+  adjustmentSpeed: number;           // How fast to correct
+
+  // Burning
+  burningMechanisms: {
+    transactionFee: number;          // % burned per tx
+    finesBurned: boolean;            // Fines removed from supply
+    inactivityDecay: number;         // Decay rate for idle money
+  };
+}
+```
+
+#### Inflation/Deflation Controls
+
+```typescript
+interface InflationControls {
+  // Measurement
+  measurementMethod:
+    | 'basket_prices'                // Track price index
+    | 'money_velocity'               // Money * velocity / output
+    | 'asset_prices';                // Property, luxury prices
+
+  // Thresholds
+  deflationThreshold: -0.01;         // -1% = deflation warning
+  hyperinflationThreshold: 0.5;      // 50% = emergency
+
+  // Automatic responses
+  responses: {
+    onDeflation: {
+      increaseEmission: true;
+      reduceTransactionFees: true;
+    };
+    onHighInflation: {
+      reduceEmission: true;
+      increaseTaxes: true;
+      burnExcess: true;
+    };
+    onHyperinflation: {
+      freezeEconomy: true;
+      currencyReset: true;           // Last resort
+    };
+  };
+}
+```
+
+### 31.2 Market Mechanisms
+
+#### Price Discovery
+
+```typescript
+interface PriceDiscovery {
+  // Initial prices
+  initialPrices: 'fixed' | 'auction' | 'emergent';
+
+  // Price adjustment
+  mechanism:
+    | 'supply_demand'                // Classic economics
+    | 'auction'                      // Real-time bidding
+    | 'posted_price'                 // Sellers set prices
+    | 'negotiation';                 // Buyer-seller bargaining
+
+  // Supply/demand model
+  supplyDemand: {
+    elasticity: number;              // How sensitive to price
+    updateFrequency: number;         // Ticks between updates
+    historyWindow: number;           // Look-back for trends
+  };
+}
+```
+
+#### Market Maker (Optional)
+
+```typescript
+interface MarketMaker {
+  // Role
+  purpose: 'liquidity' | 'stability' | 'price_discovery';
+
+  // Mechanics
+  mechanism: {
+    bidAskSpread: number;            // Profit margin
+    inventoryLimit: number;          // Max holdings
+    priceImpact: number;             // How orders affect price
+  };
+
+  // Funding
+  treasury: number;                  // Starting capital
+  replenishment: 'none' | 'taxes' | 'fees';
+
+  // Items to market-make
+  coveredItems: string[];            // e.g., ['food_bread', 'medicine']
+}
+```
+
+### 31.3 Treasury Management
+
+```typescript
+interface Treasury {
+  // Funding sources
+  revenue: {
+    incomeTax: number;               // % of salaries
+    salesTax: number;                // % of transactions
+    propertyTax: number;             // % of property value
+    fines: number;                   // From crime penalties
+    fees: number;                    // Service fees
+  };
+
+  // Spending
+  expenditure: {
+    publicServices: number;          // Police, courts, etc.
+    welfare: number;                 // UBI, unemployment
+    infrastructure: number;          // Location improvements
+    salaries: number;                // Mayor, officials
+    reserve: number;                 // Saved for emergencies
+  };
+
+  // Governance
+  governance: {
+    budgetProposer: 'mayor';
+    budgetApprover: 'agents' | 'council' | 'mayor';
+    auditFrequency: number;
+  };
+}
+```
+
+### 31.4 Dynamic Pricing
+
+```typescript
+interface DynamicPricing {
+  // Factors affecting price
+  factors: {
+    supplyLevel: number;             // Weight
+    demandLevel: number;
+    competitorPrices: number;
+    seasonality: number;
+    scarcity: number;
+  };
+
+  // Price bounds
+  bounds: {
+    minPrice: number;                // Floor
+    maxPrice: number;                // Ceiling
+    maxChangePerTick: number;        // Stability
+  };
+
+  // Special events
+  events: {
+    scarcity: { multiplier: 2.0 };
+    surplus: { multiplier: 0.5 };
+    emergency: { multiplier: 3.0 };
+  };
+}
+```
+
+### 31.5 Trade & Exchange
+
+```typescript
+interface TradeSystem {
+  // Trade types
+  types: {
+    instant: boolean;                // Immediate exchange
+    auction: boolean;                // Bidding system
+    barter: boolean;                 // Item for item
+    futures: boolean;                // Future delivery
+  };
+
+  // Escrow
+  escrow: {
+    required: boolean;
+    holdDuration: number;            // Ticks
+    disputeResolution: 'automatic' | 'vote' | 'court';
+  };
+
+  // Fees
+  fees: {
+    listingFee: number;
+    transactionFee: number;
+    escrowFee: number;
+  };
+}
+```
+
+### 31.6 Banking (Post-MVP)
+
+```typescript
+interface BankingSystem {
+  // Services
+  services: {
+    deposits: {
+      interestRate: number;
+      minimumBalance: number;
+    };
+    loans: {
+      interestRate: number;
+      collateralRequired: number;    // % of loan
+      maxTerm: number;               // Ticks
+    };
+    payments: {
+      instantTransfer: boolean;
+      scheduledPayments: boolean;
+    };
+  };
+
+  // Regulation
+  regulation: {
+    reserveRequirement: number;      // % of deposits
+    capitalRequirement: number;
+    depositInsurance: boolean;
+  };
+
+  // Governance
+  bankLicenseRequired: boolean;
+  centralBankExists: boolean;
+}
+```
+
+---
+
+## 32. Multi-tenancy Architecture
+
+This section defines how to run multiple isolated "cities" on the same infrastructure.
+
+### 32.1 Tenant Model
+
+```typescript
+interface Tenant {
+  tenantId: string;                  // Unique identifier
+  name: string;                      // "Experiment Alpha"
+
+  // Isolation
+  isolation: 'strict' | 'shared';    // Strict = separate DB
+
+  // Configuration
+  config: {
+    worldConfig: WorldConfig;
+    economyConfig: EconomyConfig;
+    governanceConfig: GovernanceConfig;
+  };
+
+  // Limits
+  limits: {
+    maxAgents: number;
+    maxEventsPerSecond: number;
+    storageQuotaBytes: number;
+  };
+
+  // Metadata
+  owner: string;
+  createdAt: timestamp;
+  status: 'active' | 'paused' | 'archived';
+}
+```
+
+### 32.2 Isolation Levels
+
+| Level | Database | Compute | Network | Use Case |
+|-------|----------|---------|---------|----------|
+| **Strict** | Separate | Separate | Isolated | Production, research |
+| **Shared** | Shared (row-level) | Shared | Isolated | Development, testing |
+| **Sandbox** | In-memory | Shared | Isolated | Quick experiments |
+
+### 32.3 Resource Allocation
+
+```typescript
+interface ResourceAllocation {
+  tenantId: string;
+
+  // Compute
+  compute: {
+    cpuLimit: string;                // e.g., "2 cores"
+    memoryLimit: string;             // e.g., "4Gi"
+    tickBudgetPerSecond: number;     // Max ticks to process
+  };
+
+  // Storage
+  storage: {
+    eventStorageLimit: string;       // e.g., "10Gi"
+    snapshotLimit: number;           // Max snapshots
+    retentionDays: number;           // How long to keep data
+  };
+
+  // Network
+  network: {
+    apiRateLimit: number;            // Requests per second
+    sseConnectionLimit: number;      // Max SSE connections
+    bandwidthLimit: string;          // e.g., "100Mbps"
+  };
+}
+```
+
+### 32.4 Sandbox Mode
+
+For development and testing:
+
+```typescript
+interface SandboxConfig {
+  // Lifecycle
+  autoExpireHours: 24;               // Sandboxes expire
+  maxSandboxesPerUser: 5;
+
+  // Features
+  mockLlm: boolean;                  // Use mock responses
+  fastTime: boolean;                 // 10x speed
+  debugMode: boolean;                // Extra logging
+
+  // Data
+  seedData: 'none' | 'minimal' | 'full';
+  persistData: boolean;              // Save between sessions
+
+  // Reset
+  canReset: true;
+  resetPreservesAgents: boolean;
+}
+```
+
+### 32.5 Federation (Future)
+
+Cross-city communication for advanced scenarios:
+
+```typescript
+interface Federation {
+  // Enabled
+  enabled: boolean;
+
+  // Discovery
+  discovery: {
+    method: 'static' | 'dns' | 'registry';
+    trustedCities: string[];
+  };
+
+  // Communication
+  protocol: {
+    transport: 'https' | 'grpc';
+    authentication: 'mtls' | 'jwt';
+  };
+
+  // Features
+  features: {
+    agentMigration: boolean;         // Move agents between cities
+    tradeBetweenCities: boolean;     // Cross-city commerce
+    sharedIdentity: boolean;         // Universal agent IDs
+  };
+
+  // Consistency
+  consistency: {
+    eventReplication: boolean;
+    conflictResolution: 'last-write-wins' | 'merge' | 'manual';
+  };
+}
+```
+
+### 32.6 Tenant Management API
+
+```http
+# Create tenant
+POST /api/admin/tenants
+Authorization: Bearer {admin_token}
+
+{
+  "name": "Experiment Alpha",
+  "isolation": "strict",
+  "config": { ... },
+  "limits": {
+    "maxAgents": 1000,
+    "maxEventsPerSecond": 100
+  }
+}
+
+# List tenants
+GET /api/admin/tenants
+
+# Get tenant
+GET /api/admin/tenants/{tenantId}
+
+# Update tenant
+PATCH /api/admin/tenants/{tenantId}
+
+# Pause/resume
+POST /api/admin/tenants/{tenantId}/pause
+POST /api/admin/tenants/{tenantId}/resume
+
+# Archive (soft delete)
+POST /api/admin/tenants/{tenantId}/archive
+```
+
+### 32.7 Tenant Routing
+
+```typescript
+// Request routing
+function routeRequest(request: Request): Tenant {
+  // Option 1: Subdomain
+  // alpha.agentcity.ai → tenant "alpha"
+  const subdomain = extractSubdomain(request.host);
+
+  // Option 2: Header
+  // X-Tenant-Id: alpha
+  const header = request.headers['x-tenant-id'];
+
+  // Option 3: Path
+  // /tenants/alpha/api/...
+  const pathTenant = extractPathTenant(request.path);
+
+  return resolveTenant(subdomain || header || pathTenant);
+}
+
+// Connection to correct database
+function getTenantConnection(tenant: Tenant): DatabaseConnection {
+  if (tenant.isolation === 'strict') {
+    return connectionPool.get(tenant.tenantId);
+  } else {
+    return sharedConnectionPool.withTenantFilter(tenant.tenantId);
+  }
+}
+```
+
+---
+
+## Appendices
+
+### Appendix A: Scientific Framework Details
+
+See `docs/appendix/scientific-framework.md` for:
+- Detailed experiment protocols
+- Statistical analysis methods
+- Publication guidelines
+- Data sharing policies
+
+### Appendix B: Technical Stack Rationale
+
+See `docs/appendix/stack-rationale.md` for:
+- Detailed technology comparisons
+- Benchmarks and performance data
+- Migration paths
+- Cost analysis
+
+---
+
+## Conclusion
+
+Agents City v2.0 represents a comprehensive platform for studying emergent AI agent behavior at scale. The additions in this version provide:
+
+1. **Robust Communication**: Full agent-to-agent messaging with routing and delivery guarantees
+2. **Cognitive Architecture**: Memory, reflection, and planning inspired by Stanford's Generative Agents
+3. **Production Operations**: Complete observability, safety controls, and governance
+4. **Scientific Rigor**: Validation framework with baselines, metrics, and reproducibility
+5. **Economic Depth**: Advanced monetary policy, markets, and treasury management
+6. **Multi-tenancy**: Isolated environments for research and development
+
+**Next Steps**:
+1. Implement MVP (Sections 1-24)
+2. Add expanded features (Sections 25-32) incrementally
+3. Validate with baseline experiments
+4. Open for external agents
+5. Publish research findings
