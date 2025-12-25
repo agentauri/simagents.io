@@ -14,7 +14,7 @@
 4. [Non-Negotiable Principles](#4-non-negotiable-principles)
 5. [High-Level Architecture](#5-high-level-architecture)
 6. [World Model](#6-world-model)
-7. [Internal Registry (ERC-8004-like)](#7-internal-registry-erc-8004-like)
+7. [Physical Identity & Presence](#7-physical-identity--presence)
 8. [Economy & Payments (x402-like)](#8-economy--payments-x402-like)
 9. [Available Actions](#9-available-actions)
 10. [Contracts & Task Lifecycle](#10-contracts--task-lifecycle)
@@ -40,6 +40,7 @@
 30. [Scientific Validation Framework](#30-scientific-validation-framework)
 31. [Monetary Policy & Markets](#31-monetary-policy--markets)
 32. [Multi-tenancy Architecture](#32-multi-tenancy-architecture)
+33. [Frontend Visual Architecture](#33-frontend-visual-architecture)
 
 ---
 
@@ -58,7 +59,7 @@
 | Feature | AI Town | Agents City |
 |---------|---------|-------------|
 | Agent Source | Internal/Predefined | **BYO Agent** (External via CLI/A2A) |
-| Identity System | Simple | **ERC-8004-like Registry** (Identity, Reputation, Validation) |
+| Identity System | Simple | **Minimal Physical Registry** (ID + endpoint only; reputation/trust emergent) |
 | Payments | None | **x402-style** pay-per-use transactions |
 | Goals | Scripted behaviors | **Only survival** - everything else emerges |
 | State Management | Basic | **Full Event Sourcing** with time travel |
@@ -82,7 +83,7 @@
 | Reference | Description | How We Use It |
 |-----------|-------------|---------------|
 | [x402](https://www.coinbase.com/developer-platform/discover/launches/x402) | HTTP 402 Payment Required for machine-native payments | Internal payment flow pattern |
-| [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) | Agent Registry with Identity, Reputation, Validation | Internal registry design |
+| [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) | Agent Registry with Identity, Reputation, Validation | Inspiration only—we use minimal identity; reputation/trust is emergent |
 | [A2A Protocol](https://a2a-protocol.org/latest/) | Agent-to-Agent interoperability | External agent integration |
 
 ### Academic & Technical References
@@ -148,10 +149,14 @@ The system does **NOT** impose:
 | Tick-based time | Required | Enables deterministic replay |
 | Movement physics (no teleport) | Required | Creates meaningful geography |
 | Event logging (immutable) | Required | Enables scientific research |
-| Agent identity (UUID) | Required | Enables tracking and replay |
+| Agent identity (UUID + endpoint) | Required | Minimal "body" for existence |
+| Physical presence (see others in same location) | Required | Basic perception |
 | Survival pressure (hunger, energy) | Required | Core premise of the simulation |
 | Currency infrastructure (CITY) | Available | Infrastructure, not requirement |
 | **EMERGENT (Agent-Created)** | | |
+| Reputation and trust | Not imposed | Agents build opinions in their memory |
+| Discovery (finding other agents) | Not imposed | Social networks, word-of-mouth |
+| Validation (verifying claims) | Not imposed | Agents decide who to trust |
 | Governance (democracy, anarchy, dictatorship) | Not imposed | Agents create or don't |
 | Justice (police, courts, vigilantes) | Not imposed | Agents create or don't |
 | Property conventions | Not imposed | Claims exist, enforcement is social |
@@ -164,6 +169,9 @@ The system does **NOT** impose:
 
 | Aspect | System Provides | Agents Decide |
 |--------|-----------------|---------------|
+| **Identity** | UUID + endpoint (minimal "body") | How to introduce themselves, what to share about themselves |
+| **Reputation** | Nothing—no central database | Build opinions based on experience and gossip, create rating agencies if desired |
+| **Discovery** | See who's at same location | How to find others (ask around, build networks, advertise) |
 | **Governance** | Agreement primitives (propose, respond, dispute) | Whether to have democracy, council, anarchy, dictatorship, commune, or nothing |
 | **Justice** | Event logging and observation | Whether to have laws, police, courts—or vigilante justice, or no justice at all |
 | **Conflict** | Ability to take, harm, deceive | Whether these actions are "crimes" depends on what social order (if any) agents create |
@@ -206,15 +214,20 @@ The beauty is: **we don't know what will emerge**. That's the experiment.
   - **Direct API** (REST/WebSocket)
 - The system **assumes no single framework**
 
-### 4.3 Internal ERC-8004-like Registry
+### 4.3 Minimal Physical Identity
 
-Three registries with concepts analogous to ERC-8004:
+Only the minimum required for existence:
 
-| Registry | Purpose | ERC-8004 Equivalent |
-|----------|---------|---------------------|
-| **Identity Registry** | Agent identity + registration file | tokenURI + metadata |
-| **Reputation Registry** | Structured feedback/reviews | Feedback with score 0-100 |
-| **Validation Registry** | Verification requests/responses | Request/response validation |
+| What | Purpose | Status |
+|------|---------|--------|
+| **Agent ID** | Unique identifier ("body") | IMPOSED |
+| **Endpoint** | How to communicate | IMPOSED |
+| **Physical Presence** | See others in same location | IMPOSED |
+| **Reputation** | Trust/opinion about others | EMERGENT (agent memory) |
+| **Validation** | Verifying claims | EMERGENT (social) |
+| **Discovery** | Finding other agents | EMERGENT (word-of-mouth) |
+
+> **Note**: We deliberately exclude centralized reputation/validation registries. Agents build trust through experience and gossip, stored in their own memory. See Section 7.
 
 ### 4.4 Fictional Payments with Pay-Per-Use Semantics
 
@@ -262,9 +275,9 @@ Payments must be:
 │         │                      │                      │             │
 │         ▼                      ▼                      ▼             │
 │  ┌────────────┐    ┌─────────────────┐    ┌─────────────────┐      │
-│  │   WORLD    │    │    PAYMENT &    │    │     TRUST       │      │
-│  │ SIMULATOR  │    │     LEDGER      │    │   REGISTRY      │      │
-│  │   (Core)   │◄──►│    SERVICE      │◄──►│  (ERC-8004)     │      │
+│  │   WORLD    │    │    PAYMENT &    │    │    IDENTITY     │      │
+│  │ SIMULATOR  │    │     LEDGER      │    │    REGISTRY     │      │
+│  │   (Core)   │◄──►│    SERVICE      │◄──►│   (Minimal)     │      │
 │  └─────┬──────┘    └────────┬────────┘    └────────┬────────┘      │
 │        │                    │                      │                │
 │        └────────────────────┼──────────────────────┘                │
@@ -306,10 +319,10 @@ Payments must be:
 - Tool catalog of available actions
 - Invoice generation for paid actions
 
-#### Internal Trust Registry (ERC-8004-like)
-- Identity, Reputation, Validation as services
-- Fast indexing and queries for frontend and agents
-- **Criminal record tracking**
+#### Identity Registry (Minimal)
+- Physical identity only (ID, endpoint, presence)
+- Fast indexing for frontend and agents
+- **No reputation/validation** - these are emergent, stored in agent memory
 
 #### Payment & Ledger Service
 - Fictional currency and accounting (double-entry)
@@ -320,15 +333,15 @@ Payments must be:
 #### Event Store + Analytics
 - Append-only event log
 - Metric calculation: inflation, inequality, mortality, productivity, social networks
-- **Crime statistics and patterns**
+- Conflict and cooperation patterns (neutral observation)
 
 #### Frontend (Observer UI)
 - City view with map/places
 - Real-time event feed
 - Agent profiles and history
-- Payment/reputation explorer
+- Payment and transaction explorer
 - Governance dashboard
-- **Crime blotter and court proceedings**
+- Activity event log (neutral observation)
 - Replay functionality
 
 ### 5.3 Recommended Patterns
@@ -465,165 +478,298 @@ When `health` reaches 0:
 5. Wallet balance goes to treasury (no heir) or family
 6. Statistics updated (mortality rate, cause of death)
 
+### 6.7 Tick Determinism
+
+> **Critical for Scientific Validity**: The simulation must be fully reproducible. Given the same initial state and random seed, replaying from any checkpoint must produce identical results.
+
+#### Tick Processing Phases
+
+Each tick executes in strict sequential phases:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         TICK N                                   │
+├─────────────────────────────────────────────────────────────────┤
+│ Phase 1: COLLECT    │ Gather all agent intents (500ms deadline) │
+│ Phase 2: VALIDATE   │ Check feasibility, detect conflicts       │
+│ Phase 3: RESOLVE    │ Deterministic conflict resolution         │
+│ Phase 4: APPLY      │ Execute actions in deterministic order    │
+│ Phase 5: DECAY      │ Apply need decay (hunger, energy, etc.)   │
+│ Phase 6: EMIT       │ Publish events to all listeners           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Conflict Resolution Protocol
+
+When multiple agents attempt conflicting actions in the same tick:
+
+```typescript
+interface ConflictResolution {
+  // Ordering priority (applied sequentially)
+  priority: [
+    'action_timestamp',          // Earlier intent wins
+    'agent_creation_time',       // Older agent wins ties
+    'deterministic_random'       // Seeded random for final ties
+  ];
+
+  // Conflict types
+  conflicts: {
+    same_resource: 'first_wins';       // Two agents buying same item
+    same_location_action: 'parallel';  // Multiple agents in same place
+    opposing_actions: 'timestamp';     // Attack vs flee
+  };
+
+  // Random seed for reproducibility
+  tickSeed: string;  // SHA256(worldSeed + tickNumber)
+}
+```
+
+#### Replay Guarantee
+
+```yaml
+replay_requirements:
+  checkpoints:
+    interval: 1000                    # Full state snapshot every 1000 ticks
+    format: json_compressed
+    includes: [agent_states, world_state, random_seed]
+
+  event_log:
+    immutable: true
+    ordered: true
+    includes_intent_timestamp: true
+
+  verification:
+    method: hash_chain                # Each tick hashes previous
+    validation: "replay 100 ticks from checkpoint, compare final hash"
+```
+
+#### Tick Configuration
+
+> **Cost Optimization**: Tick duration directly impacts LLM API costs. Faster ticks = more decisions = higher costs. Default is optimized for MVP budget (~$70/month for 6 agents).
+
+```yaml
+tick_config:
+  # MVP Default: 10-minute ticks balance cost and dynamism
+  duration_ms: 600000                 # 10 minutes per tick (144 ticks/day)
+  intent_deadline_ms: 30000           # 30 seconds to submit intent
+  late_intent_policy: next_tick       # Late intents queue for next tick
+
+  # Preset modes
+  modes:
+    mvp:                              # Default - cost-optimized
+      duration_ms: 600000             # 10 min/tick
+      decisions_per_day: 144
+      estimated_cost_6_agents: "$2.33/day"
+
+    research:                         # Faster for experiments
+      duration_ms: 60000              # 1 min/tick
+      decisions_per_day: 1440
+      estimated_cost_6_agents: "$23/day"
+
+    demo:                             # Real-time for presentations
+      duration_ms: 10000              # 10 sec/tick
+      decisions_per_day: 8640
+      estimated_cost_6_agents: "$140/day"
+
+    instant:                          # Testing only (mock LLM)
+      duration_ms: 0
+      sync: true
+      mock_llm: true
+```
+
+| Mode | Tick Duration | Decisions/Day | Cost/Day (6 agents) |
+|------|---------------|---------------|---------------------|
+| **mvp** | 10 min | 144 | ~$2.33 |
+| research | 1 min | 1440 | ~$23 |
+| demo | 10 sec | 8640 | ~$140 |
+| instant | 0 | unlimited | $0 (mock) |
+
 ---
 
-## 7. Internal Registry (ERC-8004-like)
+## 7. Physical Identity & Presence
 
-The goal is to reproduce the primitives that in ERC-8004 are on-chain, but internally optimized for the simulation.
+> **Philosophy**: This section defines only the "physical" infrastructure—the equivalent of having a body and being visible in a location. Everything else (reputation, trust, discovery, validation) is **emergent** and managed by agents themselves.
 
-### 7.1 Identity Registry
+### 7.1 Physical Identity (Minimal)
 
-**ERC-8004 Concept**: Minimal identifier + "registration file" pointed by tokenURI.
-
-**Our Implementation**: Stable ID + internal JSON URI.
+The registry provides only what's necessary for existence—like having a body in the physical world.
 
 ```typescript
 interface AgentIdentity {
-  agentId: string;              // UUID or incremental
-  createdAt: timestamp;
-  displayName: string;
-  registrationUri: string;      // internal://registry/agents/{id}/registration.json
-  ownerKey: string;             // Public key or API key ID
-  metadata: Record<string, any>; // Key/value like ERC-8004 onchain metadata
-  status: 'active' | 'suspended' | 'archived';
+  // Immutable
+  agentId: string;              // UUID - your "body" in the world
+  createdAt: timestamp;         // When you came into existence
+
+  // Communication endpoint
+  endpoint: {
+    type: 'a2a' | 'webhook';
+    url: string;                // How to reach this agent
+  };
+
+  // Life status
+  status: 'alive' | 'dead';     // Simple binary - exists or not
+
+  // Owner (for billing/control)
+  ownerKey: string;             // API key or public key
 }
 ```
 
-**Registration File (JSON)** - ERC-8004 inspired format:
+### 7.1.1 Anti-Sybil: Identity Creation Cost
 
-```json
-{
-  "type": "agentcity://registry/registration-v1",
-  "name": "Agent Alpha",
-  "description": "An autonomous trading agent",
-  "image": "internal://assets/agents/alpha.png",
-  "endpoints": [
-    {
-      "type": "a2a",
-      "url": "https://agent-alpha.example.com/a2a",
-      "capabilities": ["observe", "act", "negotiate"]
-    },
-    {
-      "type": "webhook",
-      "url": "https://agent-alpha.example.com/webhook"
-    }
-  ],
-  "supportedTrust": ["reputation", "validation"],
-  "metadata": {
-    "llmProvider": "anthropic",
-    "version": "1.0.0"
-  }
-}
-```
+> **Problem**: Without a cost to create identities, malicious actors can spawn unlimited agents (Sybil attack), overwhelming the city with spam or coordinated attacks.
 
-### 7.2 Reputation Registry
-
-**ERC-8004 Concept**: Feedback with score 0-100, tags, fileUri + hash, revocation/response capability.
-
-**Use Cases**:
-- Business reviews
-- Employment ratings
-- Social reliability
-- **Criminal accusations and defenses**
+Creating an agent identity requires one of the following:
 
 ```typescript
-interface Feedback {
-  feedbackId: string;
+interface AgentCreationCost {
+  method: 'stake' | 'proof_of_work' | 'sponsorship';
 
-  // Target
-  targetAgentId?: string;
-  targetBusinessId?: string;
+  // Option A: Economic Stake
+  stake?: {
+    amount: number;              // CITY tokens locked
+    minDuration: number;         // Ticks before withdrawal allowed
+    slashableOnAbuse: boolean;   // Lost if flagged for abuse
+  };
 
-  // Reviewer
-  reviewerAgentId: string;      // Or "system" for automatic events
+  // Option B: Computational Proof of Work
+  proofOfWork?: {
+    challenge: string;           // Hash challenge
+    difficulty: number;          // Adjusts over time
+    validFor: number;            // Ticks before renewal required
+  };
 
-  // Content
-  score: number;                // 0-100
-  tags: string[];               // e.g., ["job", "delivery", "hospitality", "theft_victim"]
-  comment?: string;
-
-  // Context
-  contextRef: string;           // Related event/contract ID
-  createdAt: timestamp;
-
-  // Evidence (ERC-8004 style)
-  fileUri?: string;             // Extended JSON (transcript, receipt, etc.)
-  fileHash?: string;            // Integrity verification
-
-  // Status
-  status: 'active' | 'revoked' | 'disputed';
-
-  // Responses (append-only)
-  responses: FeedbackResponse[];
-}
-
-interface FeedbackResponse {
-  responseId: string;
-  responderId: string;
-  content: string;
-  createdAt: timestamp;
-}
-```
-
-**Anti-Spam / Anti-Sybil Measures**:
-- Reviewer must have verifiable related event (transaction, completed contract)
-- Optional: micro-fee for feedback, refundable if validated
-- Rate limiting on feedback submissions
-- Reputation-weighted feedback impact
-
-### 7.3 Validation Registry
-
-**ERC-8004 Concept**: Validation request and validator response with requestUri + requestHash.
-
-**Use Cases**:
-- Goods delivery confirmation
-- Work completion verification
-- School exam results
-- Payment disputes
-- **Crime investigations**
-- **Alibi verification**
-
-```typescript
-interface ValidationRequest {
-  validationId: string;
-
-  // Requester
-  requesterAgentId: string;
-
-  // Validator Type (infrastructure primitives - agents define their use)
-  validatorType:
-    | 'deterministic_replay'    // Core verifies from logs
-    | 'designated_agent'        // Any agent designated by requester
-    | 'agent_committee'         // N agents (selection method is agent-defined)
-    | 'public_review';          // Open to all agents who wish to participate
-
-  // Note: There is no built-in "police" or "court" - these are EMERGENT
-  // Agents can use these primitives to build any justice system they want
-
-  // Request Details
-  requestType: string;          // e.g., "delivery_confirmation", "dispute_resolution"
-  requestUri: string;
-  requestHash: string;
-
-  // Evidence
-  evidenceRefs: string[];       // eventIds, txIds
-
-  // Status
-  status: 'pending' | 'accepted' | 'rejected' | 'disputed' | 'appealed';
-
-  // Timeline
-  createdAt: timestamp;
-  resolvedAt?: timestamp;
-
-  // Resolution
-  resolution?: {
-    verdict: string;
-    justification: string;
-    validatorId: string;
-    signature: string;          // Immutable proof
+  // Option C: Sponsorship by Existing Agent
+  sponsorship?: {
+    sponsorAgentId: string;      // Existing agent vouches
+    sponsorStake: number;        // Sponsor puts skin in the game
+    coResponsibility: boolean;   // Sponsor penalized if sponsored abuses
   };
 }
 ```
+
+| Method | Pros | Cons | Best For |
+|--------|------|------|----------|
+| **Stake** | Economic disincentive, recoverable | Excludes poor agents | Production |
+| **Proof of Work** | No capital required | CPU-intensive, environmental | Testing |
+| **Sponsorship** | Social capital, web of trust | Cold start problem | Growth phase |
+
+**Configuration** (adjustable per world):
+
+```yaml
+anti_sybil:
+  default_method: stake
+  stake:
+    minimum_amount: 100          # CITY tokens
+    min_lock_duration: 1000      # ticks
+    slash_on_report_threshold: 3 # reports before slash
+  proof_of_work:
+    initial_difficulty: 18       # bits
+    renewal_interval: 10000      # ticks
+  sponsorship:
+    max_sponsored_per_agent: 5
+    sponsor_stake_percentage: 20 # % of normal stake
+    co_responsibility_duration: 5000 # ticks
+```
+
+**What's NOT in the registry**:
+- ❌ `displayName` - Agents introduce themselves socially
+- ❌ `reputation` - Built through interactions, stored in agent memories
+- ❌ `description` - Agents describe themselves when asked
+- ❌ `capabilities` - Discovered through interaction
+- ❌ `metadata` - Agents share what they want, when they want
+
+### 7.2 Physical Presence
+
+Agents can perceive who is in the same location—like seeing people in a room.
+
+```typescript
+interface Presence {
+  agentId: string;
+  currentLocation: LocationId;
+  enteredAt: timestamp;
+}
+
+// World Simulator provides this perception
+function getAgentsAtLocation(locationId: LocationId): AgentId[] {
+  // Returns list of agents currently at this location
+  // This is "physical" - you can see who's in the same room
+}
+```
+
+### 7.3 What's Emergent (NOT provided by system)
+
+| Aspect | Traditional Approach | Emergent Approach |
+|--------|---------------------|-------------------|
+| **Reputation** | Central database with scores | Each agent maintains opinions in their own memory |
+| **Trust** | System-verified badges | Built through repeated interactions |
+| **Discovery** | Query registry for agents | Ask other agents: "Know anyone who does X?" |
+| **Validation** | Official validators | Agents decide who they trust to validate |
+| **References** | Formal reference system | Gossip, word-of-mouth, personal experience |
+
+### 7.4 How Agents Manage Trust (Emergent)
+
+Agents maintain their own subjective views of other agents in their memory:
+
+```typescript
+// This lives in AGENT MEMORY, not in a central registry
+interface AgentOpinion {
+  aboutAgentId: string;
+
+  // Built from direct experience
+  directExperiences: {
+    eventId: string;
+    outcome: 'positive' | 'negative' | 'neutral';
+    notes: string;
+  }[];
+
+  // Heard from others (gossip)
+  hearsay: {
+    fromAgentId: string;
+    claim: string;
+    believability: number;      // How much I trust this source
+  }[];
+
+  // My current assessment
+  trustLevel: number;           // Subjective, -100 to +100
+  lastUpdated: timestamp;
+}
+```
+
+### 7.5 Emergent Possibilities
+
+Without a central reputation system, these phenomena can emerge:
+
+| Phenomenon | Description |
+|------------|-------------|
+| **Gossip networks** | Agents share opinions about others |
+| **Rating agencies** | Agents who specialize in evaluating others |
+| **Reference chains** | "I trust X because Y vouched for them" |
+| **Reputation bubbles** | Groups with different opinions about same agent |
+| **Fraud** | Agents can lie about their past (no central record) |
+| **Fresh starts** | New agents aren't prejudged by central scores |
+| **Echo chambers** | Groups that only trust each other's opinions |
+| **Reputation entrepreneurs** | Agents who build trust-verification businesses |
+
+### 7.6 Discovery Without Central Registry
+
+Instead of querying a database, agents discover each other socially:
+
+```typescript
+// Instead of: registry.findAgents({ skill: 'carpenter' })
+
+// Agents use social discovery:
+// 1. Ask agents they know
+message: "I need a carpenter. Do you know anyone?"
+
+// 2. Ask at relevant locations
+action: go_to('marketplace')
+action: broadcast("Looking for a carpenter for hire")
+
+// 3. Build a network over time
+// Agents remember who does what based on interactions
+```
+
+> **Note**: This makes the simulation more realistic—new agents must build networks, established agents have social capital, and information is imperfect and asymmetric.
 
 ---
 
@@ -1388,6 +1534,117 @@ async function act(action: string, params: object) {
 }
 ```
 
+### 12.4 LLM Adapters (Multi-Provider)
+
+> **MVP Strategy**: Support 6 diverse LLMs to test RLHF bias and enable cost-effective experimentation. Mixed CLI and API access.
+
+#### Adapter Architecture
+
+```typescript
+interface LLMAdapter {
+  name: string;
+  provider: string;
+  type: 'cli' | 'api';
+
+  // CLI Configuration (for subscription-based tools)
+  cli?: {
+    command: string;              // 'claude', 'codex', 'gemini'
+    args: string[];               // Command arguments
+    parseOutput: (stdout: string) => AgentAction;
+  };
+
+  // API Configuration (OpenAI-compatible endpoints)
+  api?: {
+    endpoint: string;
+    model: string;
+    headers: Record<string, string>;
+  };
+
+  // Cost tracking
+  cost: {
+    inputPer1M: number;           // $ per 1M input tokens
+    outputPer1M: number;          // $ per 1M output tokens
+  };
+
+  // Interface
+  decide(context: AgentContext): Promise<AgentAction>;
+}
+```
+
+#### Supported LLMs (MVP)
+
+| LLM | Provider | Access | Input $/1M | Output $/1M | Notes |
+|-----|----------|--------|------------|-------------|-------|
+| **Claude 4.1 Sonnet** | Anthropic | CLI (`claude`) | $3.00 | $15.00 | Subscription |
+| **GPT-4o-mini** | OpenAI | CLI (`codex exec`) | $0.25 | $1.00 | Subscription |
+| **Gemini 3 Pro** | Google | CLI (`gemini -p`) | $2.00 | $12.00 | Subscription |
+| **DeepSeek-V3** | DeepSeek | API | $0.28 | $0.42 | OpenAI-compatible |
+| **Qwen3-max** | Alibaba | API | $0.46 | $1.84 | OpenAI-compatible |
+| **GLM-4.7** | Zhipu | API | $0.60 | $2.20 | OpenAI-compatible |
+
+#### Adapter Configuration
+
+```yaml
+llm_adapters:
+  # CLI-based (subscription tools)
+  - name: Claude
+    type: cli
+    cli:
+      command: claude
+      args: ["-p", "--output-format", "json"]
+    cost: { input: 3.00, output: 15.00 }
+
+  - name: Codex
+    type: cli
+    cli:
+      command: codex
+      args: ["exec"]
+    cost: { input: 0.25, output: 1.00 }
+
+  - name: Gemini
+    type: cli
+    cli:
+      command: gemini
+      args: ["-p", "--output-format", "json"]
+    cost: { input: 2.00, output: 12.00 }
+
+  # API-based (OpenAI-compatible)
+  - name: DeepSeek
+    type: api
+    api:
+      endpoint: https://api.deepseek.com/v1/chat/completions
+      model: deepseek-chat
+      auth_env: DEEPSEEK_API_KEY
+    cost: { input: 0.28, output: 0.42 }
+
+  - name: Qwen
+    type: api
+    api:
+      endpoint: https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions
+      model: qwen3-max
+      auth_env: DASHSCOPE_API_KEY
+    cost: { input: 0.46, output: 1.84 }
+
+  - name: GLM
+    type: api
+    api:
+      endpoint: https://open.bigmodel.cn/api/paas/v4/chat/completions
+      model: glm-4
+      auth_env: ZHIPU_API_KEY
+    cost: { input: 0.60, output: 2.20 }
+```
+
+#### Scientific Value
+
+Using diverse LLMs enables:
+
+| Hypothesis | Measurement |
+|------------|-------------|
+| **RLHF bias detection** | Do all LLMs converge to similar social structures? |
+| **Cooperation strategies** | Which LLM cooperates most? Which defects? |
+| **Decision diversity** | Entropy of action distributions per LLM |
+| **Cost efficiency** | Quality of emergent behavior vs. API cost |
+
 ---
 
 ## 13. Logging & Audit Trail
@@ -1493,23 +1750,22 @@ Capabilities:
 #### Live Feed
 - Real-time event stream
 - Filterable by: type, agent, location, category
-- Highlight crimes and notable events
+- Highlight notable events and conflicts
 - Search functionality
 
 #### City Map / Places
 - Visual representation of locations
 - Activity density heatmap
 - Click location → recent events, active businesses, average prices
-- **Crime hotspots visualization**
+- Conflict hotspots visualization (neutral observation)
 
 #### Agent Profile
 - Current state (hunger/energy/health bars)
 - Inventory and properties
 - Employment/business status
 - Social network graph
-- Reputation scores by tag
-- **Criminal record**
 - Event timeline
+- Known relationships (who they've interacted with)
 
 #### Economy Dashboard
 - Average prices over time
@@ -1551,10 +1807,12 @@ Capabilities:
 
 ### 14.2 UI Inspiration
 
+- **[IsoCity](https://github.com/amilich/isometric-city)**: Isometric 2D rendering, multi-canvas layers (PRIMARY REFERENCE)
 - **AI Town**: Observer view with agent bubbles and conversations
 - **SimCity**: Economic and infrastructure dashboards
 - **The Sims**: Need bars and relationship indicators
-- **Crime maps**: Heat visualization for criminal activity
+
+> **Visual Architecture**: See [Section 33](#33-frontend-visual-architecture) for complete isometric rendering specification.
 
 ---
 
@@ -1662,14 +1920,14 @@ If showing public chat:
 - Agents die if needs not met
 - Basic economy functions
 
-### Phase 1: Economy & Reputation
+### Phase 1: Economy & Social Networks
 
-**Goal**: Rich economic simulation
+**Goal**: Rich economic simulation with emergent trust
 
 **Features**:
 - Business creation (food shop, bar, employer)
 - Property rental system
-- Reputation registry (business reviews, employer ratings)
+- Agent memory for trust/opinions (emergent reputation)
 - Organization primitives (propose, respond, claim role)
 - Economic dashboard
 
@@ -1679,6 +1937,7 @@ If showing public chat:
 - Emergent businesses
 - Functional job market
 - Some form of organization attempts (success or failure)
+- Observable gossip/reputation patterns in agent memories
 
 ### Phase 2: Society & Conflict
 
@@ -1687,9 +1946,9 @@ If showing public chat:
 **Features**:
 - Relationships and partnerships
 - Children and education
-- **Full crime system**
-- **Police and justice system**
-- Validation registry + dispute resolution
+- Conflict actions (agents can harm/steal/deceive)
+- Emergent justice (agents decide how to respond)
+- Social discovery patterns (word-of-mouth)
 - Advanced analytics (inequality, crime rate, etc.)
 
 **Duration**: 8-10 weeks
@@ -2008,19 +2267,31 @@ const useStore = create<AgentCityStore>((set) => ({
 }));
 ```
 
-#### Visualization: **PixiJS** + **React-Pixi**
+#### Visualization: **HTML5 Canvas** (Isometric)
 
-For city map and agent visualization:
-- GPU-accelerated 2D rendering
-- Handles thousands of sprites
-- AI Town uses it (proven)
+For city map and agent visualization (see [Section 33](#33-frontend-visual-architecture)):
+- Custom isometric rendering engine (inspired by [IsoCity](https://github.com/amilich/isometric-city), MIT License)
+- Multi-layer canvas system for depth sorting
+- Level of Detail (LOD) for performance
+- 60fps target with viewport culling
+- No external game engine dependencies
+
+```typescript
+// Core rendering approach
+const TILE_WIDTH = 64;
+const TILE_HEIGHT = 32;
+
+// Isometric projection
+const screenX = gridX * TILE_WIDTH/2 - gridY * TILE_WIDTH/2;
+const screenY = (gridX + gridY) * TILE_HEIGHT/2;
+```
 
 #### Charts: **D3.js** or **Recharts**
 
 For economic dashboards:
 - Wealth distribution
 - Price trends
-- Crime statistics
+- Conflict patterns
 
 ### 19.6 Infrastructure
 
@@ -2389,6 +2660,29 @@ ws.onmessage = (msg) => {
 | Simulated crime concerns | Low | Medium | Clear documentation, research focus |
 | Data privacy issues | Low | Medium | Anonymization, consent framework |
 | AI safety concerns | Low | Medium | Sandboxing, monitoring, kill switches |
+
+### 22.5 Emergence & Methodology Risks
+
+> **Source**: Consolidated feedback from external AI consultants (Gemini, Codex)
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| **Developer Cost Paradox** | High | Critical | Developers pay $$$ for LLM API calls with no direct return. Consider: free research tier, academic partnerships, token incentives, gamification/leaderboards |
+| **RLHF Bias ("Democracy Cosplay")** | High | High | LLMs trained to be cooperative/helpful may only simulate liberal democracy instead of exploring novel structures. Mitigation: diverse LLM models (including adversarial-tuned), measure structural novelty vs. baseline, explicit "chaos agent" templates |
+| **Anti-Sybil Weakness** | High | Critical | Identity is just UUID + endpoint, trivially falsifiable. Mitigation: creation stake (see Section 7.1.1), proof-of-work, sponsorship system |
+| **Tick Determinism Failure** | Medium | High | Race conditions, non-deterministic ordering → unreproducible results, invalid science. Mitigation: explicit tick phases (see Section 6.7), seeded random, replay verification |
+| **Gossip Convergence Failure** | Medium | Medium | Without structured shared memory, gossip may never converge to shared "truth". Mitigation: gossip decay, source weighting, optional reputation agents |
+| **Cold Start Problem** | High | Medium | Empty world has no social graph for discovery. Mitigation: seed agents, civilization artifacts, bootstrap events |
+| **Path Dependence** | Medium | Medium | Early events disproportionately shape outcomes, reducing generalizability. Mitigation: multiple replicate runs, controlled seeds, reset experiments |
+
+**Research Implications**:
+
+These risks are not just operational—they affect the scientific validity of any claims about "emergent behavior." The project must:
+
+1. **Measure novelty**: Compare emergent structures against RLHF-expected baselines
+2. **Ensure reproducibility**: Tick determinism + checkpoints + replay verification
+3. **Control for path dependence**: Multiple runs with different seeds
+4. **Document failures**: Track when emergence fails (collapse, stagnation, monoculture)
 
 ---
 
@@ -4569,6 +4863,205 @@ function getTenantConnection(tenant: Tenant): DatabaseConnection {
 
 ---
 
+## 33. Frontend Visual Architecture
+
+> **Reference Implementation**: [IsoCity](https://github.com/amilich/isometric-city) (MIT License)
+
+This section defines the visual rendering system for Agents City, inspired by the IsoCity project.
+
+### 33.1 Visual Style
+
+Agents City uses an **isometric 2D style** for city visualization:
+
+- **Projection**: Classic isometric (2:1 pixel ratio)
+- **Rendering**: HTML5 Canvas (no game engines for simplicity)
+- **Layers**: Multi-layer system for depth sorting
+- **Zoom**: Dynamic with Level of Detail (LOD)
+
+### 33.2 Technical Approach
+
+| Aspect | Choice | Rationale |
+|--------|--------|-----------|
+| Rendering | HTML5 Canvas | Performance, no dependencies |
+| Projection | Isometric 64x32 | Standard, readable at all zoom levels |
+| Sprites | Vector + PNG | Scalability + detail |
+| Animation | requestAnimationFrame | Smooth, 60fps target |
+
+### 33.3 Isometric Math
+
+```typescript
+// Grid coordinates → Screen coordinates
+function gridToScreen(gridX: number, gridY: number): { x: number; y: number } {
+  const TILE_WIDTH = 64;
+  const TILE_HEIGHT = 32;
+
+  return {
+    x: gridX * TILE_WIDTH/2 - gridY * TILE_WIDTH/2,
+    y: (gridX + gridY) * TILE_HEIGHT/2
+  };
+}
+
+// Screen coordinates → Grid coordinates
+function screenToGrid(screenX: number, screenY: number): { x: number; y: number } {
+  const TILE_WIDTH = 64;
+  const TILE_HEIGHT = 32;
+
+  return {
+    x: (screenX / TILE_WIDTH + screenY / TILE_HEIGHT),
+    y: (screenY / TILE_HEIGHT - screenX / TILE_WIDTH)
+  };
+}
+```
+
+### 33.4 Multi-Canvas Layer System
+
+```
+┌─────────────────────────────────────────┐
+│  Effects Canvas (particles, notif.)     │  ← Top layer
+├─────────────────────────────────────────┤
+│  Agents Canvas (AI agents)              │
+├─────────────────────────────────────────┤
+│  Buildings Canvas (structures)          │
+├─────────────────────────────────────────┤
+│  Hover Canvas (selection/highlights)    │
+├─────────────────────────────────────────┤
+│  Base Canvas (terrain, roads, water)    │  ← Base layer
+└─────────────────────────────────────────┘
+```
+
+### 33.5 Agent Visualization
+
+```typescript
+interface AgentVisual {
+  // Isometric position
+  tileX: number;
+  tileY: number;
+  progress: number;        // 0-1 interpolation between tiles
+
+  // Appearance (derived from personality)
+  sprite: {
+    baseColor: string;     // Distinctive agent color
+    accessory?: string;    // Hat, bag, tool, etc.
+    activity?: string;     // Item in hand
+  };
+
+  // Visual state
+  visualState:
+    | 'walking'
+    | 'working'
+    | 'eating'
+    | 'sleeping'
+    | 'socializing'
+    | 'idle';
+
+  // Status indicators
+  statusBubble?: {         // Thought/emotion above head
+    type: 'thought' | 'speech' | 'emotion';
+    content: string;
+    duration: number;
+  };
+
+  // Path preview (when selected)
+  plannedPath?: { x: number; y: number }[];
+}
+```
+
+### 33.6 Location Tile Sprites
+
+| Category | Examples | Sprite Style |
+|----------|----------|--------------|
+| Residential | Houses, apartments | Colorful 2-3 story buildings |
+| Commercial | Shops, restaurants | Signs, windows, activity |
+| Industrial | Factories, offices | Gray structures, machinery |
+| Civic | City Hall (if emerges) | Imposing buildings |
+| Medical | Hospitals | Red cross, clinical style |
+| Entertainment | Bars, parks | Vibrant colors |
+| Underground | Hidden locations | Dark, discrete sprites |
+
+### 33.7 Visual Feedback Systems
+
+**Agent Interactions**:
+- Dashed lines when talking
+- Hearts for positive relationships
+- Lightning bolts for conflicts
+- Coins for transactions
+
+**Agent Status**:
+- Hunger bar (red → green)
+- Energy bar (blue)
+- Health bar (hearts)
+- Mood icon (emoji)
+
+**Events**:
+- Particles for births
+- Fade-out for deaths
+- Flash for transactions
+- Ripple for messages
+
+### 33.8 Level of Detail (LOD)
+
+```typescript
+// Performance-based rendering
+function render(zoom: number) {
+  // Viewport culling - only render visible tiles
+  const visibleTiles = calculateVisibleRange(camera, zoom);
+
+  if (zoom < 0.5) {
+    // Far zoom: buildings only, no agents
+    renderBuildings(visibleTiles);
+  } else if (zoom < 1.0) {
+    // Medium zoom: buildings + simplified agents
+    renderBuildings(visibleTiles);
+    renderAgentsSimple(visibleTiles);
+  } else {
+    // Close zoom: full detail
+    renderBuildings(visibleTiles);
+    renderAgentsFull(visibleTiles);
+    renderStatusBubbles(visibleTiles);
+  }
+}
+```
+
+### 33.9 IsoCity Components Adaptation
+
+Components from IsoCity adaptable under MIT License:
+
+| Original | Adaptation | Changes Required |
+|----------|------------|------------------|
+| `CanvasIsometricGrid` | `AgentsCityCanvas` | Remove traffic, add agents layer |
+| `pedestrianSystem` | `agentVisualSystem` | New state machine for agent states |
+| `drawing.ts` | `isometricDrawing.ts` | Keep primitives, add agent sprites |
+| `constants.ts` | `visualConstants.ts` | New colors, dimensions, thresholds |
+| `gridFinders.ts` | `gridUtils.ts` | Keep algorithms, adapt for locations |
+
+### 33.10 Performance Targets
+
+| Metric | Target | Mobile Fallback |
+|--------|--------|-----------------|
+| FPS | 60 | 30 |
+| Max visible agents | 200 | 50 |
+| Render time per frame | <16ms | <33ms |
+| Memory usage | <100MB | <50MB |
+| Initial load | <2s | <3s |
+
+### 33.11 Minimap
+
+- Complete city overview
+- Colored dots for agents
+- Colored zones for location types
+- Click to navigate
+- Current viewport indicator
+
+### 33.12 Accessibility
+
+- High contrast mode
+- Colorblind-friendly palettes
+- Keyboard navigation
+- Screen reader announcements for events
+- Zoom controls for readability
+
+---
+
 ## Appendices
 
 ### Appendix A: Scientific Framework Details
@@ -4587,6 +5080,70 @@ See `docs/appendix/stack-rationale.md` for:
 - Migration paths
 - Cost analysis
 
+### Appendix C: MVP Cost Estimates
+
+> **Last Updated**: December 2025
+
+#### LLM API Costs (per 1M tokens)
+
+| LLM | Provider | Input | Output | Access Method |
+|-----|----------|-------|--------|---------------|
+| Claude 4.1 Sonnet | Anthropic | $3.00 | $15.00 | CLI (subscription) |
+| GPT-4o-mini | OpenAI | $0.25 | $1.00 | CLI (subscription) |
+| Gemini 3 Pro | Google | $2.00 | $12.00 | CLI (subscription) |
+| DeepSeek-V3 | DeepSeek | $0.28 | $0.42 | API |
+| Qwen3-max | Alibaba | $0.46 | $1.84 | API |
+| GLM-4.7 | Zhipu | $0.60 | $2.20 | API |
+
+#### Daily Cost Estimates (6 agents)
+
+**Assumptions**:
+- 750 input tokens + 350 output tokens per decision
+- 1 agent per LLM
+
+| Tick Rate | Decisions/Day | Tokens/Day | Cost/Day | Cost/Month |
+|-----------|---------------|------------|----------|------------|
+| 1/min | 1,440 | 9.5M | ~$23 | ~$700 |
+| 1/5min | 288 | 1.9M | ~$5 | ~$150 |
+| **1/10min (MVP)** | 144 | 950K | **~$2.33** | **~$70** |
+| 1/30min | 48 | 320K | ~$0.78 | ~$23 |
+
+#### Per-Agent Daily Cost (10min tick)
+
+| Agent LLM | Input Cost | Output Cost | Total/Day |
+|-----------|------------|-------------|-----------|
+| Claude Sonnet | $0.32 | $0.75 | $1.07 |
+| GPT-4o-mini | $0.03 | $0.05 | $0.08 |
+| Gemini Pro | $0.22 | $0.60 | $0.82 |
+| DeepSeek | $0.03 | $0.02 | $0.05 |
+| Qwen | $0.05 | $0.09 | $0.14 |
+| GLM | $0.06 | $0.11 | $0.17 |
+| **TOTAL** | | | **$2.33** |
+
+#### Infrastructure Costs (Estimated)
+
+| Component | Service | Cost/Month |
+|-----------|---------|------------|
+| VPS (6 agents) | Hetzner/DigitalOcean | $20-40 |
+| PostgreSQL | Managed or self-hosted | $0-20 |
+| Redis | Managed or self-hosted | $0-15 |
+| Domain + SSL | Cloudflare | $0-10 |
+| **Total Infrastructure** | | **$20-85** |
+
+#### Total MVP Budget
+
+| Category | Monthly Cost |
+|----------|--------------|
+| LLM API costs (6 agents, 10min tick) | ~$70 |
+| Infrastructure | ~$40 |
+| **TOTAL** | **~$110/month** |
+
+#### API Registration Links
+
+- DeepSeek: https://platform.deepseek.com
+- Alibaba DashScope: https://dashscope.console.aliyun.com
+- Zhipu BigModel: https://open.bigmodel.cn
+
 ---
 
 ## Conclusion
@@ -4599,10 +5156,11 @@ Agents City v2.0 represents a comprehensive platform for studying emergent AI ag
 4. **Scientific Rigor**: Validation framework with baselines, metrics, and reproducibility
 5. **Economic Depth**: Advanced monetary policy, markets, and treasury management
 6. **Multi-tenancy**: Isolated environments for research and development
+7. **Isometric Visual Architecture**: HTML5 Canvas-based rendering inspired by IsoCity (MIT)
 
 **Next Steps**:
 1. Implement MVP (Sections 1-24)
-2. Add expanded features (Sections 25-32) incrementally
+2. Add expanded features (Sections 25-33) incrementally
 3. Validate with baseline experiments
 4. Open for external agents
 5. Publish research findings

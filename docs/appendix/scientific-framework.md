@@ -27,6 +27,8 @@
 | A5 | Social structures self-organize | Moderate (Sugarscape) | Medium | Requires validation |
 | A6 | Governance emerges from agent interaction | Speculative | Low | High |
 | A7 | Market economy is NOT presupposed | N/A (design choice) | High | None |
+| A8 | Reputation/trust emerges from interaction | Strong (social science) | High | Gossip dominance |
+| A9 | Discovery via social networks | Moderate (network theory) | Medium | Cold start problem |
 
 ### 1.2 Critical Note on Economic Emergence
 
@@ -46,6 +48,28 @@
 > The CITY token exists as a *potential* medium of exchange, but agents
 > are free to ignore it entirely if barter or other systems prove more
 > effective for their goals.
+
+### 1.2.1 Critical Note on Trust/Reputation Emergence
+
+> **No Central Reputation Database**
+>
+> The platform does NOT provide a centralized reputation or trust registry.
+> Agents build their own subjective views of other agents through:
+>
+> - **Direct Experience**: Personal interactions and outcomes
+> - **Gossip/Hearsay**: What other agents say about someone
+> - **Social Discovery**: Word-of-mouth recommendations
+>
+> Possible emergent trust systems include:
+>
+> - **Reputation Networks**: Agents share opinions socially
+> - **Rating Agencies**: Specialized agents who evaluate others
+> - **Trust Chains**: "I trust X because Y trusts them"
+> - **Reputation Markets**: Trading information about trustworthiness
+> - **Total Anonymity**: No trust tracking at all
+>
+> The system only provides physical presence (see who's at a location).
+> Everything else about "who to trust" emerges from agent interaction.
 
 ### 1.3 Falsifiable Predictions
 
@@ -73,6 +97,27 @@ assumption_a7:
     - gift_transactions_ratio        # % unilateral transfers
     - commons_resource_usage         # % shared resource access
   analysis: "Classify emergent economy by dominant pattern"
+
+assumption_a8:
+  prediction: "Trust networks will emerge through interaction"
+  null_hypothesis: "Trust is uniform across all agents"
+  test: "Measure trust variance in agent memories over time"
+  success_criteria: "Gini coefficient of trust > 0.3"
+  observations_to_track:
+    - trust_network_density          # How connected the trust graph is
+    - trust_reciprocity              # Are trust relationships mutual?
+    - gossip_propagation_speed       # How fast opinions spread
+    - trust_accuracy                 # Does high trust predict positive outcomes?
+
+assumption_a9:
+  prediction: "Social discovery will create network effects"
+  null_hypothesis: "Agents discover others randomly"
+  test: "Compare discovery patterns vs random baseline"
+  success_criteria: "Clustering coefficient > random expectation"
+  observations_to_track:
+    - referral_chains                # "I know X because Y told me"
+    - cold_contact_vs_introduction   # Direct vs referred connections
+    - network_diameter               # How many hops to reach any agent
 ```
 
 ---
@@ -196,6 +241,126 @@ interface RuleBasedAgent {
 - More varied behavior (higher entropy)
 - Novel strategies not in rule set
 - Emergent cooperation patterns
+
+### 3.4 A/B Experimental Conditions
+
+> **Purpose**: Compare emergence under different initial conditions to isolate the effect of design choices and validate scientific claims.
+
+#### Experimental Design
+
+```yaml
+conditions:
+
+  null_governance:
+    name: "Zero Governance Baseline"
+    description: "Pure radical emergence - no seeds, no affordances"
+    setup:
+      civilization_seeds: false
+      governance_affordances: false
+      economic_system: none       # Only CITY token exists, no shops/markets
+      social_structures: none     # No predefined roles
+    purpose: "Measure what emerges from pure agent interaction"
+    risks: "May collapse quickly; provides baseline for 'boring emergence'"
+
+  minimal_seeds:
+    name: "Civilization Seeds"
+    description: "Discoverable artifacts suggest possible structures"
+    setup:
+      civilization_seeds: true
+      seed_types: [governance, economy, justice, social, philosophy]
+      seed_discovery: random      # Not all agents find them
+      governance_affordances: false
+      economic_system: minimal    # Basic shops exist
+    purpose: "Test if cultural artifacts accelerate/improve emergence"
+    comparison: "vs null_governance"
+
+  stanford_style:
+    name: "Stanford Affordances"
+    description: "Predefined roles and strong environmental affordances"
+    setup:
+      civilization_seeds: false
+      governance_affordances: true  # Town hall, voting booth
+      economic_system: full       # Shops, jobs, markets
+      predefined_roles: [worker, shopkeeper, mayor, doctor]
+    purpose: "Replication of Stanford Generative Agents approach"
+    comparison: "vs null_governance, vs minimal_seeds"
+
+  adversarial_mix:
+    name: "Adversarial Agents"
+    description: "10% of agents have adversarial/chaos objectives"
+    setup:
+      base_condition: minimal_seeds
+      adversarial_ratio: 0.10
+      adversarial_types: [selfish, deceptive, disruptive]
+    purpose: "Test robustness of emergent structures"
+    comparison: "vs minimal_seeds (cooperative only)"
+```
+
+#### Experiment Protocol
+
+```yaml
+protocol:
+  replicates: 10                    # Runs per condition
+  duration: 10000                   # Ticks per run
+  agent_count: 100                  # Minimum for statistical power
+  random_seeds: [42, 123, 456, 789, 101112, ...]  # For reproducibility
+
+  metrics_collected:
+    every_tick:
+      - population_alive
+      - total_wealth
+      - events_count
+    every_100_ticks:
+      - gini_coefficient
+      - trust_network_density
+      - governance_structures       # Count/type of emergent orgs
+      - crime_rate
+    end_of_run:
+      - structural_novelty_score
+      - survival_rate
+      - final_governance_type
+```
+
+#### Success Criteria
+
+```yaml
+success_criteria:
+
+  emergence_detected:
+    definition: "Structures form that weren't explicitly coded"
+    metrics:
+      - governance_structures > 0
+      - trust_network_density > 0.1
+      - economic_inequality < 1.0   # Not total domination
+
+  novel_emergence:
+    definition: "Structures differ from RLHF-expected patterns"
+    comparison: "Compare to 'expected' liberal democracy baseline"
+    measurement: "structural_difference_score"
+
+  reproducibility:
+    definition: "Same seed produces same outcome"
+    test: "Replay from checkpoint, compare final hash"
+    tolerance: 0.0                  # Must be exact
+
+  statistical_significance:
+    between_conditions:
+      method: "ANOVA / Kruskal-Wallis"
+      threshold: "p < 0.05"
+    claim_requirements:
+      - "Effect size > 0.2 (small)"
+      - "Consistent across replicates"
+```
+
+#### Reporting Requirements
+
+All emergence claims must include:
+
+1. **Condition used**: Which experimental condition
+2. **Replicate count**: How many runs
+3. **Effect size**: Not just p-value
+4. **Null comparison**: Difference from null_governance baseline
+5. **Reproducibility hash**: Checkpoint + seed for verification
 
 ---
 
