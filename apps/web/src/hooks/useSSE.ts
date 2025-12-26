@@ -1,14 +1,38 @@
 import { useCallback, useRef, useState } from 'react';
-import { useWorldStore, type WorldEvent } from '../stores/world';
+import { useWorldStore, type WorldEvent, type AgentBubble } from '../stores/world';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
+
+// Map event types to bubble content
+function getBubbleContent(event: WorldEvent): { emoji: string; text: string } | null {
+  switch (event.type) {
+    case 'agent_moved':
+      return { emoji: '🚶', text: 'Moving...' };
+    case 'agent_worked':
+      return { emoji: '🏭', text: 'Working...' };
+    case 'agent_sleeping':
+      return { emoji: '💤', text: 'Sleeping...' };
+    case 'agent_woke':
+      return { emoji: '☀️', text: 'Awake!' };
+    case 'balance_changed': {
+      const delta = (event.payload.newBalance as number) - (event.payload.oldBalance as number || 0);
+      if (delta > 0) return { emoji: '💰', text: `+${delta} CITY` };
+      if (delta < 0) return { emoji: '💸', text: `${delta} CITY` };
+      return null;
+    }
+    case 'agent_died':
+      return { emoji: '💀', text: 'Died!' };
+    default:
+      return null;
+  }
+}
 
 export function useSSE() {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
 
-  const { setWorldState, setTick, updateAgent, addEvent } = useWorldStore();
+  const { setWorldState, setTick, updateAgent, addEvent, addBubble } = useWorldStore();
 
   const handleEvent = useCallback(
     (event: MessageEvent) => {
@@ -17,6 +41,19 @@ export function useSSE() {
 
         // Add to event feed
         addEvent(data);
+
+        // Create bubble for agent if applicable
+        if (data.agentId) {
+          const bubbleContent = getBubbleContent(data);
+          if (bubbleContent) {
+            addBubble({
+              agentId: data.agentId,
+              text: bubbleContent.text,
+              emoji: bubbleContent.emoji,
+              timestamp: Date.now(),
+            });
+          }
+        }
 
         // Handle specific event types
         switch (data.type) {
@@ -93,7 +130,7 @@ export function useSSE() {
         console.error('[SSE] Failed to parse event:', error);
       }
     },
-    [addEvent, setTick, updateAgent]
+    [addEvent, addBubble, setTick, updateAgent]
   );
 
   const connect = useCallback(async () => {

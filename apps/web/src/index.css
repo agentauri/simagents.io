@@ -1,76 +1,302 @@
 @import "tailwindcss";
 
 @theme {
+  /* IsoCity-inspired warm palette */
   --color-city-bg: #1a1a2e;
-  --color-city-surface: #16213e;
-  --color-city-border: #0f3460;
-  --color-city-accent: #e94560;
+  --color-city-surface: #252540;
+  --color-city-surface-hover: #2d2d50;
+  --color-city-border: #3d3d5c;
+  --color-city-accent: #e07a5f;
+  --color-city-accent-light: #f2a285;
+  --color-city-text: #f4f1de;
+  --color-city-text-muted: #9a9ab0;
 
-  --color-agent-claude: #ef4444;
-  --color-agent-codex: #3b82f6;
-  --color-agent-gemini: #10b981;
-  --color-agent-deepseek: #f59e0b;
-  --color-agent-qwen: #8b5cf6;
-  --color-agent-glm: #ec4899;
+  /* Status colors - warm pastels */
+  --color-status-success: #81b29a;
+  --color-status-warning: #f2cc8f;
+  --color-status-error: #e07a5f;
+  --color-status-info: #6a8caf;
 
-  --color-location-residential: #4ade80;
-  --color-location-commercial: #60a5fa;
-  --color-location-industrial: #fbbf24;
-  --color-location-civic: #a78bfa;
+  /* Agent colors - matching IsoCity building tones */
+  --color-agent-claude: #e07a5f;
+  --color-agent-codex: #6a8caf;
+  --color-agent-gemini: #81b29a;
+  --color-agent-deepseek: #f2cc8f;
+  --color-agent-qwen: #9a8bc2;
+  --color-agent-glm: #d4a5a5;
+
+  /* Location colors - matching sprite sheet buildings */
+  --color-location-residential: #e07a5f;
+  --color-location-commercial: #6a8caf;
+  --color-location-industrial: #8a8a8a;
+  --color-location-civic: #c9b896;
 }
 
 body {
   background-color: var(--color-city-bg);
-  color: white;
-  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--color-city-text);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+/* Status badges */
 .status-badge {
-  padding: 0.25rem 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
   border-radius: 9999px;
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   font-weight: 500;
+  letter-spacing: 0.025em;
+  transition: all 0.2s ease;
 }
 
 .status-connected {
-  background-color: #10b981;
-  color: black;
+  background-color: rgba(129, 178, 154, 0.15);
+  color: var(--color-status-success);
+  border: 1px solid rgba(129, 178, 154, 0.3);
 }
 
 .status-disconnected {
-  background-color: #ef4444;
-  color: white;
+  background-color: rgba(224, 122, 95, 0.15);
+  color: var(--color-status-error);
+  border: 1px solid rgba(224, 122, 95, 0.3);
 }
 
+.status-connecting {
+  background-color: rgba(242, 204, 143, 0.15);
+  color: var(--color-status-warning);
+  border: 1px solid rgba(242, 204, 143, 0.3);
+}
+
+/* Pulse animation for status indicators */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.status-pulse {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* Panel styling - IsoCity card look */
 .panel {
-  background-color: var(--color-city-surface);
+  background-color: rgba(37, 37, 64, 0.95);
   border: 1px solid var(--color-city-border);
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.25),
+    0 10px 15px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
 }
 
+/* Agent cards */
 .agent-card {
-  padding: 0.75rem;
-  border-radius: 0.5rem;
-  background-color: rgba(26, 26, 46, 0.5);
-  border: 1px solid rgba(15, 52, 96, 0.5);
+  padding: 0.875rem;
+  border-radius: 0.625rem;
+  background-color: rgba(26, 26, 46, 0.6);
+  border: 1px solid transparent;
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: all 0.2s ease;
 }
 
 .agent-card:hover {
-  border-color: rgba(233, 69, 96, 0.5);
+  border-color: rgba(224, 122, 95, 0.4);
+  background-color: var(--color-city-surface-hover);
+  transform: translateY(-1px);
 }
 
+.agent-card.selected {
+  border-color: var(--color-city-accent);
+  background-color: rgba(224, 122, 95, 0.1);
+  box-shadow: 0 0 0 1px var(--color-city-accent);
+}
+
+/* Stat bars with gradient */
 .stat-bar {
-  height: 0.5rem;
+  height: 0.375rem;
   border-radius: 9999px;
-  background-color: var(--color-city-border);
+  background-color: rgba(61, 61, 92, 0.5);
   overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .stat-fill {
   height: 100%;
   border-radius: 9999px;
-  transition: all 0.3s;
+  transition: all 0.4s ease;
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* City-styled buttons */
+.city-button {
+  background: linear-gradient(135deg, var(--color-city-accent) 0%, #c96b4f 100%);
+  color: var(--color-city-text);
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(224, 122, 95, 0.3);
+}
+
+.city-button:hover {
+  background: linear-gradient(135deg, var(--color-city-accent-light) 0%, var(--color-city-accent) 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(224, 122, 95, 0.4);
+}
+
+.city-button:active {
+  transform: translateY(0);
+}
+
+.city-button-secondary {
+  background: transparent;
+  border: 1px solid var(--color-city-border);
+  box-shadow: none;
+}
+
+.city-button-secondary:hover {
+  background-color: var(--color-city-surface-hover);
+  border-color: var(--color-city-accent);
+  box-shadow: none;
+}
+
+/* Floating panels (draggable) */
+.floating-panel {
+  background-color: rgba(37, 37, 64, 0.97);
+  border: 1px solid var(--color-city-border);
+  border-radius: 0.75rem;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
+}
+
+/* Panel header */
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid rgba(61, 61, 92, 0.5);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
+  border-radius: 0.75rem 0.75rem 0 0;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-city-border);
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-city-accent);
+}
+
+/* Selection color */
+::selection {
+  background-color: var(--color-city-accent);
+  color: var(--color-city-text);
+}
+
+/* Smooth transitions */
+* {
+  transition-property: background-color, border-color, color, opacity, transform, box-shadow;
+  transition-timing-function: ease;
+  transition-duration: 0ms;
+}
+
+button, a, .agent-card, .stat-fill, .status-badge {
+  transition-duration: 150ms;
+}
+
+/* Avatar ring gradient */
+.avatar-ring {
+  background: linear-gradient(135deg, var(--color-city-accent) 0%, var(--color-city-accent-light) 100%);
+  padding: 2px;
+  border-radius: 9999px;
+}
+
+/* Subtle text shadow for headers */
+.text-glow {
+  text-shadow: 0 0 20px rgba(224, 122, 95, 0.3);
+}
+
+/* Event type colors */
+.event-move { color: var(--color-status-info); }
+.event-work { color: var(--color-status-warning); }
+.event-sleep { color: var(--color-status-info); }
+.event-consume { color: var(--color-status-success); }
+.event-death { color: var(--color-status-error); }
+.event-balance { color: var(--color-city-accent); }
+
+/* Tooltip styling */
+[title] {
+  position: relative;
+}
+
+/* Focus styles for accessibility */
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--color-city-accent);
+  outline-offset: 2px;
+}
+
+/* Select dropdown styling */
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239a9ab0' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  padding-right: 1.75rem;
+}
+
+select option {
+  background-color: var(--color-city-surface);
+  color: var(--color-city-text);
+}
+
+/* Divider styling */
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--color-city-border) 50%, transparent 100%);
+}
+
+/* Subtle border glow on hover */
+.glow-border:hover {
+  box-shadow: 0 0 0 1px rgba(224, 122, 95, 0.3);
+}
+
+/* Number badge */
+.number-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.375rem;
+  border-radius: 9999px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  background-color: var(--color-city-accent);
+  color: var(--color-city-text);
 }

@@ -35,6 +35,13 @@ export interface WorldEvent {
   payload: Record<string, unknown>;
 }
 
+export interface AgentBubble {
+  agentId: string;
+  text: string;
+  emoji: string;
+  timestamp: number;
+}
+
 // =============================================================================
 // Store
 // =============================================================================
@@ -45,6 +52,7 @@ interface WorldState {
   agents: Agent[];
   locations: Location[];
   events: WorldEvent[];
+  bubbles: AgentBubble[];
 
   // UI state
   selectedAgentId: string | null;
@@ -57,10 +65,19 @@ interface WorldState {
   setTick: (tick: number) => void;
   updateAgent: (id: string, updates: Partial<Agent>) => void;
   addEvent: (event: WorldEvent) => void;
+  addBubble: (bubble: AgentBubble) => void;
   selectAgent: (id: string | null) => void;
   setCamera: (x: number, y: number) => void;
   setZoom: (zoom: number) => void;
+  // Editor integration
+  setLocations: (locations: Location[]) => void;
+  clearLocations: () => void;
+  clearAgents: () => void;
+  resetWorld: () => void;
 }
+
+// Bubble duration in ms
+const BUBBLE_DURATION = 3000;
 
 export const useWorldStore = create<WorldState>((set) => ({
   // Initial state
@@ -68,6 +85,7 @@ export const useWorldStore = create<WorldState>((set) => ({
   agents: [],
   locations: [],
   events: [],
+  bubbles: [],
   selectedAgentId: null,
   cameraX: 0,
   cameraY: 0,
@@ -93,11 +111,38 @@ export const useWorldStore = create<WorldState>((set) => ({
       events: [event, ...state.events].slice(0, 100), // Keep last 100 events
     })),
 
+  addBubble: (bubble) =>
+    set((state) => {
+      const now = Date.now();
+      // Remove old bubbles (older than BUBBLE_DURATION) and update/add new one
+      const filteredBubbles = state.bubbles.filter(
+        (b) => b.agentId !== bubble.agentId && now - b.timestamp < BUBBLE_DURATION
+      );
+      return { bubbles: [...filteredBubbles, bubble] };
+    }),
+
   selectAgent: (id) => set({ selectedAgentId: id }),
 
   setCamera: (x, y) => set({ cameraX: x, cameraY: y }),
 
   setZoom: (zoom) => set({ zoom: Math.max(0.5, Math.min(2, zoom)) }),
+
+  // Editor integration actions
+  setLocations: (locations) => set({ locations }),
+
+  clearLocations: () => set({ locations: [] }),
+
+  clearAgents: () => set({ agents: [], bubbles: [] }),
+
+  resetWorld: () =>
+    set({
+      tick: 0,
+      agents: [],
+      locations: [],
+      events: [],
+      bubbles: [],
+      selectedAgentId: null,
+    }),
 }));
 
 // =============================================================================
@@ -132,3 +177,6 @@ export const useRecentEvents = (limit = 20) => {
   const events = useWorldStore(useShallow((state) => state.events));
   return events.slice(0, limit);
 };
+
+export const useBubbles = () =>
+  useWorldStore(useShallow((state) => state.bubbles));

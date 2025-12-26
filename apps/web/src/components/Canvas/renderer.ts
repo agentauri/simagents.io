@@ -1,47 +1,188 @@
 /**
- * Isometric renderer for Agents City
- * Inspired by IsoCity (MIT License)
+ * Isometric Sprite Renderer for Agents City
+ * Complete rewrite using IsoCity tileset (MIT License) by victorqribeiro
+ *
+ * Tileset: 12 columns x 6 rows, each sprite 130x230 pixels
+ * Logical tile size: 128x64 pixels (isometric diamond)
  */
 
-import type { Agent, Location } from '../../stores/world';
+import type { Agent, Location, AgentBubble } from '../../stores/world';
+import type { TileDef as EditorTileDef } from '../../utils/tiles';
+import { GRID_SIZE as EDITOR_GRID_SIZE } from '../../utils/tiles';
 
-// Isometric tile dimensions
-const TILE_WIDTH = 64;
-const TILE_HEIGHT = 32;
+// =============================================================================
+// Constants
+// =============================================================================
 
-// Colors
-const LOCATION_COLORS: Record<string, string> = {
-  residential: '#4ade80',
-  commercial: '#60a5fa',
-  industrial: '#fbbf24',
-  civic: '#a78bfa',
+// Sprite sheet dimensions
+const SPRITE_WIDTH = 130;
+const SPRITE_HEIGHT = 230;
+const TILE_WIDTH = 128;
+const TILE_HEIGHT = 64;
+const SPRITE_COLS = 12;
+const SPRITE_ROWS = 6;
+
+// Grid configuration - 20x20 to comfortably fit 6+ agents
+const GRID_SIZE = 20;
+
+// Downtown center (grid coordinates)
+const DOWNTOWN_CENTER_X = 10;
+const DOWNTOWN_CENTER_Y = 10;
+
+// =============================================================================
+// Tile Definitions (row, col) from tileset.png
+// =============================================================================
+
+// Row 0: Ground and basic roads
+const TILE_GRASS = { col: 0, row: 0 };
+const TILE_GRASS_ALT = { col: 1, row: 0 };
+const TILE_DIRT = { col: 2, row: 0 };
+const TILE_ROAD_H = { col: 3, row: 0 };      // Horizontal road
+const TILE_ROAD_V = { col: 4, row: 0 };      // Vertical road
+const TILE_SIDEWALK = { col: 5, row: 0 };
+const TILE_TREE_1 = { col: 6, row: 0 };
+const TILE_TREE_2 = { col: 7, row: 0 };
+const TILE_PARK_1 = { col: 8, row: 0 };
+const TILE_PARK_2 = { col: 9, row: 0 };
+const TILE_WATER_1 = { col: 10, row: 0 };
+const TILE_WATER_2 = { col: 11, row: 0 };
+
+// Row 1: Road curves and T-junctions
+const TILE_ROAD_CURVE_NE = { col: 0, row: 1 };
+const TILE_ROAD_CURVE_SE = { col: 1, row: 1 };
+const TILE_ROAD_CURVE_SW = { col: 2, row: 1 };
+const TILE_ROAD_CURVE_NW = { col: 3, row: 1 };
+const TILE_ROAD_T_N = { col: 4, row: 1 };    // T pointing north
+const TILE_LAMPPOST = { col: 5, row: 1 };
+const TILE_BENCH = { col: 6, row: 1 };
+const TILE_FOUNTAIN = { col: 7, row: 1 };
+const TILE_STATUE = { col: 8, row: 1 };
+
+// Row 2: Road intersections and special tiles
+const TILE_ROAD_T_E = { col: 0, row: 2 };    // T pointing east
+const TILE_ROAD_T_S = { col: 1, row: 2 };    // T pointing south
+const TILE_ROAD_T_W = { col: 2, row: 2 };    // T pointing west
+const TILE_ROAD_CROSS = { col: 3, row: 2 };  // 4-way crossing
+const TILE_ROAD_END = { col: 4, row: 2 };    // Dead end
+
+// Row 3: Industrial buildings (columns 8-10)
+const TILE_INDUSTRIAL_1 = { col: 8, row: 3 };
+const TILE_INDUSTRIAL_2 = { col: 9, row: 3 };
+const TILE_INDUSTRIAL_3 = { col: 10, row: 3 };
+
+// Row 4: Residential (0-3) and Civic (8-10) buildings
+const TILE_RESIDENTIAL_1 = { col: 0, row: 4 };
+const TILE_RESIDENTIAL_2 = { col: 1, row: 4 };
+const TILE_RESIDENTIAL_3 = { col: 2, row: 4 };
+const TILE_RESIDENTIAL_4 = { col: 3, row: 4 };
+const TILE_CIVIC_1 = { col: 8, row: 4 };
+const TILE_CIVIC_2 = { col: 9, row: 4 };
+const TILE_CIVIC_3 = { col: 10, row: 4 };
+const TILE_RESIDENTIAL_5 = { col: 11, row: 4 };
+
+// Row 5: Commercial buildings
+const TILE_COMMERCIAL_1 = { col: 0, row: 5 };
+const TILE_COMMERCIAL_2 = { col: 1, row: 5 };
+const TILE_COMMERCIAL_3 = { col: 2, row: 5 };
+const TILE_COMMERCIAL_4 = { col: 3, row: 5 };
+const TILE_COMMERCIAL_5 = { col: 11, row: 5 };
+
+// Building type to tile mappings
+const BUILDING_TILES = {
+  residential: [TILE_RESIDENTIAL_1, TILE_RESIDENTIAL_2, TILE_RESIDENTIAL_3, TILE_RESIDENTIAL_4, TILE_RESIDENTIAL_5],
+  commercial: [TILE_COMMERCIAL_1, TILE_COMMERCIAL_2, TILE_COMMERCIAL_3, TILE_COMMERCIAL_4, TILE_COMMERCIAL_5],
+  industrial: [TILE_INDUSTRIAL_1, TILE_INDUSTRIAL_2, TILE_INDUSTRIAL_3],
+  civic: [TILE_CIVIC_1, TILE_CIVIC_2, TILE_CIVIC_3],
 };
 
+// Agent state colors
 const STATE_COLORS: Record<string, string> = {
   idle: '#94a3b8',
-  walking: '#10b981',
-  working: '#f59e0b',
-  sleeping: '#8b5cf6',
-  dead: '#ef4444',
+  walking: '#81b29a',
+  working: '#f2cc8f',
+  sleeping: '#6a8caf',
+  dead: '#e07a5f',
 };
+
+// =============================================================================
+// Types
+// =============================================================================
 
 export interface RenderState {
   tick: number;
   agents: Agent[];
   locations: Location[];
   selectedAgentId: string | null;
+  bubbles: AgentBubble[];
 }
+
+interface TileDef {
+  col: number;
+  row: number;
+}
+
+type CellType =
+  | 'grass'
+  | 'road_h'
+  | 'road_v'
+  | 'road_cross'
+  | 'road_t_n'
+  | 'road_t_e'
+  | 'road_t_s'
+  | 'road_t_w'
+  | 'road_curve_ne'
+  | 'road_curve_se'
+  | 'road_curve_sw'
+  | 'road_curve_nw'
+  | 'tree'
+  | 'building';
+
+interface GridCell {
+  type: CellType;
+  tile: TileDef;
+  buildingId?: string;
+}
+
+// =============================================================================
+// Isometric Renderer Class
+// =============================================================================
 
 export class IsometricRenderer {
   private baseCtx: CanvasRenderingContext2D;
   private agentsCtx: CanvasRenderingContext2D;
   private effectsCtx: CanvasRenderingContext2D;
-  private state: RenderState = { tick: 0, agents: [], locations: [], selectedAgentId: null };
+
+  private state: RenderState = {
+    tick: 0,
+    agents: [],
+    locations: [],
+    selectedAgentId: null,
+    bubbles: []
+  };
+
   private animationId: number = 0;
   private cameraX = 0;
   private cameraY = 0;
-  private zoom = 0.5; // Start zoomed out to see more agents
+  private zoom = 0.6;
   private onAgentClick: ((agentId: string) => void) | null = null;
+
+  // Sprite sheet
+  private spriteSheet: HTMLImageElement | null = null;
+  private spriteLoaded = false;
+
+  // City layout
+  private grid: GridCell[][] = [];
+  private locationGridMap: Map<string, { gridX: number; gridY: number }> = new Map();
+
+  // Editor mode
+  private editorMode = false;
+  private editorGrid: EditorTileDef[][] | null = null;
+  private hoverGridX = -1;
+  private hoverGridY = -1;
+
+  // =============================================================================
+  // Constructor & Setup
+  // =============================================================================
 
   constructor(
     baseCanvas: HTMLCanvasElement,
@@ -52,240 +193,869 @@ export class IsometricRenderer {
     this.agentsCtx = agentsCanvas.getContext('2d')!;
     this.effectsCtx = effectsCanvas.getContext('2d')!;
 
-    // Center camera on agent spawn area (around x=35, y=10)
-    // Isometric offset: agents at (35,10) should be near center
-    this.cameraX = baseCanvas.width / 2 - 400; // Offset to center on agents
-    this.cameraY = baseCanvas.height / 3;
+    // Center camera on grid
+    this.centerCamera();
 
-    // Handle clicks on agents layer
+    // Initialize empty grid
+    this.initializeGrid();
+
+    // Load sprite sheet
+    this.loadSpriteSheet();
+
+    // Handle clicks
     agentsCanvas.addEventListener('click', this.handleClick);
   }
 
-  private handleClick = (e: MouseEvent) => {
+  private centerCamera(): void {
+    const canvas = this.baseCtx.canvas;
+    // Center on downtown
+    const centerScreenX = DOWNTOWN_CENTER_X * TILE_WIDTH * this.zoom / 2;
+    const centerScreenY = DOWNTOWN_CENTER_Y * TILE_HEIGHT * this.zoom / 2;
+    this.cameraX = canvas.width / 2 - centerScreenX;
+    this.cameraY = canvas.height / 4;
+  }
+
+  private loadSpriteSheet(): void {
+    this.spriteSheet = new Image();
+    this.spriteSheet.onload = () => {
+      this.spriteLoaded = true;
+      console.log('[Renderer] Sprite sheet loaded successfully');
+      // In editor mode, draw from editor grid; otherwise draw generated city
+      if (this.editorMode && this.editorGrid) {
+        this.drawBaseFromEditorGrid();
+      } else if (!this.editorMode) {
+        this.buildCityLayout();
+        this.drawBase();
+      }
+      // If editorMode is true but editorGrid is not set yet, wait for setEditorGrid() call
+    };
+    this.spriteSheet.onerror = () => {
+      console.error('[Renderer] Failed to load sprite sheet');
+    };
+    this.spriteSheet.src = '/textures/tileset.png';
+  }
+
+  // =============================================================================
+  // Grid & City Layout
+  // =============================================================================
+
+  private initializeGrid(): void {
+    this.grid = [];
+    for (let y = 0; y < GRID_SIZE; y++) {
+      this.grid[y] = [];
+      for (let x = 0; x < GRID_SIZE; x++) {
+        this.grid[y][x] = {
+          type: 'grass',
+          tile: Math.random() < 0.3 ? TILE_GRASS_ALT : TILE_GRASS,
+        };
+      }
+    }
+  }
+
+  private buildCityLayout(): void {
+    // Reset grid
+    this.initializeGrid();
+    this.locationGridMap.clear();
+
+    // Map world coordinates to grid coordinates
+    // World coords go from ~30-70, we map to 0-19 grid
+    const mapToGrid = (worldX: number, worldY: number): { gridX: number; gridY: number } => {
+      // Map world range [20, 90] to grid range [0, 19]
+      const gridX = Math.floor((worldX - 20) / 4);
+      const gridY = Math.floor((worldY - 20) / 4);
+      return {
+        gridX: Math.max(0, Math.min(GRID_SIZE - 1, gridX)),
+        gridY: Math.max(0, Math.min(GRID_SIZE - 1, gridY)),
+      };
+    };
+
+    // Place buildings from locations
+    for (const loc of this.state.locations) {
+      const { gridX, gridY } = mapToGrid(loc.x, loc.y);
+      this.locationGridMap.set(loc.id, { gridX, gridY });
+
+      // Select building tile based on type
+      const tiles = BUILDING_TILES[loc.type] || BUILDING_TILES.civic;
+      const tileIndex = Math.abs(loc.id.charCodeAt(0)) % tiles.length;
+
+      this.grid[gridY][gridX] = {
+        type: 'building',
+        tile: tiles[tileIndex],
+        buildingId: loc.id,
+      };
+    }
+
+    // Create road network
+    this.generateRoads();
+
+    // Add trees around perimeter and empty spaces
+    this.addTrees();
+  }
+
+  private generateRoads(): void {
+    // Main horizontal road through the center
+    const mainRoadY = Math.floor(GRID_SIZE / 2);
+    for (let x = 0; x < GRID_SIZE; x++) {
+      if (this.grid[mainRoadY][x].type === 'grass') {
+        this.grid[mainRoadY][x] = { type: 'road_h', tile: TILE_ROAD_H };
+      }
+    }
+
+    // Main vertical road through the center
+    const mainRoadX = Math.floor(GRID_SIZE / 2);
+    for (let y = 0; y < GRID_SIZE; y++) {
+      if (this.grid[y][mainRoadX].type === 'grass') {
+        this.grid[y][mainRoadX] = { type: 'road_v', tile: TILE_ROAD_V };
+      } else if (this.grid[y][mainRoadX].type === 'road_h') {
+        this.grid[y][mainRoadX] = { type: 'road_cross', tile: TILE_ROAD_CROSS };
+      }
+    }
+
+    // Connect buildings to roads
+    for (const [locId, pos] of this.locationGridMap) {
+      this.connectToRoad(pos.gridX, pos.gridY);
+    }
+
+    // Fix road intersections
+    this.fixRoadIntersections();
+  }
+
+  private connectToRoad(buildingX: number, buildingY: number): void {
+    const mainRoadX = Math.floor(GRID_SIZE / 2);
+    const mainRoadY = Math.floor(GRID_SIZE / 2);
+
+    // Draw horizontal road segment to main vertical road
+    const startX = Math.min(buildingX, mainRoadX);
+    const endX = Math.max(buildingX, mainRoadX);
+    for (let x = startX; x <= endX; x++) {
+      if (this.grid[buildingY][x].type === 'grass') {
+        this.grid[buildingY][x] = { type: 'road_h', tile: TILE_ROAD_H };
+      } else if (this.grid[buildingY][x].type === 'road_v') {
+        this.grid[buildingY][x] = { type: 'road_cross', tile: TILE_ROAD_CROSS };
+      }
+    }
+
+    // Draw vertical road segment to main horizontal road
+    const startY = Math.min(buildingY, mainRoadY);
+    const endY = Math.max(buildingY, mainRoadY);
+    for (let y = startY; y <= endY; y++) {
+      if (this.grid[y][buildingX].type === 'grass') {
+        this.grid[y][buildingX] = { type: 'road_v', tile: TILE_ROAD_V };
+      } else if (this.grid[y][buildingX].type === 'road_h') {
+        this.grid[y][buildingX] = { type: 'road_cross', tile: TILE_ROAD_CROSS };
+      }
+    }
+  }
+
+  private fixRoadIntersections(): void {
+    // Fix T-junctions and crossings based on neighbors
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
+        const cell = this.grid[y][x];
+        if (cell.type !== 'road_h' && cell.type !== 'road_v' && cell.type !== 'road_cross') continue;
+
+        const hasNorth = y > 0 && this.isRoad(x, y - 1);
+        const hasSouth = y < GRID_SIZE - 1 && this.isRoad(x, y + 1);
+        const hasWest = x > 0 && this.isRoad(x - 1, y);
+        const hasEast = x < GRID_SIZE - 1 && this.isRoad(x + 1, y);
+
+        const connections = [hasNorth, hasSouth, hasWest, hasEast].filter(Boolean).length;
+
+        if (connections === 4) {
+          this.grid[y][x] = { type: 'road_cross', tile: TILE_ROAD_CROSS };
+        } else if (connections === 3) {
+          // T-junction
+          if (!hasNorth) {
+            this.grid[y][x] = { type: 'road_t_s', tile: TILE_ROAD_T_S };
+          } else if (!hasSouth) {
+            this.grid[y][x] = { type: 'road_t_n', tile: TILE_ROAD_T_N };
+          } else if (!hasWest) {
+            this.grid[y][x] = { type: 'road_t_e', tile: TILE_ROAD_T_E };
+          } else if (!hasEast) {
+            this.grid[y][x] = { type: 'road_t_w', tile: TILE_ROAD_T_W };
+          }
+        } else if (connections === 2) {
+          // Curves or straight
+          if (hasNorth && hasSouth) {
+            this.grid[y][x] = { type: 'road_v', tile: TILE_ROAD_V };
+          } else if (hasWest && hasEast) {
+            this.grid[y][x] = { type: 'road_h', tile: TILE_ROAD_H };
+          } else if (hasSouth && hasEast) {
+            this.grid[y][x] = { type: 'road_curve_ne', tile: TILE_ROAD_CURVE_NE };
+          } else if (hasSouth && hasWest) {
+            this.grid[y][x] = { type: 'road_curve_nw', tile: TILE_ROAD_CURVE_NW };
+          } else if (hasNorth && hasEast) {
+            this.grid[y][x] = { type: 'road_curve_se', tile: TILE_ROAD_CURVE_SE };
+          } else if (hasNorth && hasWest) {
+            this.grid[y][x] = { type: 'road_curve_sw', tile: TILE_ROAD_CURVE_SW };
+          }
+        }
+      }
+    }
+  }
+
+  private isRoad(x: number, y: number): boolean {
+    if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) return false;
+    const type = this.grid[y][x].type;
+    return type.startsWith('road');
+  }
+
+  private addTrees(): void {
+    // Add trees around perimeter
+    for (let i = 0; i < GRID_SIZE; i++) {
+      // Top and bottom edges
+      if (this.grid[0][i].type === 'grass') {
+        this.grid[0][i] = { type: 'tree', tile: Math.random() < 0.5 ? TILE_TREE_1 : TILE_TREE_2 };
+      }
+      if (this.grid[GRID_SIZE - 1][i].type === 'grass') {
+        this.grid[GRID_SIZE - 1][i] = { type: 'tree', tile: Math.random() < 0.5 ? TILE_TREE_1 : TILE_TREE_2 };
+      }
+      // Left and right edges
+      if (this.grid[i][0].type === 'grass') {
+        this.grid[i][0] = { type: 'tree', tile: Math.random() < 0.5 ? TILE_TREE_1 : TILE_TREE_2 };
+      }
+      if (this.grid[i][GRID_SIZE - 1].type === 'grass') {
+        this.grid[i][GRID_SIZE - 1] = { type: 'tree', tile: Math.random() < 0.5 ? TILE_TREE_1 : TILE_TREE_2 };
+      }
+    }
+
+    // Add random trees in grass areas (sparse)
+    for (let y = 1; y < GRID_SIZE - 1; y++) {
+      for (let x = 1; x < GRID_SIZE - 1; x++) {
+        if (this.grid[y][x].type === 'grass' && Math.random() < 0.08) {
+          // Make sure not too close to buildings
+          if (!this.isNearBuilding(x, y, 1)) {
+            this.grid[y][x] = { type: 'tree', tile: Math.random() < 0.5 ? TILE_TREE_1 : TILE_TREE_2 };
+          }
+        }
+      }
+    }
+  }
+
+  private isNearBuilding(x: number, y: number, distance: number): boolean {
+    for (let dy = -distance; dy <= distance; dy++) {
+      for (let dx = -distance; dx <= distance; dx++) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
+          if (this.grid[ny][nx].type === 'building') {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  // =============================================================================
+  // Coordinate Conversion
+  // =============================================================================
+
+  /** Convert grid coords to screen coords (isometric projection) */
+  private gridToScreen(gridX: number, gridY: number): [number, number] {
+    const tileW = TILE_WIDTH * this.zoom;
+    const tileH = TILE_HEIGHT * this.zoom;
+    // Standard isometric transform: (y - x) for X, (x + y) for Y
+    const screenX = (gridY - gridX) * (tileW / 2) + this.cameraX;
+    const screenY = (gridX + gridY) * (tileH / 2) + this.cameraY;
+    return [screenX, screenY];
+  }
+
+  /** Convert world coordinates to grid coordinates */
+  private worldToGrid(worldX: number, worldY: number): [number, number] {
+    // World range [20, 90] -> grid range [0, 19]
+    const gridX = Math.floor((worldX - 20) / 4);
+    const gridY = Math.floor((worldY - 20) / 4);
+    return [
+      Math.max(0, Math.min(GRID_SIZE - 1, gridX)),
+      Math.max(0, Math.min(GRID_SIZE - 1, gridY)),
+    ];
+  }
+
+  /** Convert world coordinates directly to screen */
+  private worldToScreen(worldX: number, worldY: number): [number, number] {
+    // Map world coordinates to a position within the grid
+    // World range ~[10, 90] should map smoothly across the grid
+    const normalizedX = (worldX - 10) / 80 * GRID_SIZE;
+    const normalizedY = (worldY - 10) / 80 * GRID_SIZE;
+
+    const tileW = TILE_WIDTH * this.zoom;
+    const tileH = TILE_HEIGHT * this.zoom;
+
+    const screenX = (normalizedY - normalizedX) * (tileW / 2) + this.cameraX;
+    const screenY = (normalizedX + normalizedY) * (tileH / 2) + this.cameraY;
+
+    return [screenX, screenY];
+  }
+
+  // =============================================================================
+  // Drawing Functions
+  // =============================================================================
+
+  /** Draw a sprite tile from the sprite sheet */
+  private drawSprite(
+    ctx: CanvasRenderingContext2D,
+    gridX: number,
+    gridY: number,
+    tile: TileDef
+  ): void {
+    if (!this.spriteSheet || !this.spriteLoaded) return;
+
+    const [screenX, screenY] = this.gridToScreen(gridX, gridY);
+    const destW = SPRITE_WIDTH * this.zoom;
+    const destH = SPRITE_HEIGHT * this.zoom;
+    const tileH = TILE_HEIGHT * this.zoom;
+
+    // Source position in sprite sheet
+    const srcX = tile.col * SPRITE_WIDTH;
+    const srcY = tile.row * SPRITE_HEIGHT;
+
+    // IsoCity uses: drawImage(texture, sx, sy, 130, 230, -65, -130, 130, 230)
+    // The sprite anchor is at (-65, -130) relative to the isometric grid point
+    // -65 = half sprite width, -130 = specific offset for this tileset
+    const drawX = screenX - destW / 2;
+    const drawY = screenY - 130 * this.zoom;
+
+    ctx.drawImage(
+      this.spriteSheet,
+      srcX, srcY, SPRITE_WIDTH, SPRITE_HEIGHT,
+      drawX, drawY, destW, destH
+    );
+  }
+
+  /** Draw the base layer (terrain, roads, buildings) */
+  private drawBase(): void {
+    const ctx = this.baseCtx;
+    const { width, height } = ctx.canvas;
+
+    // Dark background
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, width, height);
+
+    if (!this.spriteLoaded) return;
+
+    // Draw tiles back to front (painter's algorithm)
+    // For isometric, we iterate by sum of x+y to get correct depth ordering
+    for (let sum = 0; sum < GRID_SIZE * 2 - 1; sum++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
+        const y = sum - x;
+        if (y < 0 || y >= GRID_SIZE) continue;
+
+        const cell = this.grid[y][x];
+        this.drawSprite(ctx, x, y, cell.tile);
+      }
+    }
+  }
+
+  /** Draw agents layer */
+  private drawAgents(): void {
+    const ctx = this.agentsCtx;
+    const { width, height } = ctx.canvas;
+
+    ctx.clearRect(0, 0, width, height);
+
+    if (this.state.agents.length === 0) return;
+
+    // Sort agents by depth (y + x for isometric ordering)
+    const sortedAgents = [...this.state.agents].sort((a, b) => {
+      const depthA = a.x + a.y;
+      const depthB = b.x + b.y;
+      return depthA - depthB;
+    });
+
+    for (const agent of sortedAgents) {
+      if (agent.health <= 0) continue;
+      this.drawAgent(ctx, agent);
+    }
+  }
+
+  /** Draw a single agent */
+  private drawAgent(ctx: CanvasRenderingContext2D, agent: Agent): void {
+    const [sx, sy] = this.worldToScreen(agent.x, agent.y);
+    const isSelected = agent.id === this.state.selectedAgentId;
+    const baseSize = 18 * this.zoom;
+    const size = isSelected ? baseSize * 1.2 : baseSize;
+
+    // Shadow (ellipse on ground)
+    ctx.beginPath();
+    ctx.ellipse(sx, sy + 4 * this.zoom, size * 0.7, size * 0.25, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fill();
+
+    // Selection ring
+    if (isSelected) {
+      ctx.beginPath();
+      ctx.arc(sx, sy - size * 0.4, size * 1.4, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(224, 122, 95, 0.3)';
+      ctx.fill();
+      ctx.strokeStyle = '#e07a5f';
+      ctx.lineWidth = 3 * this.zoom;
+      ctx.stroke();
+    }
+
+    // Agent body - gradient sphere effect
+    const gradient = ctx.createRadialGradient(
+      sx - size * 0.25, sy - size * 0.6, 0,
+      sx, sy - size * 0.3, size
+    );
+    const baseColor = agent.color || '#3b82f6';
+    gradient.addColorStop(0, this.lightenColor(baseColor, 0.4));
+    gradient.addColorStop(0.6, baseColor);
+    gradient.addColorStop(1, this.darkenColor(baseColor, 0.3));
+
+    ctx.beginPath();
+    ctx.arc(sx, sy - size * 0.3, size * 0.85, 0, Math.PI * 2);
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    // Outline
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.lineWidth = 2 * this.zoom;
+    ctx.stroke();
+
+    // Inner highlight
+    ctx.beginPath();
+    ctx.arc(sx - size * 0.2, sy - size * 0.5, size * 0.2, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.fill();
+
+    // State indicator (small colored dot)
+    const stateColor = STATE_COLORS[agent.state] || STATE_COLORS.idle;
+    ctx.beginPath();
+    ctx.arc(sx + size * 0.6, sy - size * 0.9, 5 * this.zoom, 0, Math.PI * 2);
+    ctx.fillStyle = stateColor;
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5 * this.zoom;
+    ctx.stroke();
+
+    // Agent name label
+    const label = agent.llmType.charAt(0).toUpperCase() + agent.llmType.slice(1);
+    ctx.font = `bold ${11 * this.zoom}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+
+    // Text shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.fillText(label, sx + 1, sy + size * 0.5 + 1);
+
+    // Text
+    ctx.fillStyle = '#f4f1de';
+    ctx.fillText(label, sx, sy + size * 0.5);
+  }
+
+  /** Draw effects layer (health bars, speech bubbles, UI) */
+  private drawEffects(): void {
+    const ctx = this.effectsCtx;
+    const { width, height } = ctx.canvas;
+    const now = Date.now();
+    const BUBBLE_DURATION = 3000;
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Health bars for low health agents
+    for (const agent of this.state.agents) {
+      if (agent.health <= 0 || agent.health > 30) continue;
+
+      const [sx, sy] = this.worldToScreen(agent.x, agent.y);
+      const barWidth = 40 * this.zoom;
+      const barHeight = 5 * this.zoom;
+      const barY = sy - 35 * this.zoom;
+
+      // Background
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.beginPath();
+      ctx.roundRect(sx - barWidth / 2 - 2, barY - 2, barWidth + 4, barHeight + 4, 3);
+      ctx.fill();
+
+      // Health bar background
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(sx - barWidth / 2, barY, barWidth, barHeight);
+
+      // Health bar fill
+      const healthPercent = agent.health / 100;
+      ctx.fillStyle = agent.health < 10 ? '#e07a5f' : '#f2cc8f';
+      ctx.fillRect(sx - barWidth / 2, barY, barWidth * healthPercent, barHeight);
+    }
+
+    // Speech bubbles
+    for (const bubble of this.state.bubbles) {
+      const agent = this.state.agents.find((a) => a.id === bubble.agentId);
+      if (!agent || agent.health <= 0) continue;
+
+      const age = now - bubble.timestamp;
+      if (age > BUBBLE_DURATION) continue;
+
+      // Fade animation
+      const fadeStart = BUBBLE_DURATION - 500;
+      const opacity = age > fadeStart ? 1 - (age - fadeStart) / 500 : 1;
+
+      // Float up animation
+      const floatOffset = Math.min(age / 200, 10) * this.zoom;
+
+      const [sx, sy] = this.worldToScreen(agent.x, agent.y);
+      const bubbleY = sy - 60 * this.zoom - floatOffset;
+      const text = bubble.emoji ? `${bubble.emoji} ${bubble.text}` : bubble.text;
+
+      ctx.font = `bold ${12 * this.zoom}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+      const textWidth = ctx.measureText(text).width;
+      const padding = 10 * this.zoom;
+      const bubbleWidth = Math.min(textWidth + padding * 2, 200 * this.zoom);
+      const bubbleHeight = 26 * this.zoom;
+
+      ctx.globalAlpha = opacity;
+
+      // Bubble background
+      ctx.fillStyle = 'rgba(30, 30, 50, 0.95)';
+      ctx.beginPath();
+      ctx.roundRect(
+        sx - bubbleWidth / 2,
+        bubbleY - bubbleHeight / 2,
+        bubbleWidth,
+        bubbleHeight,
+        8 * this.zoom
+      );
+      ctx.fill();
+
+      // Border
+      ctx.strokeStyle = '#e07a5f';
+      ctx.lineWidth = 2 * this.zoom;
+      ctx.stroke();
+
+      // Pointer triangle
+      ctx.fillStyle = 'rgba(30, 30, 50, 0.95)';
+      ctx.beginPath();
+      ctx.moveTo(sx - 6 * this.zoom, bubbleY + bubbleHeight / 2);
+      ctx.lineTo(sx, bubbleY + bubbleHeight / 2 + 10 * this.zoom);
+      ctx.lineTo(sx + 6 * this.zoom, bubbleY + bubbleHeight / 2);
+      ctx.closePath();
+      ctx.fill();
+
+      // Text
+      ctx.fillStyle = '#f4f1de';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const displayText = text.length > 25 ? text.substring(0, 22) + '...' : text;
+      ctx.fillText(displayText, sx, bubbleY);
+
+      ctx.globalAlpha = 1;
+    }
+
+    // Tick counter
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.beginPath();
+    ctx.roundRect(8, 8, 100, 28, 6);
+    ctx.fill();
+
+    ctx.fillStyle = '#f4f1de';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`Tick: ${this.state.tick}`, 16, 22);
+
+    // Agent count
+    const aliveCount = this.state.agents.filter(a => a.health > 0).length;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.beginPath();
+    ctx.roundRect(8, 42, 100, 28, 6);
+    ctx.fill();
+
+    ctx.fillStyle = '#81b29a';
+    ctx.fillText(`Agents: ${aliveCount}`, 16, 56);
+  }
+
+  // =============================================================================
+  // Color Utilities
+  // =============================================================================
+
+  private lightenColor(hex: string, factor: number): string {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgb(${Math.min(255, Math.floor(r + (255 - r) * factor))}, ${Math.min(255, Math.floor(g + (255 - g) * factor))}, ${Math.min(255, Math.floor(b + (255 - b) * factor))})`;
+  }
+
+  private darkenColor(hex: string, factor: number): string {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgb(${Math.floor(r * (1 - factor))}, ${Math.floor(g * (1 - factor))}, ${Math.floor(b * (1 - factor))})`;
+  }
+
+  // =============================================================================
+  // Event Handling
+  // =============================================================================
+
+  private handleClick = (e: MouseEvent): void => {
     if (!this.onAgentClick) return;
 
     const rect = this.agentsCtx.canvas.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
 
-    // Find clicked agent
+    // Check each agent for click proximity
     for (const agent of this.state.agents) {
-      const [sx, sy] = this.toScreen(agent.x, agent.y);
+      if (agent.health <= 0) continue;
+
+      const [sx, sy] = this.worldToScreen(agent.x, agent.y);
       const distance = Math.sqrt((clickX - sx) ** 2 + (clickY - sy) ** 2);
 
-      if (distance < 15) {
+      if (distance < 25 * this.zoom) {
         this.onAgentClick(agent.id);
         return;
       }
     }
   };
 
-  setOnAgentClick(handler: (agentId: string) => void) {
+  setOnAgentClick(handler: (agentId: string) => void): void {
     this.onAgentClick = handler;
   }
 
-  /** Convert grid coords to screen coords (isometric projection) */
-  private toScreen(x: number, y: number): [number, number] {
-    const tileW = TILE_WIDTH * this.zoom;
-    const tileH = TILE_HEIGHT * this.zoom;
-    const screenX = (x - y) * (tileW / 2) + this.cameraX;
-    const screenY = (x + y) * (tileH / 2) + this.cameraY;
-    return [screenX, screenY];
-  }
-
-  /** Draw isometric tile */
-  private drawTile(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    color: string,
-    highlight = false
-  ) {
-    const [sx, sy] = this.toScreen(x, y);
-    const tileW = TILE_WIDTH * this.zoom;
-    const tileH = TILE_HEIGHT * this.zoom;
-
-    ctx.beginPath();
-    ctx.moveTo(sx, sy);
-    ctx.lineTo(sx + tileW / 2, sy + tileH / 2);
-    ctx.lineTo(sx, sy + tileH);
-    ctx.lineTo(sx - tileW / 2, sy + tileH / 2);
-    ctx.closePath();
-
-    ctx.fillStyle = color;
-    ctx.fill();
-
-    if (highlight) {
-      ctx.strokeStyle = '#e94560';
-      ctx.lineWidth = 2;
-    } else {
-      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-      ctx.lineWidth = 1;
-    }
-    ctx.stroke();
-  }
-
-  /** Draw base terrain grid */
-  private drawBase() {
-    const ctx = this.baseCtx;
-    const { width, height } = ctx.canvas;
-
-    ctx.fillStyle = '#1a1a2e';
-    ctx.fillRect(0, 0, width, height);
-
-    // Draw grid covering the world (0-100)
-    const gridMin = -5;
-    const gridMax = 100;
-
-    // Draw grid
-    for (let x = gridMin; x < gridMax; x++) {
-      for (let y = gridMin; y < gridMax; y++) {
-        const color = (x + y) % 2 === 0 ? '#2d2d44' : '#252538';
-        this.drawTile(ctx, x, y, color);
-      }
-    }
-
-    // Draw locations
-    for (const loc of this.state.locations) {
-      const color = LOCATION_COLORS[loc.type] || '#666';
-      this.drawTile(ctx, loc.x, loc.y, color);
-
-      // Draw location name
-      const [sx, sy] = this.toScreen(loc.x, loc.y);
-      ctx.fillStyle = '#fff';
-      ctx.font = `${10 * this.zoom}px system-ui`;
-      ctx.textAlign = 'center';
-      ctx.fillText(loc.name, sx, sy + TILE_HEIGHT * this.zoom + 12);
-    }
-  }
-
-  /** Draw agents */
-  private drawAgents() {
-    const ctx = this.agentsCtx;
-    const { width, height } = ctx.canvas;
-
-    ctx.clearRect(0, 0, width, height);
-
-    // Sort by y for proper layering
-    const sortedAgents = [...this.state.agents].sort((a, b) => a.y - b.y);
-
-    for (const agent of sortedAgents) {
-      if (agent.health <= 0) continue; // Don't draw dead agents
-
-      const [sx, sy] = this.toScreen(agent.x, agent.y);
-      const isSelected = agent.id === this.state.selectedAgentId;
-      const radius = (isSelected ? 10 : 8) * this.zoom;
-
-      // Draw selection ring
-      if (isSelected) {
-        ctx.beginPath();
-        ctx.arc(sx, sy, radius + 4, 0, Math.PI * 2);
-        ctx.strokeStyle = '#e94560';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-
-      // Draw agent as circle
-      ctx.beginPath();
-      ctx.arc(sx, sy, radius, 0, Math.PI * 2);
-      ctx.fillStyle = agent.color;
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // State indicator
-      const stateColor = STATE_COLORS[agent.state] || STATE_COLORS.idle;
-      ctx.beginPath();
-      ctx.arc(sx, sy - radius - 8, 4 * this.zoom, 0, Math.PI * 2);
-      ctx.fillStyle = stateColor;
-      ctx.fill();
-
-      // Agent name
-      ctx.fillStyle = '#fff';
-      ctx.font = `bold ${11 * this.zoom}px system-ui`;
-      ctx.textAlign = 'center';
-      ctx.fillText(agent.llmType, sx, sy + radius + 14);
-    }
-  }
-
-  /** Draw effects layer (health bars, etc.) */
-  private drawEffects() {
-    const ctx = this.effectsCtx;
-    const { width, height } = ctx.canvas;
-
-    ctx.clearRect(0, 0, width, height);
-
-    // Draw health bars for low health agents
-    for (const agent of this.state.agents) {
-      if (agent.health <= 0 || agent.health > 30) continue;
-
-      const [sx, sy] = this.toScreen(agent.x, agent.y);
-      const barWidth = 30 * this.zoom;
-      const barHeight = 4 * this.zoom;
-
-      // Background
-      ctx.fillStyle = '#333';
-      ctx.fillRect(sx - barWidth / 2, sy - 25 * this.zoom, barWidth, barHeight);
-
-      // Health fill
-      const healthPercent = agent.health / 100;
-      ctx.fillStyle = agent.health < 10 ? '#ef4444' : '#f59e0b';
-      ctx.fillRect(
-        sx - barWidth / 2,
-        sy - 25 * this.zoom,
-        barWidth * healthPercent,
-        barHeight
-      );
-    }
-
-    // Draw tick counter
-    ctx.fillStyle = '#fff';
-    ctx.font = '14px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(`Tick: ${this.state.tick}`, 10, 20);
-  }
+  // =============================================================================
+  // Public API
+  // =============================================================================
 
   /** Update world state */
-  updateState(state: Partial<RenderState>) {
+  updateState(state: Partial<RenderState>): void {
+    const locationsChanged = state.locations &&
+      JSON.stringify(state.locations) !== JSON.stringify(this.state.locations);
+
     this.state = { ...this.state, ...state };
-    this.drawBase();
+
+    // Rebuild city layout if locations changed
+    if (locationsChanged && this.spriteLoaded) {
+      this.buildCityLayout();
+      this.drawBase();
+    }
+  }
+
+  /** Get current camera position */
+  getCamera(): { x: number; y: number } {
+    return { x: this.cameraX, y: this.cameraY };
   }
 
   /** Update camera position */
-  setCamera(x: number, y: number) {
+  setCamera(x: number, y: number): void {
     this.cameraX = x;
     this.cameraY = y;
-    this.drawBase();
+    this.redrawBase();
+  }
+
+  /** Get current zoom level */
+  getZoom(): number {
+    return this.zoom;
   }
 
   /** Update zoom level */
-  setZoom(zoom: number) {
-    this.zoom = Math.max(0.5, Math.min(2, zoom));
-    this.drawBase();
+  setZoom(zoom: number): void {
+    this.zoom = Math.max(0.25, Math.min(2, zoom));
+    this.redrawBase();
   }
 
   /** Animation loop */
-  private loop = () => {
+  private loop = (): void => {
     this.drawAgents();
     this.drawEffects();
     this.animationId = requestAnimationFrame(this.loop);
   };
 
   /** Start rendering */
-  start() {
-    this.drawBase();
+  start(): void {
+    if (this.spriteLoaded) {
+      this.redrawBase();
+    }
     this.loop();
   }
 
   /** Stop rendering */
-  stop() {
+  stop(): void {
     cancelAnimationFrame(this.animationId);
   }
 
   /** Cleanup */
-  destroy() {
+  destroy(): void {
     this.stop();
     this.agentsCtx.canvas.removeEventListener('click', this.handleClick);
+  }
+
+  // =============================================================================
+  // Editor Mode API
+  // =============================================================================
+
+  /** Set editor mode on/off */
+  setEditorMode(enabled: boolean): void {
+    this.editorMode = enabled;
+    if (enabled && this.editorGrid) {
+      this.drawBaseFromEditorGrid();
+    } else if (!enabled) {
+      // Rebuild city layout from locations when exiting editor mode
+      if (this.spriteLoaded) {
+        this.buildCityLayout();
+        this.drawBase();
+      }
+    }
+  }
+
+  /** Check if in editor mode */
+  isEditorMode(): boolean {
+    return this.editorMode;
+  }
+
+  /** Set editor grid and redraw */
+  setEditorGrid(grid: EditorTileDef[][]): void {
+    this.editorGrid = grid;
+    if (this.editorMode && this.spriteLoaded) {
+      this.drawBaseFromEditorGrid();
+    }
+  }
+
+  /** Get current editor grid */
+  getEditorGrid(): EditorTileDef[][] | null {
+    return this.editorGrid;
+  }
+
+  /** Convert screen coordinates to grid coordinates */
+  screenToGrid(screenX: number, screenY: number): { gridX: number; gridY: number } | null {
+    const tileW = TILE_WIDTH * this.zoom;
+    const tileH = TILE_HEIGHT * this.zoom;
+
+    // Adjust for camera position
+    const relX = screenX - this.cameraX;
+    const relY = screenY - this.cameraY;
+
+    // Reverse isometric transformation
+    // Forward: screenX = (gridY - gridX) * tileW/2, screenY = (gridX + gridY) * tileH/2
+    // Reverse: gridX = (relY/tileH - relX/tileW), gridY = (relY/tileH + relX/tileW)
+    const gridX = Math.floor((relY / (tileH / 2) - relX / (tileW / 2)) / 2);
+    const gridY = Math.floor((relY / (tileH / 2) + relX / (tileW / 2)) / 2);
+
+    // Bounds check
+    if (gridX < 0 || gridX >= GRID_SIZE || gridY < 0 || gridY >= GRID_SIZE) {
+      return null;
+    }
+
+    return { gridX, gridY };
+  }
+
+  /** Update hover position for preview */
+  setHoverPosition(gridX: number, gridY: number): void {
+    if (this.hoverGridX !== gridX || this.hoverGridY !== gridY) {
+      this.hoverGridX = gridX;
+      this.hoverGridY = gridY;
+      // Redraw to show hover effect
+      if (this.editorMode && this.spriteLoaded) {
+        this.drawBaseFromEditorGrid();
+      }
+    }
+  }
+
+  /** Clear hover position */
+  clearHoverPosition(): void {
+    this.hoverGridX = -1;
+    this.hoverGridY = -1;
+    if (this.editorMode && this.spriteLoaded) {
+      this.drawBaseFromEditorGrid();
+    }
+  }
+
+  /** Draw base layer from editor grid (no auto-generation) */
+  private drawBaseFromEditorGrid(): void {
+    const ctx = this.baseCtx;
+    const { width, height } = ctx.canvas;
+
+    // Dark background
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, width, height);
+
+    if (!this.spriteLoaded || !this.editorGrid) return;
+
+    // Draw tiles back to front (painter's algorithm)
+    // For isometric, we iterate by sum of x+y to get correct depth ordering
+    for (let sum = 0; sum < GRID_SIZE * 2 - 1; sum++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
+        const y = sum - x;
+        if (y < 0 || y >= GRID_SIZE) continue;
+
+        const tile = this.editorGrid[y]?.[x];
+        if (tile) {
+          this.drawSprite(ctx, x, y, { col: tile.col, row: tile.row });
+        }
+      }
+    }
+
+    // Draw hover highlight
+    if (this.hoverGridX >= 0 && this.hoverGridY >= 0) {
+      this.drawHoverHighlight(ctx, this.hoverGridX, this.hoverGridY);
+    }
+
+    // Draw grid lines in editor mode for better visibility
+    this.drawEditorGrid(ctx);
+  }
+
+  /** Draw hover highlight on tile */
+  private drawHoverHighlight(ctx: CanvasRenderingContext2D, gridX: number, gridY: number): void {
+    const [screenX, screenY] = this.gridToScreen(gridX, gridY);
+    const tileW = TILE_WIDTH * this.zoom;
+    const tileH = TILE_HEIGHT * this.zoom;
+
+    ctx.save();
+    ctx.strokeStyle = '#e07a5f';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(screenX, screenY);
+    ctx.lineTo(screenX + tileW / 2, screenY + tileH / 2);
+    ctx.lineTo(screenX, screenY + tileH);
+    ctx.lineTo(screenX - tileW / 2, screenY + tileH / 2);
+    ctx.closePath();
+    ctx.stroke();
+
+    // Semi-transparent fill
+    ctx.fillStyle = 'rgba(224, 122, 95, 0.2)';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /** Draw subtle grid lines for editor */
+  private drawEditorGrid(ctx: CanvasRenderingContext2D): void {
+    if (!this.editorMode) return;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+
+    // Draw grid lines
+    for (let i = 0; i <= GRID_SIZE; i++) {
+      // Horizontal lines (along Y axis)
+      const [startX, startY] = this.gridToScreen(0, i);
+      const [endX, endY] = this.gridToScreen(GRID_SIZE, i);
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+
+      // Vertical lines (along X axis)
+      const [startX2, startY2] = this.gridToScreen(i, 0);
+      const [endX2, endY2] = this.gridToScreen(i, GRID_SIZE);
+      ctx.beginPath();
+      ctx.moveTo(startX2, startY2);
+      ctx.lineTo(endX2, endY2);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  /** Get grid size */
+  getGridSize(): number {
+    return GRID_SIZE;
+  }
+
+  /** Force redraw base layer */
+  redrawBase(): void {
+    if (this.editorMode && this.editorGrid) {
+      this.drawBaseFromEditorGrid();
+    } else {
+      this.drawBase();
+    }
   }
 }
