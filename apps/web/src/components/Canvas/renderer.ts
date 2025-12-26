@@ -469,11 +469,12 @@ export class IsometricRenderer {
     return [screenX, screenY];
   }
 
-  /** Convert world coordinates to grid coordinates */
+  /** Convert world coordinates to grid coordinates (fractional for smooth movement) */
   private worldToGrid(worldX: number, worldY: number): [number, number] {
     // World range [0, 100] -> grid range [0, 19]
-    const gridX = Math.floor((worldX / 100) * GRID_SIZE);
-    const gridY = Math.floor((worldY / 100) * GRID_SIZE);
+    // Use fractional coordinates for smooth animation interpolation
+    const gridX = (worldX / 100) * GRID_SIZE;
+    const gridY = (worldY / 100) * GRID_SIZE;
     return [
       Math.max(0, Math.min(GRID_SIZE - 1, gridX)),
       Math.max(0, Math.min(GRID_SIZE - 1, gridY)),
