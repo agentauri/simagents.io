@@ -13,7 +13,7 @@ export class GeminiCLIAdapter extends BaseLLMAdapter {
 
   private readonly timeout: number;
 
-  constructor(timeout = 30000) {
+  constructor(timeout = 25000) {
     super();
     this.timeout = timeout;
   }

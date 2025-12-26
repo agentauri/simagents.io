@@ -88,6 +88,12 @@ export async function processAgentsTick(tick: number): Promise<AgentTickResult[]
   const results: AgentTickResult[] = [];
 
   for (const result of decisionResults) {
+    // Skip null/undefined results (can happen on timeout)
+    if (!result || !result.agentId || !result.decision) {
+      console.warn('[Orchestrator] Skipping invalid decision result:', result);
+      continue;
+    }
+
     const agent = agents.find((a) => a.id === result.agentId);
     if (!agent) continue;
 

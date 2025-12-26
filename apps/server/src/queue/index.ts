@@ -168,10 +168,13 @@ export async function waitForDecisions(
     setTimeout(() => reject(new Error('Decision timeout')), timeoutMs);
   });
 
+  // waitUntilFinished returns the job result directly
   const results = Promise.all(
-    jobs.map((job) =>
-      job.waitUntilFinished(queueEvents).then(() => job.returnvalue!)
-    )
+    jobs.map(async (job) => {
+      const result = await job.waitUntilFinished(queueEvents);
+      console.log(`[Queue] Job ${job.id} result:`, result ? 'OK' : 'NULL');
+      return result as DecisionJobResult;
+    })
   );
 
   return Promise.race([results, timeout]);
