@@ -9,6 +9,8 @@
 import type { Agent, Location, AgentBubble } from '../../stores/world';
 import type { TileDef as EditorTileDef } from '../../utils/tiles';
 import { GRID_SIZE as EDITOR_GRID_SIZE } from '../../utils/tiles';
+import { AgentAnimationManager } from './agentAnimation';
+import { getLLMColor, ANIM_ROWS } from './agentSprites';
 
 // =============================================================================
 // Constants
@@ -180,6 +182,9 @@ export class IsometricRenderer {
   private hoverGridX = -1;
   private hoverGridY = -1;
 
+  // Agent animation
+  private animationManager: AgentAnimationManager;
+
   // =============================================================================
   // Constructor & Setup
   // =============================================================================
@@ -192,6 +197,9 @@ export class IsometricRenderer {
     this.baseCtx = baseCanvas.getContext('2d')!;
     this.agentsCtx = agentsCanvas.getContext('2d')!;
     this.effectsCtx = effectsCanvas.getContext('2d')!;
+
+    // Initialize animation manager
+    this.animationManager = new AgentAnimationManager();
 
     // Center camera on grid
     this.centerCamera();
@@ -463,9 +471,9 @@ export class IsometricRenderer {
 
   /** Convert world coordinates to grid coordinates */
   private worldToGrid(worldX: number, worldY: number): [number, number] {
-    // World range [20, 90] -> grid range [0, 19]
-    const gridX = Math.floor((worldX - 20) / 4);
-    const gridY = Math.floor((worldY - 20) / 4);
+    // World range [0, 100] -> grid range [0, 19]
+    const gridX = Math.floor((worldX / 100) * GRID_SIZE);
+    const gridY = Math.floor((worldY / 100) * GRID_SIZE);
     return [
       Math.max(0, Math.min(GRID_SIZE - 1, gridX)),
       Math.max(0, Math.min(GRID_SIZE - 1, gridY)),
@@ -556,92 +564,209 @@ export class IsometricRenderer {
 
     if (this.state.agents.length === 0) return;
 
-    // Sort agents by depth (y + x for isometric ordering)
-    const sortedAgents = [...this.state.agents].sort((a, b) => {
-      const depthA = a.x + a.y;
-      const depthB = b.x + b.y;
-      return depthA - depthB;
-    });
+    // Sort agents by visual depth (using animation manager positions)
+    const sortedAgents = [...this.state.agents]
+      .filter(a => a.health > 0)
+      .sort((a, b) => {
+        const stateA = this.animationManager.getState(a.id);
+        const stateB = this.animationManager.getState(b.id);
+        if (!stateA || !stateB) return 0;
+        // Sort by visual depth (x + y for isometric ordering)
+        return (stateA.visualX + stateA.visualY) - (stateB.visualX + stateB.visualY);
+      });
 
     for (const agent of sortedAgents) {
-      if (agent.health <= 0) continue;
       this.drawAgent(ctx, agent);
     }
   }
 
-  /** Draw a single agent */
+  /** Draw a single agent as an isometric human figure */
   private drawAgent(ctx: CanvasRenderingContext2D, agent: Agent): void {
-    const [sx, sy] = this.worldToScreen(agent.x, agent.y);
-    const isSelected = agent.id === this.state.selectedAgentId;
-    const baseSize = 18 * this.zoom;
-    const size = isSelected ? baseSize * 1.2 : baseSize;
+    // Get animation state for position
+    const animState = this.animationManager.getState(agent.id);
+    if (!animState) return;
 
-    // Shadow (ellipse on ground)
+    // Convert grid position to screen coordinates
+    const [sx, sy] = this.gridToScreen(animState.visualX, animState.visualY);
+
+    const isSelected = agent.id === this.state.selectedAgentId;
+    const baseColor = getLLMColor(agent.llmType);
+    const scale = this.zoom;
+
+    // Dimensions for isometric human figure
+    const bodyWidth = 16 * scale;
+    const bodyHeight = 24 * scale;
+    const headRadius = 8 * scale;
+    const legWidth = 6 * scale;
+    const legHeight = 16 * scale;
+
+    // Offset to center figure on tile
+    const figureY = sy - 10 * scale; // Raise figure slightly above ground
+
+    // Walking animation offset
+    let legOffset = 0;
+    if (animState.isMoving) {
+      // Oscillate legs based on animation frame
+      legOffset = (animState.animFrame - 1) * 3 * scale;
+    }
+
+    // Shadow (isometric ellipse on ground)
     ctx.beginPath();
-    ctx.ellipse(sx, sy + 4 * this.zoom, size * 0.7, size * 0.25, 0, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.ellipse(sx, sy + 4 * scale, bodyWidth * 0.8, bodyWidth * 0.3, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.fill();
 
     // Selection ring
     if (isSelected) {
       ctx.beginPath();
-      ctx.arc(sx, sy - size * 0.4, size * 1.4, 0, Math.PI * 2);
+      ctx.ellipse(sx, sy + 2 * scale, bodyWidth * 1.5, bodyWidth * 0.5, 0, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(224, 122, 95, 0.3)';
       ctx.fill();
       ctx.strokeStyle = '#e07a5f';
-      ctx.lineWidth = 3 * this.zoom;
+      ctx.lineWidth = 2 * scale;
       ctx.stroke();
     }
 
-    // Agent body - gradient sphere effect
-    const gradient = ctx.createRadialGradient(
-      sx - size * 0.25, sy - size * 0.6, 0,
-      sx, sy - size * 0.3, size
+    // Legs (back leg first for depth)
+    const legY = figureY + bodyHeight * 0.3;
+
+    // Back leg
+    ctx.fillStyle = this.darkenColor(baseColor, 0.3);
+    ctx.beginPath();
+    ctx.roundRect(
+      sx - legWidth * 0.8 + (animState.isMoving ? -legOffset : 0),
+      legY,
+      legWidth,
+      legHeight,
+      2 * scale
     );
-    const baseColor = agent.color || '#3b82f6';
-    gradient.addColorStop(0, this.lightenColor(baseColor, 0.4));
-    gradient.addColorStop(0.6, baseColor);
-    gradient.addColorStop(1, this.darkenColor(baseColor, 0.3));
-
-    ctx.beginPath();
-    ctx.arc(sx, sy - size * 0.3, size * 0.85, 0, Math.PI * 2);
-    ctx.fillStyle = gradient;
     ctx.fill();
 
-    // Outline
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.lineWidth = 2 * this.zoom;
-    ctx.stroke();
-
-    // Inner highlight
+    // Front leg
+    ctx.fillStyle = this.darkenColor(baseColor, 0.2);
     ctx.beginPath();
-    ctx.arc(sx - size * 0.2, sy - size * 0.5, size * 0.2, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.roundRect(
+      sx - legWidth * 0.2 + (animState.isMoving ? legOffset : 0),
+      legY,
+      legWidth,
+      legHeight,
+      2 * scale
+    );
     ctx.fill();
 
-    // State indicator (small colored dot)
+    // Body (isometric torso - slightly trapezoidal)
+    const bodyTop = figureY - bodyHeight * 0.5;
+    ctx.fillStyle = baseColor;
+    ctx.beginPath();
+    ctx.moveTo(sx - bodyWidth * 0.5, bodyTop + bodyHeight);
+    ctx.lineTo(sx - bodyWidth * 0.4, bodyTop);
+    ctx.lineTo(sx + bodyWidth * 0.4, bodyTop);
+    ctx.lineTo(sx + bodyWidth * 0.5, bodyTop + bodyHeight);
+    ctx.closePath();
+    ctx.fill();
+
+    // Body highlight (left side for isometric lighting)
+    ctx.fillStyle = this.lightenColor(baseColor, 0.2);
+    ctx.beginPath();
+    ctx.moveTo(sx - bodyWidth * 0.5, bodyTop + bodyHeight);
+    ctx.lineTo(sx - bodyWidth * 0.4, bodyTop);
+    ctx.lineTo(sx, bodyTop);
+    ctx.lineTo(sx - bodyWidth * 0.1, bodyTop + bodyHeight);
+    ctx.closePath();
+    ctx.fill();
+
+    // Arms
+    const armY = bodyTop + bodyHeight * 0.1;
+    const armWidth = 5 * scale;
+    const armHeight = 14 * scale;
+
+    // Left arm (swings opposite to legs when walking)
+    ctx.fillStyle = baseColor;
+    ctx.beginPath();
+    ctx.roundRect(
+      sx - bodyWidth * 0.6 + (animState.isMoving ? legOffset * 0.5 : 0),
+      armY,
+      armWidth,
+      armHeight,
+      2 * scale
+    );
+    ctx.fill();
+
+    // Right arm
+    ctx.beginPath();
+    ctx.roundRect(
+      sx + bodyWidth * 0.45 + (animState.isMoving ? -legOffset * 0.5 : 0),
+      armY,
+      armWidth,
+      armHeight,
+      2 * scale
+    );
+    ctx.fill();
+
+    // Head
+    const headY = bodyTop - headRadius * 0.8;
+
+    // Head shadow/back
+    ctx.beginPath();
+    ctx.arc(sx, headY, headRadius, 0, Math.PI * 2);
+    ctx.fillStyle = this.darkenColor(baseColor, 0.1);
+    ctx.fill();
+
+    // Head main
+    ctx.beginPath();
+    ctx.arc(sx - 1 * scale, headY - 1 * scale, headRadius * 0.95, 0, Math.PI * 2);
+    ctx.fillStyle = '#f5e6d3'; // Skin tone
+    ctx.fill();
+
+    // Face direction indicator (simple dot for eyes based on facing)
+    const eyeOffsetX = animState.facing === 'se' ? 2 * scale : -2 * scale;
+    ctx.fillStyle = '#333';
+    ctx.beginPath();
+    ctx.arc(sx + eyeOffsetX - 2 * scale, headY - 2 * scale, 1.5 * scale, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(sx + eyeOffsetX + 2 * scale, headY - 2 * scale, 1.5 * scale, 0, Math.PI * 2);
+    ctx.fill();
+
+    // State indicator (small colored dot above head)
     const stateColor = STATE_COLORS[agent.state] || STATE_COLORS.idle;
     ctx.beginPath();
-    ctx.arc(sx + size * 0.6, sy - size * 0.9, 5 * this.zoom, 0, Math.PI * 2);
+    ctx.arc(sx + headRadius * 1.2, headY - headRadius * 0.8, 4 * scale, 0, Math.PI * 2);
     ctx.fillStyle = stateColor;
     ctx.fill();
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5 * this.zoom;
+    ctx.lineWidth = 1.5 * scale;
     ctx.stroke();
+
+    // Walking indicator (small motion lines)
+    if (animState.isMoving) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.lineWidth = 1 * scale;
+      const motionX = animState.facing === 'se' ? -12 * scale : 12 * scale;
+      for (let i = 0; i < 2; i++) {
+        ctx.beginPath();
+        ctx.moveTo(sx + motionX, figureY + i * 6 * scale);
+        ctx.lineTo(sx + motionX + (animState.facing === 'se' ? -6 : 6) * scale, figureY + i * 6 * scale);
+        ctx.stroke();
+      }
+    }
 
     // Agent name label
     const label = agent.llmType.charAt(0).toUpperCase() + agent.llmType.slice(1);
-    ctx.font = `bold ${11 * this.zoom}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.font = `bold ${10 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
 
-    // Text shadow
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    ctx.fillText(label, sx + 1, sy + size * 0.5 + 1);
+    // Label background
+    const labelWidth = ctx.measureText(label).width + 8 * scale;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.beginPath();
+    ctx.roundRect(sx - labelWidth / 2, sy + 10 * scale, labelWidth, 14 * scale, 3 * scale);
+    ctx.fill();
 
     // Text
     ctx.fillStyle = '#f4f1de';
-    ctx.fillText(label, sx, sy + size * 0.5);
+    ctx.fillText(label, sx, sy + 12 * scale);
   }
 
   /** Draw effects layer (health bars, speech bubbles, UI) */
@@ -657,7 +782,9 @@ export class IsometricRenderer {
     for (const agent of this.state.agents) {
       if (agent.health <= 0 || agent.health > 30) continue;
 
-      const [sx, sy] = this.worldToScreen(agent.x, agent.y);
+      const animState = this.animationManager.getState(agent.id);
+      if (!animState) continue;
+      const [sx, sy] = this.gridToScreen(animState.visualX, animState.visualY);
       const barWidth = 40 * this.zoom;
       const barHeight = 5 * this.zoom;
       const barY = sy - 35 * this.zoom;
@@ -683,6 +810,9 @@ export class IsometricRenderer {
       const agent = this.state.agents.find((a) => a.id === bubble.agentId);
       if (!agent || agent.health <= 0) continue;
 
+      const animState = this.animationManager.getState(agent.id);
+      if (!animState) continue;
+
       const age = now - bubble.timestamp;
       if (age > BUBBLE_DURATION) continue;
 
@@ -693,7 +823,7 @@ export class IsometricRenderer {
       // Float up animation
       const floatOffset = Math.min(age / 200, 10) * this.zoom;
 
-      const [sx, sy] = this.worldToScreen(agent.x, agent.y);
+      const [sx, sy] = this.gridToScreen(animState.visualX, animState.visualY);
       const bubbleY = sy - 60 * this.zoom - floatOffset;
       const text = bubble.emoji ? `${bubble.emoji} ${bubble.text}` : bubble.text;
 
@@ -793,14 +923,17 @@ export class IsometricRenderer {
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
 
-    // Check each agent for click proximity
+    // Check each agent for click proximity using animation positions
     for (const agent of this.state.agents) {
       if (agent.health <= 0) continue;
 
-      const [sx, sy] = this.worldToScreen(agent.x, agent.y);
+      const animState = this.animationManager.getState(agent.id);
+      if (!animState) continue;
+
+      const [sx, sy] = this.gridToScreen(animState.visualX, animState.visualY);
       const distance = Math.sqrt((clickX - sx) ** 2 + (clickY - sy) ** 2);
 
-      if (distance < 25 * this.zoom) {
+      if (distance < 30 * this.zoom) {
         this.onAgentClick(agent.id);
         return;
       }
@@ -821,6 +954,18 @@ export class IsometricRenderer {
       JSON.stringify(state.locations) !== JSON.stringify(this.state.locations);
 
     this.state = { ...this.state, ...state };
+
+    // Update agent animation targets
+    if (state.agents) {
+      const currentAgentIds = new Set<string>();
+      for (const agent of state.agents) {
+        currentAgentIds.add(agent.id);
+        const [gridX, gridY] = this.worldToGrid(agent.x, agent.y);
+        this.animationManager.setTarget(agent.id, gridX, gridY);
+      }
+      // Remove agents that are no longer present
+      this.animationManager.syncAgents(currentAgentIds);
+    }
 
     // Only rebuild city layout if locations changed AND we don't have an editor grid
     // (editor grid takes precedence - preserves user's layout)
@@ -861,6 +1006,9 @@ export class IsometricRenderer {
 
   /** Animation loop */
   private loop = (): void => {
+    // Update animation states
+    this.animationManager.update(performance.now());
+
     this.drawAgents();
     this.drawEffects();
     this.animationId = requestAnimationFrame(this.loop);
