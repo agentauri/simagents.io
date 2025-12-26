@@ -24,6 +24,7 @@ export const IsometricCanvas = forwardRef<IsometricCanvasHandle>(function Isomet
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [cameraStart, setCameraStart] = useState({ x: 0, y: 0 });
   const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM);
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
 
   // World store
   const { tick, agents, locations, selectedAgentId, selectAgent, bubbles } = useWorldStore();
@@ -98,6 +99,7 @@ export const IsometricCanvas = forwardRef<IsometricCanvasHandle>(function Isomet
   useEditorInteraction({
     rendererRef,
     containerRef,
+    isSpacePressed,
   });
 
   // Handle resize
@@ -144,21 +146,69 @@ export const IsometricCanvas = forwardRef<IsometricCanvasHandle>(function Isomet
     return () => container.removeEventListener('wheel', handleWheel);
   }, [currentZoom]);
 
-  // Handle pan/drag - only when not placing tiles
+  // Handle space key for pan mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault();
+        setIsSpacePressed(true);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setIsSpacePressed(false);
+        setIsDragging(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
+  // Handle pan/drag
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // In editor mode with a selected tile, don't start drag (let editor interaction handle it)
+    // Middle-click always initiates pan
+    if (e.button === 1) {
+      e.preventDefault();
+      setIsDragging(true);
+      setDragStart({ x: e.clientX, y: e.clientY });
+      if (rendererRef.current) {
+        const camera = rendererRef.current.getCamera();
+        setCameraStart(camera);
+      }
+      return;
+    }
+
+    // Space + left-click initiates pan (in editor mode)
+    if (isSpacePressed && e.button === 0) {
+      e.preventDefault();
+      setIsDragging(true);
+      setDragStart({ x: e.clientX, y: e.clientY });
+      if (rendererRef.current) {
+        const camera = rendererRef.current.getCamera();
+        setCameraStart(camera);
+      }
+      return;
+    }
+
+    // Left-click: in editor mode with a selected tile, don't start drag (let editor interaction handle it)
     if (isEditorMode && selectedTile && e.button === 0) return;
 
-    // Only start drag with left button (or middle button)
-    if (e.button !== 0 && e.button !== 1) return;
-
-    setIsDragging(true);
-    setDragStart({ x: e.clientX, y: e.clientY });
-    if (rendererRef.current) {
-      const camera = rendererRef.current.getCamera();
-      setCameraStart(camera);
+    // Left-click drag in simulation mode (no tile selection)
+    if (e.button === 0) {
+      setIsDragging(true);
+      setDragStart({ x: e.clientX, y: e.clientY });
+      if (rendererRef.current) {
+        const camera = rendererRef.current.getCamera();
+        setCameraStart(camera);
+      }
     }
-  }, [isEditorMode, selectedTile]);
+  }, [isEditorMode, selectedTile, isSpacePressed]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDragging || !rendererRef.current) return;
@@ -180,6 +230,7 @@ export const IsometricCanvas = forwardRef<IsometricCanvasHandle>(function Isomet
     setIsDragging(false);
   }, []);
 
+
   // Double-click to reset camera
   const handleDoubleClick = useCallback(() => {
     if (!containerRef.current || !rendererRef.current) return;
@@ -192,7 +243,9 @@ export const IsometricCanvas = forwardRef<IsometricCanvasHandle>(function Isomet
   // Determine cursor style
   const getCursorStyle = () => {
     if (isDragging) return 'grabbing';
+    if (isSpacePressed) return 'grab';
     if (isEditorMode && selectedTile) return 'crosshair';
+    if (isEditorMode) return 'default';
     return 'grab';
   };
 
@@ -265,7 +318,7 @@ export const IsometricCanvas = forwardRef<IsometricCanvasHandle>(function Isomet
         style={{ zIndex: 10 }}
       >
         {isEditorMode
-          ? 'Click to place | Right-click to erase | Drag to pan | Scroll to zoom'
+          ? 'Click to place | Right-click to erase | Space+drag to pan | Scroll to zoom'
           : 'Drag to pan | Scroll to zoom | Double-click to reset'}
       </div>
     </div>

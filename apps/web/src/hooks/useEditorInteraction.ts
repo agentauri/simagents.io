@@ -1,10 +1,11 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { useEditorStore, useIsEditorMode, useSelectedTile } from '../stores/editor';
 import type { IsometricRenderer } from '../components/Canvas/renderer';
 
 interface UseEditorInteractionOptions {
   rendererRef: React.RefObject<IsometricRenderer | null>;
   containerRef: React.RefObject<HTMLElement | null>;
+  isSpacePressed?: boolean;
 }
 
 /**
@@ -17,10 +18,15 @@ interface UseEditorInteractionOptions {
 export function useEditorInteraction({
   rendererRef,
   containerRef,
+  isSpacePressed = false,
 }: UseEditorInteractionOptions) {
   const isEditorMode = useIsEditorMode();
   const selectedTile = useSelectedTile();
   const { placeTile, eraseTile } = useEditorStore();
+
+  // Track space state in a ref for event handlers
+  const isSpacePressedRef = useRef(isSpacePressed);
+  isSpacePressedRef.current = isSpacePressed;
 
   // Track if we're currently dragging (mouse down while moving)
   const isDragging = useRef(false);
@@ -47,6 +53,9 @@ export function useEditorInteraction({
   const handleMouseDown = useCallback(
     (e: MouseEvent) => {
       if (!isEditorMode) return;
+
+      // Skip tile placement/erase when space is pressed (panning mode)
+      if (isSpacePressedRef.current) return;
 
       const pos = getGridPosition(e);
       if (!pos) return;

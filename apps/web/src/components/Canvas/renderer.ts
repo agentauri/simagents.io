@@ -822,10 +822,17 @@ export class IsometricRenderer {
 
     this.state = { ...this.state, ...state };
 
-    // Rebuild city layout if locations changed
+    // Only rebuild city layout if locations changed AND we don't have an editor grid
+    // (editor grid takes precedence - preserves user's layout)
     if (locationsChanged && this.spriteLoaded) {
-      this.buildCityLayout();
-      this.drawBase();
+      if (this.editorGrid) {
+        // Use editor grid - just redraw without regenerating
+        this.drawBaseFromEditorGrid();
+      } else {
+        // No editor grid - generate layout from locations
+        this.buildCityLayout();
+        this.drawBase();
+      }
     }
   }
 
@@ -885,14 +892,13 @@ export class IsometricRenderer {
   /** Set editor mode on/off */
   setEditorMode(enabled: boolean): void {
     this.editorMode = enabled;
-    if (enabled && this.editorGrid) {
+    // Always use editor grid if available (preserves user's layout)
+    if (this.editorGrid && this.spriteLoaded) {
       this.drawBaseFromEditorGrid();
-    } else if (!enabled) {
-      // Rebuild city layout from locations when exiting editor mode
-      if (this.spriteLoaded) {
-        this.buildCityLayout();
-        this.drawBase();
-      }
+    } else if (!enabled && this.spriteLoaded) {
+      // Fallback: rebuild city layout from locations (only if no editor grid)
+      this.buildCityLayout();
+      this.drawBase();
     }
   }
 
@@ -983,13 +989,16 @@ export class IsometricRenderer {
       }
     }
 
-    // Draw hover highlight
-    if (this.hoverGridX >= 0 && this.hoverGridY >= 0) {
-      this.drawHoverHighlight(ctx, this.hoverGridX, this.hoverGridY);
-    }
+    // Draw editor-only elements
+    if (this.editorMode) {
+      // Draw hover highlight
+      if (this.hoverGridX >= 0 && this.hoverGridY >= 0) {
+        this.drawHoverHighlight(ctx, this.hoverGridX, this.hoverGridY);
+      }
 
-    // Draw grid lines in editor mode for better visibility
-    this.drawEditorGrid(ctx);
+      // Draw grid lines for better visibility
+      this.drawEditorGrid(ctx);
+    }
   }
 
   /** Draw hover highlight on tile */
@@ -1052,7 +1061,8 @@ export class IsometricRenderer {
 
   /** Force redraw base layer */
   redrawBase(): void {
-    if (this.editorMode && this.editorGrid) {
+    // Always prefer editor grid if available (preserves user's layout)
+    if (this.editorGrid) {
       this.drawBaseFromEditorGrid();
     } else {
       this.drawBase();
