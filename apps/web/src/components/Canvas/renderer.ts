@@ -576,23 +576,81 @@ export class IsometricRenderer {
         return (stateA.visualX + stateA.visualY) - (stateB.visualX + stateB.visualY);
       });
 
+    // Group agents by cell to handle overlapping
+    const agentsByCell = new Map<string, Agent[]>();
     for (const agent of sortedAgents) {
-      this.drawAgent(ctx, agent);
+      const state = this.animationManager.getState(agent.id);
+      if (!state) continue;
+      const cellKey = `${Math.floor(state.visualX)},${Math.floor(state.visualY)}`;
+      if (!agentsByCell.has(cellKey)) agentsByCell.set(cellKey, []);
+      agentsByCell.get(cellKey)!.push(agent);
+    }
+
+    // Draw agents with fan offset for overlapping cells
+    for (const [, agents] of agentsByCell) {
+      const offsets = this.getFanOffsets(agents.length);
+      agents.forEach((agent, i) => {
+        this.drawAgent(ctx, agent, offsets[i]);
+      });
     }
   }
 
+  /** Get fan pattern offsets for overlapping agents */
+  private getFanOffsets(count: number): { dx: number; dy: number }[] {
+    if (count === 1) return [{ dx: 0, dy: 0 }];
+    if (count === 2) return [{ dx: -10, dy: 0 }, { dx: 10, dy: 0 }];
+    // Circular pattern for 3+ agents
+    return Array.from({ length: count }, (_, i) => ({
+      dx: Math.cos((i * Math.PI * 2) / count - Math.PI / 2) * 14,
+      dy: Math.sin((i * Math.PI * 2) / count - Math.PI / 2) * 7,
+    }));
+  }
+
+  /** Check if agent is behind a tall building */
+  private isAgentBehindBuilding(gridX: number, gridY: number): boolean {
+    const cellX = Math.floor(gridX);
+    const cellY = Math.floor(gridY);
+
+    // Check cells "in front" in isometric perspective (higher x+y values)
+    for (let d = 1; d <= 2; d++) {
+      const checkX = cellX + d;
+      const checkY = cellY + d;
+
+      if (checkX < GRID_SIZE && checkY < GRID_SIZE && this.editorGrid) {
+        const cell = this.editorGrid[checkY]?.[checkX];
+        // Buildings are in rows 3-5 of the tileset
+        if (cell && cell.row >= 3 && cell.row <= 5) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   /** Draw a single agent as an isometric human figure */
-  private drawAgent(ctx: CanvasRenderingContext2D, agent: Agent): void {
+  private drawAgent(
+    ctx: CanvasRenderingContext2D,
+    agent: Agent,
+    offset: { dx: number; dy: number } = { dx: 0, dy: 0 }
+  ): void {
     // Get animation state for position
     const animState = this.animationManager.getState(agent.id);
     if (!animState) return;
 
-    // Convert grid position to screen coordinates
-    const [sx, sy] = this.gridToScreen(animState.visualX, animState.visualY);
+    // Convert grid position to screen coordinates and apply offset
+    const [baseX, baseY] = this.gridToScreen(animState.visualX, animState.visualY);
+    const sx = baseX + offset.dx * this.zoom;
+    const sy = baseY + offset.dy * this.zoom;
 
     const isSelected = agent.id === this.state.selectedAgentId;
     const baseColor = getLLMColor(agent.llmType);
     const scale = this.zoom;
+
+    // Check if agent is behind a building (render as silhouette)
+    const isBehindBuilding = this.isAgentBehindBuilding(animState.visualX, animState.visualY);
+    if (isBehindBuilding && !isSelected) {
+      ctx.globalAlpha = 0.4;
+    }
 
     // Dimensions for isometric human figure
     const bodyWidth = 16 * scale;
@@ -768,6 +826,11 @@ export class IsometricRenderer {
     // Text
     ctx.fillStyle = '#ffffff';
     ctx.fillText(label, sx, feetY + 6 * scale);
+
+    // Reset alpha if it was modified for behind-building effect
+    if (isBehindBuilding && !isSelected) {
+      ctx.globalAlpha = 1;
+    }
   }
 
   /** Draw effects layer (health bars, speech bubbles, UI) */
