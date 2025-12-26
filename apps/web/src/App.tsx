@@ -10,7 +10,7 @@ import { AgentProfile } from './components/AgentProfile';
 import { WorldStats } from './components/WorldStats';
 import { AgentSummaryTable } from './components/AgentSummaryTable';
 import { DecisionLog } from './components/DecisionLog';
-import { TileToolbar } from './components/Editor';
+import { TileToolbar, BuildingRequirements } from './components/Editor';
 import { ModeControls } from './components/Controls';
 import { assignBuildingsToLocations, validateGrid } from './utils/buildingAssignment';
 
@@ -131,14 +131,8 @@ export default function App() {
                 <span className="text-city-text-muted">Civic</span>
               </div>
             </div>
-            <div className="mt-4 p-3 bg-city-bg rounded-lg">
-              <h4 className="text-xs font-medium text-city-text mb-1">Requirements</h4>
-              <ul className="text-xs text-city-text-muted space-y-1">
-                <li>2x Residential buildings</li>
-                <li>2x Commercial buildings</li>
-                <li>1x Industrial building</li>
-                <li>1x Civic building</li>
-              </ul>
+            <div className="mt-4">
+              <BuildingRequirements />
             </div>
           </div>
         ) : selectedAgentId ? (
