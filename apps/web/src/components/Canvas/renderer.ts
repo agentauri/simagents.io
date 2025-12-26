@@ -40,7 +40,7 @@ export class IsometricRenderer {
   private animationId: number = 0;
   private cameraX = 0;
   private cameraY = 0;
-  private zoom = 1;
+  private zoom = 0.5; // Start zoomed out to see more agents
   private onAgentClick: ((agentId: string) => void) | null = null;
 
   constructor(
@@ -52,9 +52,10 @@ export class IsometricRenderer {
     this.agentsCtx = agentsCanvas.getContext('2d')!;
     this.effectsCtx = effectsCanvas.getContext('2d')!;
 
-    // Center camera
-    this.cameraX = baseCanvas.width / 2;
-    this.cameraY = baseCanvas.height / 4;
+    // Center camera on agent spawn area (around x=35, y=10)
+    // Isometric offset: agents at (35,10) should be near center
+    this.cameraX = baseCanvas.width / 2 - 400; // Offset to center on agents
+    this.cameraY = baseCanvas.height / 3;
 
     // Handle clicks on agents layer
     agentsCanvas.addEventListener('click', this.handleClick);
@@ -132,12 +133,13 @@ export class IsometricRenderer {
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, width, height);
 
-    // Calculate visible grid range based on camera
-    const gridSize = 20;
+    // Draw grid covering the world (0-100)
+    const gridMin = -5;
+    const gridMax = 100;
 
     // Draw grid
-    for (let x = -5; x < gridSize; x++) {
-      for (let y = -5; y < gridSize; y++) {
+    for (let x = gridMin; x < gridMax; x++) {
+      for (let y = gridMin; y < gridMax; y++) {
         const color = (x + y) % 2 === 0 ? '#2d2d44' : '#252538';
         this.drawTile(ctx, x, y, color);
       }

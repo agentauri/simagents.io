@@ -61,7 +61,8 @@ export function IsometricCanvas() {
       });
 
       if (rendererRef.current) {
-        rendererRef.current.setCamera(width / 2, height / 4);
+        // Center camera on agent spawn area (around x=35, y=10)
+        rendererRef.current.setCamera(width / 2 - 400, height / 3);
       }
     };
 
