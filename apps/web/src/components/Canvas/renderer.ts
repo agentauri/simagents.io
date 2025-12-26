@@ -787,7 +787,8 @@ export class IsometricRenderer {
       const [sx, sy] = this.gridToScreen(animState.visualX, animState.visualY);
       const barWidth = 40 * this.zoom;
       const barHeight = 5 * this.zoom;
-      const barY = sy - 35 * this.zoom;
+      // Position below agent feet (feetY ≈ sy + 13*zoom), below the name label
+      const barY = sy + 32 * this.zoom;
 
       // Background
       ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
