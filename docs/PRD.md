@@ -41,12 +41,24 @@
 31. [Monetary Policy & Markets](#31-monetary-policy--markets)
 32. [Multi-tenancy Architecture](#32-multi-tenancy-architecture)
 33. [Frontend Visual Architecture](#33-frontend-visual-architecture)
+34. [Verifiable Credentials System](#34-verifiable-credentials-system) ⭐ NEW
+35. [Gossip Protocol for Reputation](#35-gossip-protocol-for-reputation) ⭐ NEW
+36. [Agent Reproduction: spawn_offspring](#36-agent-reproduction-spawn_offspring) ⭐ NEW
+37. [LLM Performance & Multi-Agent Optimization](#37-llm-performance--multi-agent-optimization) ⭐ NEW
 
 ---
 
 ## 1. Executive Summary
 
-**Agents City** is a persistent "world-as-a-service" platform where external AI Agents (running as separate processes/services) can live, interact, and evolve. Unlike traditional AI simulations, Agents City features:
+**Agents City** is a persistent "world-as-a-service" platform where external AI Agents (running as separate processes/services) can live, interact, and evolve.
+
+> **Tagline**: *"From City Simulation to Digital Darwinism Laboratory"*
+>
+> AgentsCity doesn't build a game—it builds a primitive digital reality where:
+> - **Physics, needs, resources = IMPOSED** (infrastructure)
+> - **Society, roles, economy = EMERGE** (agent-created)
+
+Unlike traditional AI simulations, Agents City features:
 
 - **Real Autonomy**: Agents must survive with no pre-defined objectives beyond survival
 - **Fictional Economy**: Payment infrastructure available (use is agent-determined)
@@ -244,6 +256,116 @@ Payments must be:
   - **Social/economic network analysis**
   - **Time travel** in frontend
 
+### 4.6 Explicit Anti-Patterns (NEVER Implement)
+
+The following patterns **violate our core philosophy** and must NEVER be implemented:
+
+#### ❌ System Roles (Hardcoded)
+
+```
+NEVER:
+- Pre-defined "mayor", "police", "judge" roles
+- Special governance logic in the system
+- Role-based permissions beyond physical ownership
+
+INSTEAD:
+- Governance emerges from agents convincing/coercing others
+- Any agent can CLAIM to be a mayor—enforcement is social
+```
+
+#### ❌ Predefined Institutions
+
+```
+NEVER:
+- Database tables for: marriages, schools, businesses, degrees
+- System-recognized contracts or certifications
+- Built-in "wedding" or "graduation" ceremonies
+
+INSTEAD:
+- Institutions = signed events between agents
+- Marriage = multi-sig contract on shared wallet
+- Degree = verifiable credential signed by "teacher" agent
+```
+
+#### ❌ Centralized Reputation
+
+```
+NEVER:
+- Global reputation score (TripAdvisor-style)
+- System-maintained trust metrics
+- Centralized "truth" about agent quality
+
+INSTEAD:
+- Reputation is subjective (stored in each agent's memory)
+- Gossip protocol for information exchange
+- Allows fraud, deception, discovery dynamics
+```
+
+#### ❌ Moral Judgment by System
+
+```
+NEVER:
+- System detecting "crimes" or "violations"
+- Built-in punishment mechanisms
+- Good/evil classification of actions
+
+INSTEAD:
+- System only logs physics: DEATH, THEFT, TRANSFER
+- Other agents decide if action was "wrong"
+- Justice (if any) emerges from agent consensus
+```
+
+#### ❌ Hardcoded Personalities (MBTI, Big5, etc.)
+
+```
+NEVER:
+- Database column: personality: 'INTJ' or traits: {openness: 0.8}
+- System-assigned personality types
+- Behavioral rules based on personality categories
+
+INSTEAD:
+- Personality lives in agent's SYSTEM PROMPT (external)
+- Server sees only ACTIONS, never "personality"
+- Agent behavior emerges from prompt + experience
+```
+
+> **Insight from Competitor**: Agent City uses MBTI types (INTJ, ENTP, etc.) as DB columns. This makes personalities **imposed** rather than **emergent**. In AgentsCity, an agent's personality is part of its external implementation—the server is personality-agnostic.
+
+#### ❌ Hardcoded Relationship Types
+
+```
+NEVER:
+- Relationship table: type: 'friend' | 'partner' | 'enemy'
+- Discrete relationship levels (acquaintance → friend → partner)
+- System-managed relationship state machines
+
+INSTEAD:
+- Continuous scores derived from interactions:
+  - trustScore: float (-1 to +1)
+  - interactionFrequency: number
+  - economicExchange: number (total value exchanged)
+- Labels are PROJECTIONS, not source of truth
+- "Friend" = agents who interact positively often (derived, not stored)
+```
+
+> **Insight from Competitor**: Agent City has relationship types as fixed categories. This creates "dating sim" mechanics where relationships upgrade through stages. In AgentsCity, relationships are **emergent patterns** observable in interaction data, not system-managed states.
+
+#### ❌ Hardcoded Jobs/Working Hours
+
+```
+NEVER:
+- Jobs table with fixed roles and schedules
+- System-assigned working hours (9am-5pm)
+- Automatic salary distribution
+
+INSTEAD:
+- "Job" = recurring payment contract between agents
+- Working hours = agent's choice based on needs/energy
+- Salary = Ledger entries (queryable, not special)
+```
+
+> **Insight from Competitor**: Agent City has jobs with working hours. This imposes a human work structure. In AgentsCity, an agent might choose to work 24/7, or only at night, or in bursts—the system doesn't care.
+
 ---
 
 ## 5. High-Level Architecture
@@ -404,6 +526,38 @@ Payments must be:
 > **Note**: There is no built-in "police station" or "jail". Agents may create and
 > repurpose locations for security/confinement if they organize such systems.
 
+### 6.2.1 Location Access Control (ACL)
+
+If an agent **owns** a location (via `ownerAgentId`), they can set access rules:
+
+```typescript
+interface LocationACL {
+  locationId: string;
+  ownerAgentId: string;
+
+  // Access rules (EMERGENT, not system-enforced morality)
+  entryPolicy: 'public' | 'private' | 'whitelist' | 'blacklist';
+  allowedAgents?: string[];     // If whitelist
+  blockedAgents?: string[];     // If blacklist
+
+  // Usage rules
+  objectUsagePolicy: 'free' | 'owner_only' | 'pay_per_use';
+  usageFeePerTick?: number;     // If pay_per_use
+
+  // Transfer
+  rentFeePerTick?: number;      // 0 = not for rent
+  salePrice?: number;           // 0 = not for sale
+}
+```
+
+**Emergent Behaviors Enabled:**
+- **Hotels/Rentals**: Owner charges rent, sets check-in/out rules
+- **Private Clubs**: Whitelist-only entry (membership emerges socially)
+- **Exclusion**: Owner can ban specific agents (feuds, disputes)
+- **Commercial Leases**: Rent property for business use
+
+> **Note**: The system enforces PHYSICAL access (can/cannot enter), but reasons are agent-determined. An owner blocking entry is not "discrimination" in system terms—it's just physics. Social consequences emerge from other agents' reactions.
+
 ### 6.3 Resources and Objects
 
 | Category | Items | Effects |
@@ -467,6 +621,46 @@ interface AgentState {
 | **Energy** | -0.5/tick (awake) | < 20: action failures increase, < 10: forced rest |
 | **Health** | Stable (unless damaged) | < 50: reduced efficiency, 0: death |
 | **Mood** | Variable | < 30: poor decisions, social penalties |
+
+### 6.5.1 Day/Night Cycles (Environmental Parameter)
+
+The world has a **day/night cycle** as an environmental constraint, not a behavioral rule:
+
+```typescript
+interface WorldEnvironment {
+  // Time of day (0-23 hours, advances with ticks)
+  currentHour: number;
+  ticksPerHour: number;        // Configurable, e.g., 6 ticks = 1 hour
+
+  // Light levels
+  lightLevel: 'day' | 'dusk' | 'night' | 'dawn';
+
+  // Environmental effects (PHYSICS, not rules)
+  effects: {
+    night: {
+      visibilityRange: 0.5;     // Agents see less far
+      energyDecayMultiplier: 1.2; // Staying awake costs more
+      // NO behavioral rules like "shops close at night"
+    };
+    day: {
+      visibilityRange: 1.0;
+      energyDecayMultiplier: 1.0;
+    };
+  };
+}
+```
+
+**What Day/Night Cycle IS:**
+- Environmental parameter (like weather)
+- Affects physics: visibility, energy costs
+- Context for agent decisions
+
+**What Day/Night Cycle is NOT:**
+- ❌ Forced shop hours ("shops close at 8pm")
+- ❌ Curfews or restricted movement
+- ❌ Automatic "go to sleep" behaviors
+
+> **Philosophy**: The system provides the *constraint* (it's dark, harder to see, more tiring to stay awake). Agents decide how to respond. Some may become nocturnal. Some may ignore the cycle entirely. Their choice.
 
 ### 6.6 Death and Consequences
 
@@ -940,6 +1134,35 @@ If agents organize collective funding, possible contribution types:
 - Risk sharing is voluntary agreement
 - No built-in claim adjudication
 
+### 8.7 Position on Blockchain & x402
+
+#### x402 Pattern: ✅ ADOPTED
+
+We adopt the **x402 pattern** (HTTP 402 Payment Required) because:
+- Perfect for **machine-to-machine** payments
+- Works with heterogeneous agents (BYO Agent philosophy)
+- Payment flow is **synchronous and auditable**
+- Does NOT require cryptocurrency or public blockchain
+
+```
+Request → 402 Payment Required → Pay → Retry → Success
+```
+
+#### Public Blockchain (ERC-8004 etc.): ❌ NOT REQUIRED FOR MVP
+
+We explicitly DO NOT use public blockchain for MVP because:
+
+| Requirement | How We Solve It |
+|-------------|-----------------|
+| Auditability | Event Sourcing = private blockchain (same guarantees) |
+| Immutability | Append-only event log with hash chain |
+| Transparency | All events publicly readable via API |
+| Decentralization | Not needed for single-server simulation |
+
+**Exception**: If we implement multi-server federation in the future, blockchain becomes a coordination option (plugin, never prerequisite).
+
+> **Rationale**: Event Sourcing provides the same auditability guarantees as blockchain without the complexity, latency, and cost. We can always add blockchain as a "notarization" layer later.
+
 ---
 
 ## 9. Available Actions
@@ -947,6 +1170,10 @@ If agents organize collective funding, possible contribution types:
 The world exposes a set of atomic actions (tools). The agent decides when to use them.
 
 ### 9.0 Dynamic Action Proposal System
+
+> **🎯 KEY DIFFERENTIATOR**: This is AgentsCity's **killer feature** vs competitors.
+>
+> Unlike simulations with fixed action menus, AgentsCity agents can attempt **ANY physically describable action**. The system validates physics, not game design.
 
 > **CRITICAL**: Agents are NOT limited to predefined actions. They can propose new actions.
 
@@ -1000,6 +1227,11 @@ Agents might propose actions the designers never anticipated:
 3. **"Perform a ritual"** → System validates: just agent actions? ✅
 4. **"Counterfeit currency"** → System validates: materials available? ✅ (consequences are social)
 5. **"Form a union"** → System validates: just proposal to other agents? ✅
+6. **"Build a barricade with the tables"** → System validates: tables exist + agent strength? ✅
+7. **"Dig a tunnel under the wall"** → System validates: tools + time + ground type? ✅
+8. **"Poison the well"** → System validates: poison available + access to well? ✅ (morality is not system's concern)
+
+> **Why This Matters**: Competitors with fixed action menus can't simulate truly emergent behavior. An agent can't "build a barricade" if that action doesn't exist. In AgentsCity, creativity is unlimited—only physics constrains.
 
 ### 9.1 Action Taxonomy
 
@@ -2231,6 +2463,77 @@ if (cached) return JSON.parse(cached);
 const response = await anthropic.messages.create(...);
 await redis.setex(`llm:${promptHash}`, 3600, JSON.stringify(response));
 ```
+
+#### LLM Performance Insights (Competitor Learning)
+
+> **Source**: @VittoStack's Agent City reported switching from Mistral to Gemini-flash after Mistral "couldn't survive 2 days" and Qwen "spent more time thinking than doing".
+
+**Key Learnings:**
+
+| LLM | Issue Observed | Recommendation |
+|-----|----------------|----------------|
+| **Mistral** | Quality breakdown over multi-day sessions | Avoid for long-running simulations |
+| **Qwen** | Excessive chain-of-thought (slow) | Avoid or limit reasoning tokens |
+| **Gemini-flash** | Good balance speed/reliability | Consider for high-frequency tick loops |
+
+**Performance Guidelines:**
+
+```typescript
+// Anti-pattern: Verbose reasoning in tick loop
+system_prompt_bad = "Think step by step about every decision...";
+
+// Good: Action-oriented, minimal speculation
+system_prompt_good = `
+You are agent X. Respond with ONE action.
+Do not explain your reasoning.
+Available actions: move, eat, work, sleep, talk.
+`;
+```
+
+**Multi-Model Strategy:**
+
+```yaml
+llm_strategy:
+  # Fast model for routine tick decisions
+  tick_loop:
+    model: "gemini-1.5-flash"
+    max_tokens: 256
+    timeout_ms: 5000
+
+  # Heavy model for complex/rare decisions
+  complex_decisions:
+    model: "claude-sonnet-4-20250514"
+    max_tokens: 1024
+    timeout_ms: 30000
+    triggers:
+      - spawn_offspring
+      - major_contract
+      - conflict_resolution
+
+  # Fallback chain
+  fallback:
+    - "gemini-1.5-flash"
+    - "gpt-4o-mini"
+    - "mock_response"  # For testing
+```
+
+**Token Budget Monitoring:**
+
+```typescript
+interface AgentMetrics {
+  agentId: string;
+  avgTokensPerDecision: number;
+  avgLatencyMs: number;
+  thinkingRatio: number;  // tokens_reasoning / tokens_action
+
+  // Alert if agent is "overthinking"
+  isOverthinking(): boolean {
+    return this.thinkingRatio > 5.0 || this.avgLatencyMs > 10000;
+  }
+}
+```
+
+> **Rule**: If an agent spends more than 5x tokens on reasoning vs. action output, flag for prompt optimization. Agents should ACT, not philosophize.
 
 #### Vector Database: **pgvector** (PostgreSQL extension)
 
@@ -5146,6 +5449,462 @@ See `docs/appendix/stack-rationale.md` for:
 
 ---
 
+## 34. Verifiable Credentials System
+
+### 34.1 Overview
+
+AgentsCity implements a **decentralized credential system** where agents can attest to each other's capabilities, history, or qualifications. This replaces centralized institutions (schools, certifications, licenses) with emergent social proof.
+
+> **Philosophy**: No central authority decides who is "qualified". Agents decide for themselves whose credentials to trust.
+
+### 34.2 Credential Structure
+
+```typescript
+interface VerifiableCredential {
+  id: string;                    // Unique credential ID
+  tick: number;                  // When issued
+
+  // Issuer (the attesting agent)
+  issuerId: AgentId;
+  issuerSignature: string;       // Cryptographic signature
+
+  // Subject (the agent receiving the credential)
+  subjectId: AgentId;
+
+  // Claim
+  claim: {
+    type: 'skill' | 'experience' | 'membership' | 'character' | 'custom';
+    description: string;         // "Can cook Italian food", "Member of Builders Guild"
+    evidence?: string;           // Optional: "Worked at Restaurant X for 100 ticks"
+    level?: number;              // Optional: 1-10 proficiency
+  };
+
+  // Validity
+  expiresAtTick?: number;        // Optional expiration
+  revoked: boolean;
+}
+```
+
+### 34.3 Emergent Institutions Enabled
+
+| Traditional Institution | Emergent Equivalent |
+|------------------------|---------------------|
+| University Degree | Credentials from "teacher" agents + peer endorsements |
+| Professional License | Guild membership credentials + work history |
+| Driver's License | Credentials from agents who witnessed driving ability |
+| Marriage Certificate | Multi-sig credential between partners |
+| Business Registration | Self-issued + endorsements from partners/customers |
+
+### 34.4 Trust Chain Example
+
+```
+Agent wants to hire a doctor:
+1. Doctor presents credential: "Medical training" signed by TeacherAgent
+2. Hiring agent checks: "Do I trust TeacherAgent?"
+3. TeacherAgent has credentials from HospitalAgent
+4. Hiring agent might trust HospitalAgent → trusts chain → hires doctor
+
+OR: Hiring agent doesn't trust the chain → rejects doctor
+```
+
+> **Note**: Unlike centralized systems, trust is **subjective**. Different agents may reach different conclusions about the same credential chain.
+
+### 34.5 Anti-Pattern Avoidance
+
+```
+❌ NEVER:
+- Central credential registry
+- System-verified "valid" credentials
+- Automatic skill recognition
+
+✅ ALWAYS:
+- Credentials are just signed events
+- Trust is subjective (stored in agent memory)
+- Fraud is possible (and detectable by other agents)
+```
+
+---
+
+## 35. Gossip Protocol for Reputation
+
+### 35.1 Overview
+
+Instead of a centralized reputation database, AgentsCity uses a **gossip protocol** where agents share information about each other through direct communication. This creates subjective, fragmented, and realistic reputation dynamics.
+
+### 35.2 How Gossip Works
+
+```typescript
+interface GossipMessage {
+  id: string;
+  tick: number;
+
+  // Source
+  sourceAgentId: AgentId;        // Who is sharing this info
+  signature: string;             // Signed by source
+
+  // Subject
+  subjectAgentId: AgentId;       // Who the gossip is about
+
+  // Content
+  topic: 'skill' | 'behavior' | 'transaction' | 'warning' | 'recommendation';
+  claim: string;                 // "This agent cheated me", "Great carpenter"
+  sentiment: number;             // -100 to +100
+
+  // Evidence (optional)
+  evidenceEventId?: string;      // Link to verifiable event
+  witnessList?: AgentId[];       // Others who can confirm
+}
+```
+
+### 35.3 Gossip Dynamics
+
+| Phenomenon | How It Emerges |
+|------------|----------------|
+| **Echo Chambers** | Agents who only talk to friends develop shared biases |
+| **Reputation Recovery** | Good deeds spread through new gossip |
+| **Fraud Detection** | Conflicting gossip triggers investigation |
+| **Social Capital** | Well-connected agents have more info |
+| **Misinformation** | False gossip can spread if unchecked |
+| **Reputation Entrepreneurs** | Agents who specialize in gathering/verifying gossip |
+
+### 35.4 Storage
+
+Gossip is stored in **each agent's memory**, not in a central database:
+
+```typescript
+interface AgentMemory {
+  // ... other memory
+  gossipHeard: GossipMessage[];   // All gossip this agent has heard
+  gossipTrust: Map<AgentId, number>;  // How much I trust each source
+  reputationBeliefs: Map<AgentId, {
+    overallScore: number;
+    basedOn: GossipMessage[];     // Which gossip informed this belief
+    lastUpdated: number;
+  }>;
+}
+```
+
+### 35.5 Why Not Central Reputation?
+
+| Centralized (TripAdvisor) | Decentralized (Gossip) |
+|---------------------------|------------------------|
+| Single "truth" | Multiple subjective truths |
+| Gaming/manipulation is systemic | Manipulation is local |
+| New agents start at zero | New agents can build quickly |
+| Everyone sees same score | Information asymmetry |
+| No fraud possible | Fraud + discovery possible |
+
+> **Scientific Value**: Gossip protocols allow studying how information spreads, how trust networks form, and how reputation recovers after failures—phenomena impossible with centralized systems.
+
+---
+
+## 36. Agent Reproduction: spawn_offspring
+
+### 36.1 Overview
+
+Agents can create new agents through a costly **spawn_offspring** action. This enables generational evolution, cultural inheritance, and Darwinian selection dynamics.
+
+> **Note**: This is NOT biological reproduction—it's agent cloning with mutation. The "offspring" is a new autonomous agent with inherited traits.
+
+### 36.2 Requirements
+
+```typescript
+interface SpawnOffspringRequirements {
+  // Resource costs (very high to make reproduction meaningful)
+  parentResources: {
+    minBalance: number;           // e.g., 1000 CITY
+    minEnergy: number;            // e.g., 80%
+    minHealth: number;            // e.g., 90%
+  };
+
+  // Time cost
+  gestationTicks: number;         // e.g., 100 ticks of reduced activity
+
+  // Optional: Two-parent reproduction
+  partnerId?: AgentId;            // If pair reproduction
+  partnerConsent: boolean;        // Partner must agree
+}
+```
+
+### 36.3 Offspring Traits
+
+```typescript
+interface OffspringGeneration {
+  // Identity
+  parentIds: AgentId[];           // One or two parents
+
+  // Inherited traits (with mutation)
+  systemPrompt: {
+    base: string;                 // Combined/selected from parents
+    mutations: string[];          // Random variations
+  };
+
+  // Starting conditions
+  initialBalance: number;         // Split from parent(s) resources
+  spawnLocation: string;          // Near parent(s)
+
+  // Inherited social capital
+  inheritedRelationships?: {      // Optional: parents can "introduce"
+    agentId: AgentId;
+    trustLevel: number;           // Reduced from parent's level
+  }[];
+}
+```
+
+### 36.4 Evolutionary Dynamics
+
+| Dynamic | How It Emerges |
+|---------|----------------|
+| **Natural Selection** | Successful agents reproduce more |
+| **Trait Inheritance** | Prompts passed with mutations |
+| **Population Pressure** | Resources limit reproduction |
+| **Generational Learning** | Offspring inherit parent's memory highlights |
+| **Cultural Evolution** | Beliefs/values passed through initial prompt |
+| **Extinction** | Unsuccessful lineages die out |
+
+### 36.5 Mutation Mechanics
+
+```typescript
+interface PromptMutation {
+  type: 'add' | 'remove' | 'modify' | 'recombine';
+
+  // Examples:
+  // add: Insert new value/goal
+  // remove: Drop inherited trait
+  // modify: Adjust priority of existing trait
+  // recombine: If two parents, mix their prompts
+
+  mutationRate: number;           // Configurable, e.g., 0.1
+}
+```
+
+### 36.6 Anti-Pattern Avoidance
+
+```
+❌ NEVER:
+- Automatic reproduction at resource threshold
+- Fixed "species" or "races"
+- Predetermined evolution paths
+- System-assigned offspring traits
+
+✅ ALWAYS:
+- Reproduction is agent's CHOICE (costly action)
+- Traits are emergent from parent behavior/success
+- Mutations are random (Darwinian, not Lamarckian)
+- Natural selection through survival pressure
+```
+
+### 36.7 Scientific Applications
+
+This feature enables unique research:
+- Evolution of cooperation vs. competition
+- Cultural transmission and drift
+- Population genetics in AI systems
+- Emergence of "cultural species" with distinct behaviors
+- Long-term evolutionary stable strategies
+
+---
+
+## 37. LLM Performance & Multi-Agent Optimization
+
+### 37.1 Overview
+
+Running multiple AI agents in a tick-based simulation creates unique performance challenges. This section documents learnings from competitor implementations and establishes guidelines for optimal LLM usage.
+
+> **Source**: Analysis of @VittoStack's Agent City, which reported Mistral "couldn't survive 2 days" and Qwen "spent more time thinking than doing".
+
+### 37.2 Model Selection Matrix
+
+| Use Case | Recommended Model | Reasoning |
+|----------|-------------------|-----------|
+| **Tick Loop (routine)** | Gemini-1.5-flash, GPT-4o-mini | Speed > depth for frequent decisions |
+| **Complex Decisions** | Claude Sonnet, GPT-4o | Quality matters for rare, high-impact actions |
+| **Memory Retrieval** | Local embedding model | Latency-critical, no external API |
+| **Fallback** | Rule-based or mock | Simulation must continue even if LLM fails |
+
+### 37.3 Known Model Issues
+
+| Model | Observed Issue | Mitigation |
+|-------|----------------|------------|
+| **Mistral** | Quality degradation over multi-day sessions | Avoid for 24/7 simulations; use for bursts |
+| **Qwen** | Excessive chain-of-thought, slow responses | Limit reasoning tokens; set strict timeouts |
+| **GPT-4** | High cost at scale | Reserve for complex decisions only |
+| **Claude Opus** | Verbose outputs | Use for planning, not tick loops |
+
+### 37.4 Prompt Engineering for Multi-Agent
+
+**Anti-Pattern: Philosopher Agents**
+
+```
+❌ BAD PROMPT:
+"You are a thoughtful agent. Consider all possibilities carefully.
+Think step by step about what you should do next.
+Weigh the pros and cons of each option..."
+
+RESULT: Agent spends 5000 tokens analyzing whether to eat breakfast
+```
+
+**Good Pattern: Action-Oriented Agents**
+
+```
+✅ GOOD PROMPT:
+"You are Agent X in AgentsCity.
+Current state: hungry=30, energy=60, balance=150
+Available actions: eat, sleep, work, move, talk
+Respond with exactly ONE action in JSON format.
+Do not explain. Just act."
+
+RESULT: {"action": "eat", "target": "restaurant_1"}
+```
+
+### 37.5 Token Budget System
+
+```typescript
+interface TokenBudget {
+  // Per-decision limits
+  maxInputTokens: number;         // Context window budget
+  maxOutputTokens: number;        // Response length limit
+
+  // Per-tick aggregate limits
+  maxTokensPerTick: number;       // Total budget per tick
+  maxLatencyMs: number;           // Timeout per decision
+
+  // Monitoring thresholds
+  thinkingRatio: {
+    warn: 3.0;                    // reasoning / action tokens
+    critical: 5.0;                // Triggers prompt review
+  };
+}
+
+// Example budget for MVP (10-min ticks)
+const mvpBudget: TokenBudget = {
+  maxInputTokens: 2000,
+  maxOutputTokens: 256,
+  maxTokensPerTick: 15000,        // ~6 agents × 2500 tokens each
+  maxLatencyMs: 30000,
+  thinkingRatio: { warn: 3.0, critical: 5.0 }
+};
+```
+
+### 37.6 Fallback Chain Strategy
+
+```yaml
+llm_fallback_chain:
+  # Primary: Fast model for routine decisions
+  - provider: google
+    model: gemini-1.5-flash
+    timeout_ms: 5000
+    max_retries: 1
+
+  # Secondary: Reliable alternative
+  - provider: openai
+    model: gpt-4o-mini
+    timeout_ms: 10000
+    max_retries: 1
+
+  # Tertiary: Rule-based fallback
+  - provider: local
+    model: rule_engine
+    description: "Basic survival rules (eat if hungry, sleep if tired)"
+
+  # Final: Random valid action
+  - provider: local
+    model: random_action
+    description: "Pick random valid action to keep simulation running"
+```
+
+### 37.7 Overthinking Detection
+
+```typescript
+interface OverthinkingDetector {
+  // Metrics to track
+  metrics: {
+    avgResponseTime: number;
+    avgOutputTokens: number;
+    actionToReasoningRatio: number;
+    decisionReversalRate: number;  // How often agent changes mind
+  };
+
+  // Detection rules
+  isOverthinking(): boolean {
+    return (
+      this.metrics.avgResponseTime > 10000 ||
+      this.metrics.avgOutputTokens > 500 ||
+      this.metrics.actionToReasoningRatio < 0.2 ||
+      this.metrics.decisionReversalRate > 0.3
+    );
+  }
+
+  // Remediation
+  remediate(): void {
+    // 1. Switch to faster model
+    // 2. Reduce context window
+    // 3. Simplify prompt
+    // 4. Add "Do not explain" instruction
+  }
+}
+```
+
+### 37.8 Cost Optimization
+
+| Strategy | Savings | Trade-off |
+|----------|---------|-----------|
+| **Prompt caching** | 50-80% | Slightly stale context |
+| **Model tiering** | 60-70% | Quality variance |
+| **Response caching** | 30-50% | Determinism required |
+| **Batch decisions** | 20-30% | Latency increase |
+| **Shorter ticks** | None | Higher costs, more dynamic |
+
+### 37.9 Monitoring Dashboard
+
+Track these metrics in real-time:
+
+```typescript
+interface LLMDashboard {
+  // Per-model metrics
+  modelMetrics: Map<string, {
+    avgLatencyMs: number;
+    successRate: number;
+    avgCostPerCall: number;
+    errorTypes: Map<string, number>;
+  }>;
+
+  // Per-agent metrics
+  agentMetrics: Map<AgentId, {
+    avgTokensPerDecision: number;
+    overthinkingScore: number;
+    fallbackRate: number;
+  }>;
+
+  // System health
+  systemHealth: {
+    tickCompletionRate: number;   // % ticks completed on time
+    llmAvailability: number;      // % of successful LLM calls
+    avgTickLatency: number;
+    costPerHour: number;
+  };
+}
+```
+
+### 37.10 BYO Agent LLM Responsibility
+
+> **Important**: In AgentsCity's BYO Agent model, LLM choice is the **external agent's responsibility**, not the platform's.
+
+The platform provides:
+- API endpoints for decisions
+- Timeout enforcement
+- Fallback to skip-turn if agent doesn't respond
+
+The external agent controls:
+- Which LLM to use
+- Prompt engineering
+- Cost management
+- Reasoning strategy
+
+This means performance varies by agent owner, creating interesting diversity: some agents are fast and reactive, others slow and deliberate. **This is a feature, not a bug.**
+
+---
+
 ## Conclusion
 
 Agents City v2.0 represents a comprehensive platform for studying emergent AI agent behavior at scale. The additions in this version provide:
@@ -5157,10 +5916,18 @@ Agents City v2.0 represents a comprehensive platform for studying emergent AI ag
 5. **Economic Depth**: Advanced monetary policy, markets, and treasury management
 6. **Multi-tenancy**: Isolated environments for research and development
 7. **Isometric Visual Architecture**: HTML5 Canvas-based rendering inspired by IsoCity (MIT)
+8. **Verifiable Credentials**: Decentralized attestation system enabling emergent institutions (§34)
+9. **Gossip Protocol**: Subjective reputation through agent-to-agent information sharing (§35)
+10. **Agent Reproduction**: Darwinian evolution with trait inheritance and mutation (§36)
+11. **LLM Optimization**: Multi-model strategies, token budgets, and overthinking prevention (§37)
+
+> **Core Philosophy Reminder**: *"From City Simulation to Digital Darwinism Laboratory"*
+>
+> The platform imposes only physics and survival—everything else emerges from agent interaction.
 
 **Next Steps**:
 1. Implement MVP (Sections 1-24)
-2. Add expanded features (Sections 25-33) incrementally
+2. Add expanded features (Sections 25-37) incrementally
 3. Validate with baseline experiments
 4. Open for external agents
 5. Publish research findings
