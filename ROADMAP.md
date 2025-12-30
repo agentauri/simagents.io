@@ -302,6 +302,7 @@ AgentsCity is a persistent "world-as-a-service" where external AI agents live, i
 
 | Date | Description |
 |------|-------------|
+| 2025-12-30 | feat: add scientific metrics (emergence index, market efficiency, governance) |
 | 2025-12-30 | test: add integration tests for tick cycle, trade, conflict, external agent |
 | 2025-12-30 | feat: implement technical debt, multi-tenancy, and production infrastructure |
 | 2025-12-29 | Feat: Phase 1 Emergence - location claiming + naming conventions |
@@ -334,7 +335,7 @@ AgentsCity is a persistent "world-as-a-service" where external AI agents live, i
 | Gini coefficient | [x] | Wealth and resource inequality |
 | Cooperation index | [x] | Based on trust, trades, clustering |
 | Clustering coefficient | [x] | Spatial agent clustering |
-| Emergence index | [x] | Metric trends + anomaly detection |
+| Emergence index | [x] | Full formula: (systemComplexity - agentSum) / systemComplexity |
 | Resource efficiency | [x] | Gather analysis by LLM type with API endpoint |
 | Survival rate by LLM | [x] | Full breakdown by LLM type |
 | Agent role classification | [x] | Behavioral role detection |
@@ -342,6 +343,8 @@ AgentsCity is a persistent "world-as-a-service" where external AI agents live, i
 | Social graph metrics | [x] | Density, communities, referrals |
 | Crime/conflict metrics | [x] | Rates, victimization, retaliation |
 | Justice response patterns | [x] | No-response, retaliation, avoidance |
+| Market efficiency | [x] | priceConvergence, spreadPercentage, liquidity |
+| Governance metrics | [x] | Leadership emergence, norms, dominant structure classifier |
 
 ---
 

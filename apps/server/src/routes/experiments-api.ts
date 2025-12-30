@@ -276,7 +276,7 @@ export async function registerExperimentRoutes(server: FastifyInstance): Promise
     await updateVariantStatus(variant.id, 'running', { startTick: currentTick });
 
     // Configure tick engine
-    const finalTickInterval = tickIntervalMs ?? Number(process.env.TICK_INTERVAL_MS) || 60000;
+    const finalTickInterval = tickIntervalMs ?? (Number(process.env.TICK_INTERVAL_MS) || 60000);
     tickEngine.setTickInterval(finalTickInterval);
 
     // Set experiment context with variant configuration

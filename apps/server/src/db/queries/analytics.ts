@@ -1809,6 +1809,603 @@ export async function getReputationSummary(): Promise<{
 }
 
 // =============================================================================
+// Emergence Index Metric
+// =============================================================================
+
+export interface EmergenceIndexMetrics {
+  emergenceIndex: number; // 0-1, higher = more emergence
+  systemComplexity: number; // Measured system-level complexity
+  agentComplexitySum: number; // Sum of individual agent complexities
+  components: {
+    behavioralDiversity: number; // Variety of action patterns
+    spatialOrganization: number; // Non-random clustering
+    socialStructure: number; // Relationship network density
+    economicDifferentiation: number; // Wealth/resource distribution
+  };
+}
+
+/**
+ * Calculate Emergence Index
+ * Formula: (systemComplexity - sumOf(agentComplexities)) / systemComplexity
+ * Measures how much the system behavior exceeds sum of individual behaviors
+ */
+export async function getEmergenceIndexMetrics(): Promise<EmergenceIndexMetrics> {
+  // --- Behavioral Diversity ---
+  // Measure entropy of action distribution across agents
+  const actionData = await db.execute<{ action_entropy: number }>(sql`
+    WITH action_counts AS (
+      SELECT agent_id, event_type, COUNT(*) as cnt
+      FROM events
+      WHERE event_type LIKE 'agent_%'
+        AND event_type NOT IN ('agent_died', 'agent_spawned')
+      GROUP BY agent_id, event_type
+    ),
+    agent_totals AS (
+      SELECT agent_id, SUM(cnt) as total
+      FROM action_counts
+      GROUP BY agent_id
+    ),
+    action_probs AS (
+      SELECT
+        ac.agent_id,
+        ac.event_type,
+        ac.cnt::float / at.total as prob
+      FROM action_counts ac
+      JOIN agent_totals at ON ac.agent_id = at.agent_id
+    ),
+    agent_entropy AS (
+      SELECT
+        agent_id,
+        -SUM(prob * LN(prob + 0.0001)) as entropy
+      FROM action_probs
+      GROUP BY agent_id
+    )
+    SELECT
+      COALESCE(AVG(entropy), 0) as action_entropy
+    FROM agent_entropy
+  `);
+
+  const entropyRows = Array.isArray(actionData) ? actionData : (actionData as any).rows || [];
+  const avgEntropy = Number(entropyRows[0]?.action_entropy) || 0;
+  // Normalize entropy to 0-1 (max entropy with 6 actions is ln(6) ≈ 1.79)
+  const behavioralDiversity = Math.min(1, avgEntropy / 1.79);
+
+  // --- Spatial Organization ---
+  // Compare actual clustering to random baseline
+  const aliveAgents = await db
+    .select({ id: agents.id, x: agents.x, y: agents.y })
+    .from(agents)
+    .where(sql`${agents.state} != 'dead'`);
+
+  let spatialOrganization = 0;
+  if (aliveAgents.length > 1) {
+    // Calculate average nearest neighbor distance
+    let avgNearestNeighbor = 0;
+    for (const agent of aliveAgents) {
+      let minDist = Infinity;
+      for (const other of aliveAgents) {
+        if (agent.id !== other.id) {
+          const dist = Math.abs(agent.x - other.x) + Math.abs(agent.y - other.y);
+          minDist = Math.min(minDist, dist);
+        }
+      }
+      avgNearestNeighbor += minDist;
+    }
+    avgNearestNeighbor /= aliveAgents.length;
+
+    // Expected for random distribution in 100x100 grid
+    const gridArea = 100 * 100;
+    const density = aliveAgents.length / gridArea;
+    const expectedNearestNeighbor = 0.5 / Math.sqrt(density);
+
+    // R statistic: actual/expected (< 1 means clustered, > 1 means dispersed)
+    const rStatistic = avgNearestNeighbor / expectedNearestNeighbor;
+
+    // Convert to 0-1 scale where 1 = highly organized (clustered or dispersed)
+    spatialOrganization = Math.abs(1 - rStatistic);
+  }
+
+  // --- Social Structure ---
+  // Measure relationship network density vs random
+  const networkData = await db.execute<{
+    node_count: number;
+    edge_count: number;
+    positive_edges: number;
+  }>(sql`
+    SELECT
+      (SELECT COUNT(*) FROM agents WHERE state != 'dead') as node_count,
+      COUNT(*) as edge_count,
+      COUNT(*) FILTER (WHERE trust_score > 0) as positive_edges
+    FROM agent_relationships
+  `);
+
+  const netRows = Array.isArray(networkData) ? networkData : (networkData as any).rows || [];
+  const nodes = Number(netRows[0]?.node_count) || 1;
+  const edges = Number(netRows[0]?.edge_count) || 0;
+  const positiveEdges = Number(netRows[0]?.positive_edges) || 0;
+
+  // Network density vs max possible
+  const maxEdges = nodes * (nodes - 1);
+  const density = maxEdges > 0 ? edges / maxEdges : 0;
+
+  // Social structure: combination of density and positive bias
+  const positiveBias = edges > 0 ? positiveEdges / edges : 0.5;
+  const socialStructure = (density + positiveBias) / 2;
+
+  // --- Economic Differentiation ---
+  // Use Gini coefficient as measure of economic structure emergence
+  const economyMetrics = await getEconomyMetrics();
+  const economicDifferentiation = economyMetrics.giniCoefficient;
+
+  // --- Calculate System vs Agent Complexity ---
+  // System complexity: product of all components (synergy)
+  const systemComplexity =
+    (1 + behavioralDiversity) *
+    (1 + spatialOrganization) *
+    (1 + socialStructure) *
+    (1 + economicDifferentiation);
+
+  // Agent complexity sum: linear addition (no synergy)
+  const agentComplexitySum =
+    behavioralDiversity +
+    spatialOrganization +
+    socialStructure +
+    economicDifferentiation;
+
+  // Emergence Index: how much system exceeds sum of parts
+  // Normalized to 0-1 range
+  const rawEmergence = (systemComplexity - agentComplexitySum) / Math.max(systemComplexity, 1);
+  const emergenceIndex = Math.max(0, Math.min(1, rawEmergence));
+
+  return {
+    emergenceIndex,
+    systemComplexity,
+    agentComplexitySum,
+    components: {
+      behavioralDiversity: Math.round(behavioralDiversity * 1000) / 1000,
+      spatialOrganization: Math.round(spatialOrganization * 1000) / 1000,
+      socialStructure: Math.round(socialStructure * 1000) / 1000,
+      economicDifferentiation: Math.round(economicDifferentiation * 1000) / 1000,
+    },
+  };
+}
+
+// =============================================================================
+// Market Efficiency Metrics
+// =============================================================================
+
+export interface MarketEfficiencyMetrics {
+  priceConvergence: {
+    currentVariance: number; // Current price variance across trades
+    historicalVariance: number; // Historical average variance
+    convergenceRate: number; // How fast prices are stabilizing (0-1)
+    isConverging: boolean;
+  };
+  spreadPercentage: {
+    avgBidAskSpread: number; // Average spread between buy/sell prices
+    spreadByResourceType: {
+      resourceType: string;
+      avgBuyPrice: number;
+      avgSellPrice: number;
+      spread: number;
+    }[];
+  };
+  liquidity: {
+    tradesPerTick: number;
+    uniqueTradersPerTick: number;
+    volumePerTick: number;
+  };
+  marketMaturity: 'nascent' | 'developing' | 'mature' | 'efficient';
+}
+
+/**
+ * Calculate Market Efficiency Metrics
+ * Measures how well the market discovers and maintains prices
+ */
+export async function getMarketEfficiencyMetrics(): Promise<MarketEfficiencyMetrics> {
+  // Get current tick for calculations
+  const currentTickResult = await db
+    .select({ tick: sql<number>`MAX(${events.tick})` })
+    .from(events);
+  const currentTick = Number(currentTickResult[0]?.tick) || 1;
+
+  // --- Price Convergence ---
+  // Calculate variance of prices for same resource type over time
+  const priceVarianceData = await db.execute<{
+    current_variance: number;
+    historical_variance: number;
+  }>(sql`
+    WITH trade_prices AS (
+      SELECT
+        tick,
+        (payload->>'resourceType') as resource_type,
+        (payload->>'price')::numeric as price
+      FROM events
+      WHERE event_type = 'agent_traded'
+        AND payload->>'price' IS NOT NULL
+    ),
+    recent_prices AS (
+      SELECT resource_type, VARIANCE(price) as variance
+      FROM trade_prices
+      WHERE tick >= ${currentTick} - 20
+      GROUP BY resource_type
+    ),
+    historical_prices AS (
+      SELECT resource_type, VARIANCE(price) as variance
+      FROM trade_prices
+      WHERE tick < ${currentTick} - 20
+      GROUP BY resource_type
+    )
+    SELECT
+      COALESCE(AVG(r.variance), 0) as current_variance,
+      COALESCE(AVG(h.variance), 1) as historical_variance
+    FROM recent_prices r
+    FULL OUTER JOIN historical_prices h ON r.resource_type = h.resource_type
+  `);
+
+  const varianceRows = Array.isArray(priceVarianceData) ? priceVarianceData : (priceVarianceData as any).rows || [];
+  const currentVariance = Number(varianceRows[0]?.current_variance) || 0;
+  const historicalVariance = Number(varianceRows[0]?.historical_variance) || 1;
+
+  // Convergence rate: how much variance has decreased
+  const convergenceRate = historicalVariance > 0
+    ? Math.max(0, 1 - (currentVariance / historicalVariance))
+    : 0;
+
+  // --- Spread Percentage (Bid-Ask) ---
+  // Approximate from buy vs trade events
+  const spreadData = await db.execute<{
+    resource_type: string;
+    avg_buy_price: number;
+    avg_sell_price: number;
+  }>(sql`
+    WITH buy_prices AS (
+      SELECT
+        (payload->>'itemType') as resource_type,
+        (payload->>'price')::numeric as price
+      FROM events
+      WHERE event_type = 'agent_bought'
+        AND payload->>'price' IS NOT NULL
+    ),
+    trade_prices AS (
+      SELECT
+        (payload->>'resourceType') as resource_type,
+        (payload->>'price')::numeric as price
+      FROM events
+      WHERE event_type = 'agent_traded'
+        AND payload->>'price' IS NOT NULL
+    )
+    SELECT
+      COALESCE(b.resource_type, t.resource_type) as resource_type,
+      COALESCE(AVG(b.price), 0) as avg_buy_price,
+      COALESCE(AVG(t.price), 0) as avg_sell_price
+    FROM buy_prices b
+    FULL OUTER JOIN trade_prices t ON b.resource_type = t.resource_type
+    WHERE b.resource_type IS NOT NULL OR t.resource_type IS NOT NULL
+    GROUP BY COALESCE(b.resource_type, t.resource_type)
+  `);
+
+  const spreadRows: { resource_type: string; avg_buy_price: number; avg_sell_price: number }[] =
+    Array.isArray(spreadData) ? spreadData : (spreadData as any).rows || [];
+
+  const spreadByResourceType = spreadRows.map((row) => {
+    const avgBuy = Number(row.avg_buy_price) || 0;
+    const avgSell = Number(row.avg_sell_price) || 0;
+    const midPrice = (avgBuy + avgSell) / 2;
+    const spread = midPrice > 0 ? Math.abs(avgBuy - avgSell) / midPrice : 0;
+
+    return {
+      resourceType: row.resource_type,
+      avgBuyPrice: avgBuy,
+      avgSellPrice: avgSell,
+      spread,
+    };
+  });
+
+  const avgBidAskSpread = spreadByResourceType.length > 0
+    ? spreadByResourceType.reduce((sum, s) => sum + s.spread, 0) / spreadByResourceType.length
+    : 0;
+
+  // --- Liquidity ---
+  const liquidityData = await db.execute<{
+    trades_per_tick: number;
+    unique_traders: number;
+    volume_per_tick: number;
+  }>(sql`
+    WITH tick_range AS (
+      SELECT MAX(tick) - 20 as start_tick, MAX(tick) as end_tick
+      FROM events
+    ),
+    trade_stats AS (
+      SELECT
+        COUNT(*)::float / GREATEST(1, (SELECT end_tick - start_tick FROM tick_range)) as trades_per_tick,
+        COUNT(DISTINCT agent_id) as unique_traders,
+        SUM(COALESCE((payload->>'quantity')::numeric, 1))::float /
+          GREATEST(1, (SELECT end_tick - start_tick FROM tick_range)) as volume_per_tick
+      FROM events
+      WHERE event_type = 'agent_traded'
+        AND tick >= (SELECT start_tick FROM tick_range)
+    )
+    SELECT * FROM trade_stats
+  `);
+
+  const liquidityRows = Array.isArray(liquidityData) ? liquidityData : (liquidityData as any).rows || [];
+
+  // --- Market Maturity Classification ---
+  const tradesPerTick = Number(liquidityRows[0]?.trades_per_tick) || 0;
+  let marketMaturity: MarketEfficiencyMetrics['marketMaturity'] = 'nascent';
+
+  if (tradesPerTick > 1 && convergenceRate > 0.5 && avgBidAskSpread < 0.2) {
+    marketMaturity = 'efficient';
+  } else if (tradesPerTick > 0.5 && convergenceRate > 0.3) {
+    marketMaturity = 'mature';
+  } else if (tradesPerTick > 0.1) {
+    marketMaturity = 'developing';
+  }
+
+  return {
+    priceConvergence: {
+      currentVariance: Math.round(currentVariance * 100) / 100,
+      historicalVariance: Math.round(historicalVariance * 100) / 100,
+      convergenceRate: Math.round(convergenceRate * 1000) / 1000,
+      isConverging: currentVariance < historicalVariance,
+    },
+    spreadPercentage: {
+      avgBidAskSpread: Math.round(avgBidAskSpread * 1000) / 1000,
+      spreadByResourceType,
+    },
+    liquidity: {
+      tradesPerTick: Math.round(tradesPerTick * 100) / 100,
+      uniqueTradersPerTick: Number(liquidityRows[0]?.unique_traders) || 0,
+      volumePerTick: Math.round(Number(liquidityRows[0]?.volume_per_tick) * 100) / 100 || 0,
+    },
+    marketMaturity,
+  };
+}
+
+// =============================================================================
+// Governance Metrics (Radical Emergence Classifier)
+// =============================================================================
+
+export interface GovernanceMetrics {
+  leadershipEmergence: {
+    potentialLeaders: {
+      agentId: string;
+      llmType: string;
+      influenceScore: number; // Based on who follows/trusts them
+      followerCount: number;
+    }[];
+    leadershipConcentration: number; // 0-1, how concentrated leadership is
+  };
+  collectiveDecisions: {
+    coordinatedActionsCount: number; // Agents acting in sync
+    groupMovementPatterns: number; // Groups moving together
+    sharedResourcePools: number; // Agents sharing at same locations
+  };
+  normEmergence: {
+    consistentBehaviorPatterns: number; // Agents following similar rules
+    punishmentOfDeviants: number; // Negative responses to outliers
+    normStrength: number; // 0-1, how strong emergent norms are
+  };
+  dominantStructure:
+    | 'anarchic' // No coordination
+    | 'egalitarian' // Equal distribution of influence
+    | 'hierarchical' // Clear leader-follower relationships
+    | 'oligarchic' // Small group dominates
+    | 'emergent'; // Novel structure detected
+}
+
+/**
+ * Detect emergent governance structures
+ * Classifies what type of social organization has emerged
+ */
+export async function getGovernanceMetrics(): Promise<GovernanceMetrics> {
+  // --- Leadership Emergence ---
+  // Identify agents with high trust/influence
+  const leaderData = await db.execute<{
+    agent_id: string;
+    llm_type: string;
+    influence_score: number;
+    follower_count: number;
+  }>(sql`
+    WITH trust_received AS (
+      SELECT
+        other_agent_id as agent_id,
+        COUNT(*) as truster_count,
+        SUM(trust_score) as total_trust
+      FROM agent_relationships
+      WHERE trust_score > 20
+      GROUP BY other_agent_id
+    ),
+    info_influence AS (
+      SELECT
+        (payload->>'aboutAgentId') as agent_id,
+        COUNT(*) as mention_count
+      FROM events
+      WHERE event_type = 'agent_shared_info'
+        AND (payload->>'sentiment')::int > 0
+      GROUP BY payload->>'aboutAgentId'
+    )
+    SELECT
+      a.id as agent_id,
+      a.llm_type,
+      COALESCE(tr.truster_count, 0) * 10 +
+        COALESCE(tr.total_trust, 0) +
+        COALESCE(ii.mention_count, 0) * 5 as influence_score,
+      COALESCE(tr.truster_count, 0) as follower_count
+    FROM agents a
+    LEFT JOIN trust_received tr ON a.id = tr.agent_id
+    LEFT JOIN info_influence ii ON a.id::text = ii.agent_id
+    WHERE a.state != 'dead'
+    ORDER BY influence_score DESC
+    LIMIT 10
+  `);
+
+  const leaderRows: { agent_id: string; llm_type: string; influence_score: number; follower_count: number }[] =
+    Array.isArray(leaderData) ? leaderData : (leaderData as any).rows || [];
+
+  const potentialLeaders = leaderRows.map((r) => ({
+    agentId: r.agent_id,
+    llmType: r.llm_type,
+    influenceScore: Number(r.influence_score) || 0,
+    followerCount: Number(r.follower_count) || 0,
+  }));
+
+  // Calculate leadership concentration (Gini of influence)
+  const influenceScores = potentialLeaders.map((l) => l.influenceScore);
+  let leadershipConcentration = 0;
+
+  if (influenceScores.length > 1) {
+    const sorted = [...influenceScores].sort((a, b) => a - b);
+    const n = sorted.length;
+    const sum = sorted.reduce((a, b) => a + b, 0);
+    if (sum > 0) {
+      let numerator = 0;
+      for (let i = 0; i < n; i++) {
+        numerator += (2 * (i + 1) - n - 1) * sorted[i];
+      }
+      leadershipConcentration = numerator / (n * sum);
+    }
+  }
+
+  // --- Collective Decisions ---
+  // Count coordinated actions (multiple agents doing same thing at same tick)
+  const coordinationData = await db.execute<{
+    coordinated_count: number;
+    group_movements: number;
+    shared_locations: number;
+  }>(sql`
+    WITH tick_actions AS (
+      SELECT tick, event_type, COUNT(*) as agent_count
+      FROM events
+      WHERE event_type LIKE 'agent_%'
+        AND event_type NOT IN ('agent_died', 'agent_spawned')
+      GROUP BY tick, event_type
+      HAVING COUNT(*) >= 3
+    ),
+    movement_groups AS (
+      SELECT tick, (payload->>'toX')::int as x, (payload->>'toY')::int as y, COUNT(*) as movers
+      FROM events
+      WHERE event_type = 'agent_moved'
+      GROUP BY tick, payload->>'toX', payload->>'toY'
+      HAVING COUNT(*) >= 2
+    ),
+    location_sharing AS (
+      SELECT x, y, COUNT(*) as occupants
+      FROM agents
+      WHERE state != 'dead'
+      GROUP BY x, y
+      HAVING COUNT(*) >= 2
+    )
+    SELECT
+      (SELECT COUNT(*) FROM tick_actions) as coordinated_count,
+      (SELECT COUNT(*) FROM movement_groups) as group_movements,
+      (SELECT COUNT(*) FROM location_sharing) as shared_locations
+  `);
+
+  const coordRows = Array.isArray(coordinationData) ? coordinationData : (coordinationData as any).rows || [];
+
+  // --- Norm Emergence ---
+  // Detect consistent behavior patterns and punishment of deviation
+  const normData = await db.execute<{
+    behavior_consistency: number;
+    punishment_events: number;
+  }>(sql`
+    WITH agent_behaviors AS (
+      SELECT
+        agent_id,
+        event_type,
+        COUNT(*) as action_count,
+        SUM(COUNT(*)) OVER (PARTITION BY agent_id) as total_actions
+      FROM events
+      WHERE event_type LIKE 'agent_%'
+        AND event_type NOT IN ('agent_died', 'agent_spawned')
+      GROUP BY agent_id, event_type
+    ),
+    behavior_ratios AS (
+      SELECT
+        agent_id,
+        event_type,
+        action_count::float / NULLIF(total_actions, 0) as ratio
+      FROM agent_behaviors
+    ),
+    behavior_variance AS (
+      SELECT
+        event_type,
+        VARIANCE(ratio) as ratio_variance
+      FROM behavior_ratios
+      GROUP BY event_type
+    ),
+    punishment_count AS (
+      SELECT COUNT(*) as cnt
+      FROM events e1
+      JOIN events e2 ON
+        e1.agent_id::text = e2.payload->>'targetAgentId'
+        AND e2.event_type IN ('agent_harmed', 'agent_stole')
+        AND e2.tick > e1.tick
+        AND e2.tick <= e1.tick + 10
+      WHERE e1.event_type IN ('agent_harmed', 'agent_stole', 'agent_deceived')
+    )
+    SELECT
+      1 - COALESCE(AVG(ratio_variance), 0) as behavior_consistency,
+      (SELECT cnt FROM punishment_count) as punishment_events
+  `);
+
+  const normRows = Array.isArray(normData) ? normData : (normData as any).rows || [];
+  const behaviorConsistency = Number(normRows[0]?.behavior_consistency) || 0;
+  const punishmentEvents = Number(normRows[0]?.punishment_events) || 0;
+
+  // Norm strength: combination of consistency and enforcement
+  const normStrength = Math.min(1, (behaviorConsistency + Math.min(1, punishmentEvents / 10)) / 2);
+
+  // --- Classify Dominant Structure ---
+  const totalAgents = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(agents)
+    .where(sql`${agents.state} != 'dead'`);
+  const agentCount = Number(totalAgents[0]?.count) || 1;
+
+  const topLeaderInfluence = potentialLeaders[0]?.influenceScore || 0;
+  const totalInfluence = potentialLeaders.reduce((sum, l) => sum + l.influenceScore, 0);
+  const topLeaderShare = totalInfluence > 0 ? topLeaderInfluence / totalInfluence : 0;
+
+  const top3Influence = potentialLeaders.slice(0, 3).reduce((sum, l) => sum + l.influenceScore, 0);
+  const top3Share = totalInfluence > 0 ? top3Influence / totalInfluence : 0;
+
+  let dominantStructure: GovernanceMetrics['dominantStructure'] = 'anarchic';
+
+  if (leadershipConcentration < 0.2 && normStrength < 0.3) {
+    dominantStructure = 'anarchic';
+  } else if (leadershipConcentration < 0.3 && normStrength > 0.5) {
+    dominantStructure = 'egalitarian';
+  } else if (topLeaderShare > 0.5) {
+    dominantStructure = 'hierarchical';
+  } else if (top3Share > 0.7 && leadershipConcentration > 0.4) {
+    dominantStructure = 'oligarchic';
+  } else if (normStrength > 0.4 || Number(coordRows[0]?.coordinated_count) > 10) {
+    dominantStructure = 'emergent';
+  }
+
+  return {
+    leadershipEmergence: {
+      potentialLeaders,
+      leadershipConcentration: Math.round(leadershipConcentration * 1000) / 1000,
+    },
+    collectiveDecisions: {
+      coordinatedActionsCount: Number(coordRows[0]?.coordinated_count) || 0,
+      groupMovementPatterns: Number(coordRows[0]?.group_movements) || 0,
+      sharedResourcePools: Number(coordRows[0]?.shared_locations) || 0,
+    },
+    normEmergence: {
+      consistentBehaviorPatterns: Math.round(behaviorConsistency * 1000) / 1000,
+      punishmentOfDeviants: punishmentEvents,
+      normStrength: Math.round(normStrength * 1000) / 1000,
+    },
+    dominantStructure,
+  };
+}
+
+// =============================================================================
 // Resource Efficiency Metrics
 // =============================================================================
 

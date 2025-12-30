@@ -22,7 +22,17 @@ import { logAdapterStatus } from './llm';
 import { getAllAgents } from './db/queries/agents';
 import { getAllShelters, getAllResourceSpawns, getWorldState, getCurrentTick, initWorldState, pauseWorld, resumeWorld, resetWorldData } from './db/queries/world';
 import { getRecentEvents, initGlobalVersion } from './db/queries/events';
-import { getAnalyticsSnapshot, getSurvivalMetrics, getEconomyMetrics, getBehaviorMetrics, getTemporalMetrics, getResourceEfficiencyMetrics } from './db/queries/analytics';
+import {
+  getAnalyticsSnapshot,
+  getSurvivalMetrics,
+  getEconomyMetrics,
+  getBehaviorMetrics,
+  getTemporalMetrics,
+  getResourceEfficiencyMetrics,
+  getEmergenceIndexMetrics,
+  getMarketEfficiencyMetrics,
+  getGovernanceMetrics,
+} from './db/queries/analytics';
 import {
   createExperiment,
   getExperimentWithVariants,
@@ -884,6 +894,77 @@ server.get('/api/analytics/resource-efficiency', {
   },
 }, async () => {
   return getResourceEfficiencyMetrics();
+});
+
+// Get emergence index metrics
+server.get('/api/analytics/emergence-index', {
+  schema: {
+    description: 'Get emergence index metrics - measures how much system behavior exceeds sum of individual agent behaviors',
+    tags: ['Analytics'],
+    response: {
+      200: {
+        type: 'object',
+        properties: {
+          emergenceIndex: { type: 'number', description: '0-1 scale, higher = more emergence' },
+          systemComplexity: { type: 'number' },
+          agentComplexitySum: { type: 'number' },
+          components: {
+            type: 'object',
+            properties: {
+              behavioralDiversity: { type: 'number' },
+              spatialOrganization: { type: 'number' },
+              socialStructure: { type: 'number' },
+              economicDifferentiation: { type: 'number' },
+            },
+          },
+        },
+      },
+    },
+  },
+}, async () => {
+  return getEmergenceIndexMetrics();
+});
+
+// Get market efficiency metrics
+server.get('/api/analytics/market-efficiency', {
+  schema: {
+    description: 'Get market efficiency metrics - price convergence, bid-ask spread, liquidity',
+    tags: ['Analytics'],
+    response: {
+      200: {
+        type: 'object',
+        properties: {
+          priceConvergence: { type: 'object' },
+          spreadPercentage: { type: 'object' },
+          liquidity: { type: 'object' },
+          marketMaturity: { type: 'string', enum: ['nascent', 'developing', 'mature', 'efficient'] },
+        },
+      },
+    },
+  },
+}, async () => {
+  return getMarketEfficiencyMetrics();
+});
+
+// Get governance metrics (radical emergence classifier)
+server.get('/api/analytics/governance', {
+  schema: {
+    description: 'Get governance metrics - detect emergent social structures and leadership patterns',
+    tags: ['Analytics'],
+    response: {
+      200: {
+        type: 'object',
+        properties: {
+          leadershipEmergence: { type: 'object' },
+          collectiveDecisions: { type: 'object' },
+          normEmergence: { type: 'object' },
+          dominantStructure: { type: 'string', enum: ['anarchic', 'egalitarian', 'hierarchical', 'oligarchic', 'emergent'] },
+        },
+      },
+    },
+  },
+}, async () => {
+  return getGovernanceMetrics();
 });
 
 // =============================================================================
