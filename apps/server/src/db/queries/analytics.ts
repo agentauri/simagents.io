@@ -2311,23 +2311,28 @@ export async function getGovernanceMetrics(): Promise<GovernanceMetrics> {
     behavior_consistency: number;
     punishment_events: number;
   }>(sql`
-    WITH agent_behaviors AS (
+    WITH action_counts AS (
       SELECT
         agent_id,
         event_type,
-        COUNT(*) as action_count,
-        SUM(COUNT(*)) OVER (PARTITION BY agent_id) as total_actions
+        COUNT(*) as action_count
       FROM events
       WHERE event_type LIKE 'agent_%'
         AND event_type NOT IN ('agent_died', 'agent_spawned')
       GROUP BY agent_id, event_type
     ),
+    agent_totals AS (
+      SELECT agent_id, SUM(action_count) as total_actions
+      FROM action_counts
+      GROUP BY agent_id
+    ),
     behavior_ratios AS (
       SELECT
-        agent_id,
-        event_type,
-        action_count::float / NULLIF(total_actions, 0) as ratio
-      FROM agent_behaviors
+        ac.agent_id,
+        ac.event_type,
+        ac.action_count::float / NULLIF(at.total_actions, 0) as ratio
+      FROM action_counts ac
+      JOIN agent_totals at ON ac.agent_id = at.agent_id
     ),
     behavior_variance AS (
       SELECT
@@ -2349,6 +2354,7 @@ export async function getGovernanceMetrics(): Promise<GovernanceMetrics> {
     SELECT
       1 - COALESCE(AVG(ratio_variance), 0) as behavior_consistency,
       (SELECT cnt FROM punishment_count) as punishment_events
+    FROM behavior_variance
   `);
 
   const normRows = Array.isArray(normData) ? normData : (normData as any).rows || [];
