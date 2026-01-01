@@ -20,6 +20,7 @@ import { updateRelationshipTrust, storeMemory } from '../../db/queries/memories'
 import { checkIsRetaliation, recordRetaliationChain } from '../../db/queries/roles';
 import { getDistance, getVisibleAgents } from '../../world/grid';
 import { CONFIG } from '../../config';
+import { random } from '../../utils/random';
 
 export async function handleSteal(
   intent: ActionIntent<StealParams>,
@@ -89,7 +90,7 @@ export async function handleSteal(
   const sleepBonus = targetAgent.state === 'sleeping' ? 0.2 : 0;
   const healthPenalty = (targetAgent.health / 100) * 0.2;
   const successRate = CONFIG.actions.steal.baseSuccessRate + sleepBonus - healthPenalty;
-  const succeeded = Math.random() < Math.min(successRate, 0.9);
+  const succeeded = random() < Math.min(successRate, 0.9);
 
   // Energy consumed regardless
   const newEnergy = Math.max(0, agent.energy - energyCost);

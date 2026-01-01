@@ -334,21 +334,35 @@ function ReplayCanvas() {
     if (!canvas || !snapshot) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    // Account for canvas scaling (internal size vs displayed size)
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
     const gridSize = 100;
     const cellSize = Math.min(canvas.width, canvas.height) / gridSize;
 
-    const gridX = Math.floor(x / cellSize);
-    const gridY = Math.floor(y / cellSize);
+    // Convert click position to grid coordinates (floating point for precision)
+    const gridX = x / cellSize;
+    const gridY = y / cellSize;
 
-    // Find agent at this position
-    const agent = snapshot.agents.find(
-      (a) => Math.round(a.x) === gridX && Math.round(a.y) === gridY
-    );
+    // Find closest agent within click radius (2 cells tolerance)
+    const clickRadius = 2;
+    let closestAgent = null;
+    let closestDist = clickRadius;
 
-    if (agent) {
-      handleAgentClick(agent.id);
+    for (const agent of snapshot.agents) {
+      const dist = Math.sqrt(
+        Math.pow(agent.x - gridX, 2) + Math.pow(agent.y - gridY, 2)
+      );
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestAgent = agent;
+      }
+    }
+
+    if (closestAgent) {
+      handleAgentClick(closestAgent.id);
     } else {
       selectAgent(null);
     }
@@ -525,6 +539,7 @@ function AgentStatePanel() {
 export function ReplayPage() {
   const isLoading = useReplayLoading();
   const error = useReplayError();
+  const snapshot = useSnapshot();
   const { setTickRange, setSnapshot, setCurrentTick, setLoading, setError } = useReplayStore();
 
   // Load initial data
@@ -553,7 +568,7 @@ export function ReplayPage() {
     loadInitialData();
   }, [loadInitialData]);
 
-  if (isLoading && !useSnapshot()) {
+  if (isLoading && !snapshot) {
     return (
       <div className="min-h-screen bg-city-bg flex items-center justify-center">
         <div className="text-city-text">Loading replay data...</div>

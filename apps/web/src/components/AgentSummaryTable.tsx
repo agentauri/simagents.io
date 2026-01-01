@@ -1,61 +1,77 @@
-import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
-import { useAgents, useEvents, useWorldStore, type Agent, type WorldEvent } from '../stores/world';
+import React, { useState, useCallback, useMemo, memo, type ReactNode } from 'react';
+import { useAgents, useEvents, useWorldStore, type WorldEvent } from '../stores/world';
+import { useDraggablePanel } from '../hooks/useDraggablePanel';
+import { clampPercent, isValidLlmType, sanitizeText } from '../utils/security';
 
-// LLM types that are always visible
+// =============================================================================
+// Constants
+// =============================================================================
+
+/** LLM types that are always visible in the table */
 const ALWAYS_VISIBLE_LLMS = ['claude', 'codex', 'gemini'];
 
-// Strategy icons as SVG components
-const StrategyIcon = ({ type }: { type: string }) => {
-  const icons: Record<string, ReactNode> = {
-    worker: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-status-warning">
-        <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-      </svg>
-    ),
-    explorer: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-status-info">
-        <circle cx="12" cy="12" r="10" />
-        <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
-      </svg>
-    ),
-    sleeper: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-city-text-muted">
-        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-      </svg>
-    ),
-    consumer: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-status-success">
-        <circle cx="9" cy="21" r="1" />
-        <circle cx="20" cy="21" r="1" />
-        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-      </svg>
-    ),
-    gatherer: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
-        <path d="M12 2a10 10 0 1 0 10 10" />
-        <path d="M12 12V2" />
-        <path d="M12 12l7-7" />
-      </svg>
-    ),
-    idle: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-city-text-muted">
-        <circle cx="12" cy="12" r="10" />
-        <line x1="12" y1="8" x2="12" y2="12" />
-        <line x1="12" y1="16" x2="12.01" y2="16" />
-      </svg>
-    ),
-    undecided: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-city-text-muted">
-        <circle cx="12" cy="12" r="10" />
-        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-        <line x1="12" y1="17" x2="12.01" y2="17" />
-      </svg>
-    ),
-  };
+/** Initial panel position */
+const INITIAL_POSITION = { x: 20, y: 72 };
 
-  return <>{icons[type] || icons.idle}</>;
+/** Minimum panel width */
+const MIN_PANEL_WIDTH = 340;
+
+// =============================================================================
+// Strategy Icons (defined outside component to prevent recreation)
+// =============================================================================
+
+const STRATEGY_ICONS: Record<string, ReactNode> = {
+  worker: (
+    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-status-warning">
+      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+    </svg>
+  ),
+  explorer: (
+    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-status-info">
+      <circle cx="12" cy="12" r="10" />
+      <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+    </svg>
+  ),
+  sleeper: (
+    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-city-text-muted">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  ),
+  consumer: (
+    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-status-success">
+      <circle cx="9" cy="21" r="1" />
+      <circle cx="20" cy="21" r="1" />
+      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+    </svg>
+  ),
+  gatherer: (
+    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
+      <path d="M12 2a10 10 0 1 0 10 10" />
+      <path d="M12 12V2" />
+      <path d="M12 12l7-7" />
+    </svg>
+  ),
+  idle: (
+    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-city-text-muted">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  ),
+  undecided: (
+    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-city-text-muted">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  ),
 };
+
+/** Memoized strategy icon component */
+const StrategyIcon = memo(({ type }: { type: string }) => {
+  return <>{STRATEGY_ICONS[type] || STRATEGY_ICONS.idle}</>;
+});
 
 // Strategy calculation based on recent events
 function calculateStrategy(agentId: string, events: WorldEvent[]): { type: string; label: string } {
@@ -111,11 +127,40 @@ export function AgentSummaryTable() {
   const agents = useAgents();
   const events = useEvents();
   const selectAgent = useWorldStore((s) => s.selectAgent);
-  const [position, setPosition] = useState({ x: 20, y: 72 });
-  const [isDragging, setIsDragging] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showAll, setShowAll] = useState(false);
-  const dragRef = useRef({ startX: 0, startY: 0, startPosX: 0, startPosY: 0 });
+  const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
+
+  // Use draggable panel hook (replaces manual drag logic)
+  const { position, handlers } = useDraggablePanel({
+    initialPosition: INITIAL_POSITION,
+    clampToViewport: true,
+  });
+
+  // Toggle agent expansion
+  const toggleAgentExpand = useCallback((agentId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedAgents((prev) => {
+      const next = new Set(prev);
+      if (next.has(agentId)) {
+        next.delete(agentId);
+      } else {
+        next.add(agentId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Pre-compute set of agent IDs with recent activity (O(1) lookup instead of O(n))
+  const activeAgentIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const event of events) {
+      if (event.agentId) {
+        ids.add(event.agentId);
+      }
+    }
+    return ids;
+  }, [events]);
 
   // Filter agents: show always visible LLMs + active agents (exclude dead)
   const visibleAgents = useMemo(() => {
@@ -123,19 +168,22 @@ export function AgentSummaryTable() {
       // Check state field for death, not health (dead agents may have health > 0)
       if (agent.state === 'dead') return false;
 
+      // Validate llmType
+      const llmTypeLower = agent.llmType.toLowerCase();
+      if (!isValidLlmType(llmTypeLower)) return false;
+
       // Always show Claude, Codex, Gemini
-      if (ALWAYS_VISIBLE_LLMS.includes(agent.llmType.toLowerCase())) {
+      if (ALWAYS_VISIBLE_LLMS.includes(llmTypeLower)) {
         return true;
       }
 
       // Show all if toggle is on
       if (showAll) return true;
 
-      // Otherwise, only show if agent has recent activity
-      const recentEvents = events.filter((e) => e.agentId === agent.id).slice(0, 10);
-      return recentEvents.length > 0;
+      // Otherwise, only show if agent has recent activity (O(1) lookup)
+      return activeAgentIds.has(agent.id);
     });
-  }, [agents, events, showAll]);
+  }, [agents, activeAgentIds, showAll]);
 
   // Calculate strategies for visible agents
   const agentStrategies = useMemo(() => {
@@ -146,42 +194,11 @@ export function AgentSummaryTable() {
     return strategies;
   }, [visibleAgents, events]);
 
-  // Drag handlers
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-    dragRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      startPosX: position.x,
-      startPosY: position.y,
-    };
-  }, [position]);
-
-  useEffect(() => {
-    if (!isDragging) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const dx = e.clientX - dragRef.current.startX;
-      const dy = e.clientY - dragRef.current.startY;
-      setPosition({
-        x: dragRef.current.startPosX + dx,
-        y: dragRef.current.startPosY + dy,
-      });
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging]);
+  // Memoized select handler to avoid inline function in render
+  const handleSelectAgent = useCallback((agentId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    selectAgent(agentId);
+  }, [selectAgent]);
 
   // Sort by balance (richest first)
   const sortedAgents = [...visibleAgents].sort((a, b) => b.balance - a.balance);
@@ -193,13 +210,14 @@ export function AgentSummaryTable() {
         left: position.x,
         top: position.y,
         zIndex: 100,
-        minWidth: isCollapsed ? 'auto' : '340px',
+        minWidth: isCollapsed ? 'auto' : `${MIN_PANEL_WIDTH}px`,
       }}
     >
       {/* Header - Draggable */}
       <div
         className="panel-header cursor-move select-none"
-        onMouseDown={handleMouseDown}
+        onMouseDown={handlers.onDragStart}
+        onPointerDown={handlers.onDragStart}
       >
         <div className="flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-city-accent">
@@ -249,40 +267,121 @@ export function AgentSummaryTable() {
               </tr>
             </thead>
             <tbody className="text-sm">
-              {sortedAgents.map((agent, index) => {
+              {sortedAgents.map((agent) => {
                 const strategy = agentStrategies[agent.id];
+                const isExpanded = expandedAgents.has(agent.id);
+                const displayName = sanitizeText(agent.llmType, 20);
                 return (
-                  <tr
-                    key={agent.id}
-                    className="group hover:bg-city-surface-hover/50 transition-colors cursor-pointer"
-                    onClick={() => selectAgent(agent.id)}
-                  >
-                    <td className="py-1.5 rounded-l">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-2.5 h-2.5 rounded-full ring-1 ring-white/10"
-                          style={{ backgroundColor: agent.color }}
-                        />
-                        <span className="text-city-text capitalize text-xs font-medium">
-                          {agent.llmType}
+                  <React.Fragment key={agent.id}>
+                    <tr
+                      className="group hover:bg-city-surface-hover/50 transition-colors cursor-pointer"
+                      onClick={(e) => toggleAgentExpand(agent.id, e)}
+                    >
+                      <td className="py-1.5 rounded-l">
+                        <div className="flex items-center gap-2">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="10"
+                            height="10"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className={`text-city-text-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                          >
+                            <polyline points="9 18 15 12 9 6" />
+                          </svg>
+                          <div
+                            className="w-2.5 h-2.5 rounded-full ring-1 ring-white/10"
+                            style={{ backgroundColor: agent.color }}
+                          />
+                          <span className="text-city-text capitalize text-xs font-medium">
+                            {displayName}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="text-right py-1.5">
+                        <span className="font-mono text-xs">
+                          <span className="text-city-accent font-medium">{agent.balance}</span>
+                          <span className="text-city-text-muted ml-1">CITY</span>
                         </span>
-                      </div>
-                    </td>
-                    <td className="text-right py-1.5">
-                      <span className="font-mono text-xs">
-                        <span className="text-city-accent font-medium">{agent.balance}</span>
-                        <span className="text-city-text-muted ml-1">CITY</span>
-                      </span>
-                    </td>
-                    <td className="pl-4 py-1.5 rounded-r">
-                      <div className="flex items-center gap-1.5">
-                        <StrategyIcon type={strategy?.type || 'idle'} />
-                        <span className="text-city-text-muted text-xs">
-                          {strategy?.label}
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="pl-4 py-1.5 rounded-r">
+                        <div className="flex items-center gap-1.5">
+                          <StrategyIcon type={strategy?.type || 'idle'} />
+                          <span className="text-city-text-muted text-xs">
+                            {strategy?.label}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                    {/* Expanded details */}
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={3} className="pb-2">
+                          <div className="ml-6 pl-3 border-l-2 border-city-border/30 py-2 space-y-2">
+                            {/* Position */}
+                            <div className="flex items-center gap-4 text-xs">
+                              <span className="text-city-text-muted">Position:</span>
+                              <span className="font-mono text-city-text">({agent.x}, {agent.y})</span>
+                              <span className="text-city-text-muted">State:</span>
+                              <span className={`capitalize ${agent.state === 'dead' ? 'text-status-error' : 'text-city-text'}`}>
+                                {agent.state}
+                              </span>
+                            </div>
+                            {/* Vitals */}
+                            <div className="grid grid-cols-3 gap-3">
+                              <div className="space-y-1">
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-city-text-muted">Health</span>
+                                  <span className={agent.health < 30 ? 'text-status-error' : 'text-city-text'}>{Math.round(clampPercent(agent.health))}</span>
+                                </div>
+                                <div className="h-1 bg-city-bg rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${agent.health < 30 ? 'bg-status-error' : 'bg-status-success'}`}
+                                    style={{ width: `${clampPercent(agent.health)}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-city-text-muted">Hunger</span>
+                                  <span className={agent.hunger < 20 ? 'text-status-error' : 'text-city-text'}>{Math.round(clampPercent(agent.hunger))}</span>
+                                </div>
+                                <div className="h-1 bg-city-bg rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${agent.hunger < 20 ? 'bg-status-error' : 'bg-status-warning'}`}
+                                    style={{ width: `${clampPercent(agent.hunger)}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-city-text-muted">Energy</span>
+                                  <span className={agent.energy < 20 ? 'text-status-error' : 'text-city-text'}>{Math.round(clampPercent(agent.energy))}</span>
+                                </div>
+                                <div className="h-1 bg-city-bg rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${agent.energy < 20 ? 'bg-status-error' : 'bg-status-info'}`}
+                                    style={{ width: `${clampPercent(agent.energy)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            {/* Select button */}
+                            <button
+                              onClick={(e) => handleSelectAgent(agent.id, e)}
+                              className="text-[10px] text-city-accent hover:text-city-accent/80 transition-colors"
+                            >
+                              View on map →
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
               {sortedAgents.length === 0 && (

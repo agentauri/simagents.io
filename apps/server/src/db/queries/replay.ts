@@ -161,16 +161,20 @@ export async function getAgentStatesAtTick(tick: number): Promise<AgentStateAtTi
 
     if (lastMoveEvent[0]) {
       const payload = lastMoveEvent[0].payload as Record<string, unknown>;
-      x = Number(payload.toX ?? x);
-      y = Number(payload.toY ?? y);
+      // Handle both direct toX/toY and nested params.toX/toY formats
+      const params = payload.params as Record<string, unknown> | undefined;
+      x = Number(params?.toX ?? payload.toX ?? x);
+      y = Number(params?.toY ?? payload.toY ?? y);
     }
 
     if (lastNeedsEvent[0]) {
       const payload = lastNeedsEvent[0].payload as Record<string, unknown>;
-      hunger = Number(payload.hunger ?? hunger);
-      energy = Number(payload.energy ?? energy);
-      health = Number(payload.health ?? health);
-      balance = Number(payload.balance ?? balance);
+      // Handle both direct values and nested newState format
+      const newState = payload.newState as Record<string, unknown> | undefined;
+      hunger = Number(newState?.hunger ?? payload.hunger ?? hunger);
+      energy = Number(newState?.energy ?? payload.energy ?? energy);
+      health = Number(newState?.health ?? payload.health ?? health);
+      balance = Number(newState?.balance ?? payload.balance ?? balance);
     }
 
     // Only include agents that existed at this tick (check if they were born before)
@@ -241,13 +245,17 @@ export async function getAgentHistory(
 
     // Update state based on event type
     if (event.eventType === 'agent_move') {
-      currentState.x = Number(payload.toX ?? currentState.x);
-      currentState.y = Number(payload.toY ?? currentState.y);
+      // Handle both direct toX/toY and nested params.toX/toY formats
+      const params = payload.params as Record<string, unknown> | undefined;
+      currentState.x = Number(params?.toX ?? payload.toX ?? currentState.x);
+      currentState.y = Number(params?.toY ?? payload.toY ?? currentState.y);
     } else if (event.eventType === 'needs_updated') {
-      currentState.hunger = Number(payload.hunger ?? currentState.hunger);
-      currentState.energy = Number(payload.energy ?? currentState.energy);
-      currentState.health = Number(payload.health ?? currentState.health);
-      currentState.balance = Number(payload.balance ?? currentState.balance);
+      // Handle both direct values and nested newState format
+      const newState = payload.newState as Record<string, unknown> | undefined;
+      currentState.hunger = Number(newState?.hunger ?? payload.hunger ?? currentState.hunger);
+      currentState.energy = Number(newState?.energy ?? payload.energy ?? currentState.energy);
+      currentState.health = Number(newState?.health ?? payload.health ?? currentState.health);
+      currentState.balance = Number(newState?.balance ?? payload.balance ?? currentState.balance);
     }
 
     // Add state snapshot for this tick if not already added

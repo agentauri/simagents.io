@@ -160,10 +160,35 @@ export function ScientificCanvas() {
       );
     }
 
-    // Draw agents
+    // Group agents by position to handle overlapping
+    const agentsByPosition = new Map<string, typeof agents>();
     for (const agent of agents) {
-      const centerX = agent.x * TILE_SIZE + TILE_SIZE / 2;
-      const centerY = agent.y * TILE_SIZE + TILE_SIZE / 2;
+      const key = `${agent.x},${agent.y}`;
+      if (!agentsByPosition.has(key)) {
+        agentsByPosition.set(key, []);
+      }
+      agentsByPosition.get(key)!.push(agent);
+    }
+
+    // Draw agents with offset for overlapping ones
+    for (const agent of agents) {
+      const key = `${agent.x},${agent.y}`;
+      const agentsAtPosition = agentsByPosition.get(key) || [];
+      const indexAtPosition = agentsAtPosition.indexOf(agent);
+      const countAtPosition = agentsAtPosition.length;
+
+      // Calculate offset for overlapping agents (arrange in a circle pattern)
+      let offsetX = 0;
+      let offsetY = 0;
+      if (countAtPosition > 1) {
+        const angle = (indexAtPosition / countAtPosition) * Math.PI * 2;
+        const offsetRadius = AGENT_RADIUS * 0.8;
+        offsetX = Math.cos(angle) * offsetRadius;
+        offsetY = Math.sin(angle) * offsetRadius;
+      }
+
+      const centerX = agent.x * TILE_SIZE + TILE_SIZE / 2 + offsetX;
+      const centerY = agent.y * TILE_SIZE + TILE_SIZE / 2 + offsetY;
 
       // Selection ring
       if (agent.id === selectedAgentId) {
@@ -194,6 +219,27 @@ export function ScientificCanvas() {
       ctx.font = '8px monospace';
       ctx.textAlign = 'center';
       ctx.fillText(agent.llmType.slice(0, 1).toUpperCase(), centerX, centerY + 3);
+    }
+
+    // Draw overlap count badges
+    for (const [key, agentsAtPos] of agentsByPosition) {
+      if (agentsAtPos.length > 1) {
+        const [x, y] = key.split(',').map(Number);
+        const badgeX = x * TILE_SIZE + TILE_SIZE - 2;
+        const badgeY = y * TILE_SIZE + 4;
+
+        // Badge background
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(badgeX, badgeY, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Badge text
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 7px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(String(agentsAtPos.length), badgeX, badgeY + 2.5);
+      }
     }
 
     ctx.restore();

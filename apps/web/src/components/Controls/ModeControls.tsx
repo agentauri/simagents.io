@@ -38,7 +38,7 @@ export function ModeControls({ onStartSimulation, onReset, onPause, onResume }: 
     return (
       <div className="flex items-center gap-1 sm:gap-2">
         {/* Mode badge - hidden on mobile */}
-        <span className="hidden sm:inline-flex px-2 py-0.5 bg-city-accent/20 text-city-accent text-xs font-medium rounded">
+        <span className="hidden sm:inline-flex px-2.5 py-1 bg-city-accent/20 text-city-accent text-xs font-medium rounded-md">
           Ready
         </span>
 
@@ -74,7 +74,7 @@ export function ModeControls({ onStartSimulation, onReset, onPause, onResume }: 
   return (
     <div className="flex items-center gap-1 sm:gap-2">
       {/* Mode badge - hidden on mobile */}
-      <span className={`hidden sm:inline-flex px-2 py-0.5 text-xs font-medium rounded ${
+      <span className={`hidden sm:inline-flex px-2.5 py-1 text-xs font-medium rounded-md ${
         isPaused
           ? 'bg-yellow-500/20 text-yellow-400'
           : 'bg-green-500/20 text-green-400'
@@ -149,6 +149,19 @@ export function ModeControls({ onStartSimulation, onReset, onPause, onResume }: 
           <path d="m19 9-5 5-4-4-3 3" />
         </svg>
         <span className="hidden sm:inline">Analytics</span>
+      </button>
+
+      {/* Replay button - icon only on mobile */}
+      <button
+        type="button"
+        onClick={() => setMode('replay')}
+        className="px-2 py-1.5 sm:px-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 text-[11px] sm:text-xs font-medium rounded border border-purple-500/30 flex items-center gap-1"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sm:w-3 sm:h-3">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+        <span className="hidden sm:inline">Replay</span>
       </button>
 
       {/* Reset button - icon only on mobile */}

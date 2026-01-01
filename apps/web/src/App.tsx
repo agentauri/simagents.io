@@ -179,59 +179,51 @@ export default function App() {
 
   // Header content - responsive
   const headerContent = (
-    <div className="flex items-center justify-between w-full">
-      <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
-        {/* Logo/Title - hide on very small screens when in simulation */}
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="w-6 h-6 sm:w-7 sm:h-7 bg-city-accent rounded-md flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white sm:w-4 sm:h-4">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
-              <path d="M2 12h20" />
-            </svg>
-          </div>
-          <h1 className="text-sm sm:text-base font-semibold text-city-text hidden xs:block">Agents City</h1>
-          <span className="text-[10px] sm:text-xs text-city-text-muted hidden md:inline">Scientific Mode</span>
+    <div className="flex items-center justify-between w-full gap-4">
+      {/* Left: Logo + Title */}
+      <div className="flex items-center gap-2 shrink-0">
+        <div className="w-7 h-7 bg-city-accent rounded-lg flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+            <path d="M2 12h20" />
+          </svg>
         </div>
-
-        {/* World stats (only in simulation mode) - compact on mobile */}
-        {mode === 'simulation' && (
-          <div className="hidden sm:block">
-            <WorldStats connectionStatus={status} />
-          </div>
-        )}
-
-        {/* Mobile-only compact stats */}
-        {mode === 'simulation' && (
-          <div className="flex sm:hidden items-center gap-2 text-[10px]">
-            <span className="text-city-text-muted">T:</span>
-            <span className="font-mono text-city-text">{useWorldStore.getState().tick}</span>
-            <span className={`w-1.5 h-1.5 rounded-full ${status === 'connected' ? 'bg-status-success' : 'bg-status-error'}`} />
-          </div>
-        )}
+        <div className="hidden sm:block">
+          <h1 className="text-sm font-semibold text-city-text leading-none">Agents City</h1>
+          <span className="text-[10px] text-city-text-muted">Scientific Mode</span>
+        </div>
       </div>
 
-      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-        {/* View Toggle - desktop only (hidden on mobile for space) */}
+      {/* Stats (only in simulation mode) - aligned left after logo */}
+      {mode === 'simulation' && (
+        <WorldStats connectionStatus={status} />
+      )}
+
+      {/* Spacer */}
+      <div className="flex-1" />
+
+      {/* Right: Controls */}
+      <div className="flex items-center gap-2 shrink-0">
+        {/* View Toggle - desktop only */}
         <div className="hidden lg:block">
           <ViewToggle />
         </div>
 
-        {/* Replay button (only in simulation mode) - icon only on mobile */}
+        {/* Replay button (only in simulation mode) */}
         {mode === 'simulation' && (
           <button
             onClick={handleEnterReplay}
-            className="px-2 py-1.5 sm:px-3 rounded bg-city-surface border border-city-border hover:bg-city-border text-city-text text-xs sm:text-sm flex items-center gap-1 sm:gap-2"
+            className="p-2 rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
             title="Time Travel Replay"
           >
-            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span className="hidden sm:inline">Replay</span>
           </button>
         )}
 
-        {/* Mode controls - responsive */}
+        {/* Mode controls */}
         <ModeControls
           onStartSimulation={handleStartSimulation}
           onReset={handleReset}

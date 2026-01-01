@@ -17,7 +17,7 @@ export function TemporalPanel() {
     );
   }
 
-  const { tickDurations, eventsByTick, currentTick } = temporal;
+  const { tickDurations = [], eventsByTick = [], currentTick = 0 } = temporal;
 
   // Calculate averages
   const avgDuration = tickDurations.length > 0

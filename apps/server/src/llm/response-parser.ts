@@ -4,6 +4,7 @@
 
 import type { AgentDecision } from './types';
 import type { ActionType } from '../actions/types';
+import { randomChoice } from '../utils/random';
 
 const VALID_ACTIONS: ActionType[] = [
   'move', 'buy', 'consume', 'sleep', 'work', 'gather', 'trade',
@@ -203,27 +204,70 @@ export function getFallbackDecision(
   energy: number,
   balance: number,
   agentX?: number,
-  agentY?: number
+  agentY?: number,
+  inventory?: Array<{ type: string; quantity: number }>,
+  nearbyResourceSpawns?: Array<{ x: number; y: number; resourceType: string; currentAmount: number }>,
+  nearbyShelters?: Array<{ x: number; y: number }>
 ): AgentDecision {
-  // Priority 1: If critically hungry and have money, buy food
-  if (hunger < 30 && balance >= 10) {
-    return {
-      action: 'buy',
-      params: { itemType: 'food', quantity: 1 },
-      reasoning: 'Fallback: critically hungry, buying food',
-    };
-  }
+  const hasFood = inventory?.some((i) => i.type === 'food' && i.quantity > 0) ?? false;
+  const currentX = agentX ?? 50;
+  const currentY = agentY ?? 50;
+  const atShelter = nearbyShelters?.some((s) => s.x === currentX && s.y === currentY) ?? false;
 
-  // Priority 2: Consume food if hungry (assume might have some)
-  if (hunger < 50) {
+  // Priority 1: Consume food if hungry AND have food
+  if (hunger < 50 && hasFood) {
     return {
       action: 'consume',
       params: { itemType: 'food' },
-      reasoning: 'Fallback: hungry, attempting to consume food',
+      reasoning: 'Fallback: hungry, consuming food from inventory',
     };
   }
 
-  // Priority 3: Rest if exhausted
+  // Priority 2: If critically hungry, at shelter, and have money, buy food
+  if (hunger < 30 && balance >= 10 && atShelter) {
+    return {
+      action: 'buy',
+      params: { itemType: 'food', quantity: 1 },
+      reasoning: 'Fallback: critically hungry, buying food at shelter',
+    };
+  }
+
+  // Priority 3: If hungry and at a food spawn, gather food
+  if (hunger < 50 && nearbyResourceSpawns) {
+    const foodSpawnHere = nearbyResourceSpawns.find(
+      (s) => s.x === currentX && s.y === currentY && s.resourceType === 'food' && s.currentAmount > 0
+    );
+    if (foodSpawnHere) {
+      return {
+        action: 'gather',
+        params: { resourceType: 'food', quantity: 1 },
+        reasoning: 'Fallback: hungry, gathering food at current location',
+      };
+    }
+  }
+
+  // Priority 4: If hungry, move towards nearest food spawn
+  if (hunger < 40 && nearbyResourceSpawns) {
+    const foodSpawns = nearbyResourceSpawns.filter((s) => s.resourceType === 'food' && s.currentAmount > 0);
+    if (foodSpawns.length > 0) {
+      // Find closest food spawn
+      const closest = foodSpawns.reduce((a, b) => {
+        const distA = Math.abs(a.x - currentX) + Math.abs(a.y - currentY);
+        const distB = Math.abs(b.x - currentX) + Math.abs(b.y - currentY);
+        return distA < distB ? a : b;
+      });
+      // Move one step towards it
+      const dx = Math.sign(closest.x - currentX);
+      const dy = Math.sign(closest.y - currentY);
+      return {
+        action: 'move',
+        params: { toX: currentX + (dx || dy ? dx : 0), toY: currentY + (dx ? 0 : dy) },
+        reasoning: 'Fallback: hungry, moving towards food spawn',
+      };
+    }
+  }
+
+  // Priority 5: Rest if exhausted
   if (energy < 30) {
     return {
       action: 'sleep',
@@ -232,7 +276,7 @@ export function getFallbackDecision(
     };
   }
 
-  // Priority 4: Work if poor (no location required)
+  // Priority 6: Work if poor (no location required)
   if (balance < 50 && energy >= 20) {
     return {
       action: 'work',
@@ -241,10 +285,8 @@ export function getFallbackDecision(
     };
   }
 
-  // Priority 5: Random exploration if healthy
+  // Priority 7: Random exploration if healthy
   if (energy >= 10) {
-    const currentX = agentX ?? 50;
-    const currentY = agentY ?? 50;
     // Random direction
     const directions = [
       { dx: 1, dy: 0 },
@@ -252,7 +294,7 @@ export function getFallbackDecision(
       { dx: 0, dy: 1 },
       { dx: 0, dy: -1 },
     ];
-    const dir = directions[Math.floor(Math.random() * directions.length)];
+    const dir = randomChoice(directions) ?? directions[0];
     return {
       action: 'move',
       params: { toX: currentX + dir.dx, toY: currentY + dir.dy },

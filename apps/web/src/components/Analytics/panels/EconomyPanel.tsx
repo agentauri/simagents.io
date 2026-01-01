@@ -17,7 +17,21 @@ export function EconomyPanel() {
     );
   }
 
-  const { moneySupply, giniCoefficient, balanceDistribution, byLlmType } = economy;
+  const {
+    moneySupply = 0,
+    giniCoefficient = 0,
+    balanceDistribution = { min: 0, max: 0, median: 0, mean: 0 },
+    byLlmType = []
+  } = economy;
+
+  // Handle empty data case
+  if (!byLlmType.length) {
+    return (
+      <div className="flex items-center justify-center h-32 text-city-text-muted text-sm">
+        No economy data available yet...
+      </div>
+    );
+  }
 
   // Prepare data for total balance by LLM
   const totalBalanceData = byLlmType

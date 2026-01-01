@@ -19,6 +19,7 @@ import { updateRelationshipTrust, storeMemory } from '../../db/queries/memories'
 import { checkIsRetaliation, recordRetaliationChain } from '../../db/queries/roles';
 import { getDistance, getVisibleAgents } from '../../world/grid';
 import { CONFIG } from '../../config';
+import { random } from '../../utils/random';
 
 type HarmIntensity = 'light' | 'moderate' | 'severe';
 
@@ -75,7 +76,7 @@ export async function handleHarm(
     CONFIG.actions.harm.baseSuccessRate *
     (agent.energy / 100) *
     (100 / Math.max(targetAgent.health, 1));
-  const succeeded = Math.random() < Math.min(successRate, 0.95);
+  const succeeded = random() < Math.min(successRate, 0.95);
 
   // Energy is consumed regardless of success
   const newAttackerEnergy = Math.max(0, agent.energy - energyCost);

@@ -112,7 +112,7 @@ interface AnalyticsState {
   setVisible: (visible: boolean) => void;
 }
 
-const API_BASE = 'http://localhost:3000';
+const API_BASE = '';
 
 export const useAnalyticsStore = create<AnalyticsState>((set, get) => ({
   // Initial state

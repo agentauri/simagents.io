@@ -164,12 +164,13 @@ export const useReplayError = () => useReplayStore((s) => s.error);
 // API Functions
 // =============================================================================
 
-const API_BASE = 'http://localhost:3000';
+const API_BASE = '';
 
 export async function fetchTickRange(): Promise<TickRange> {
   const res = await fetch(`${API_BASE}/api/replay/ticks`);
   const data = await res.json();
-  return data.range;
+  // API returns data directly: { minTick, maxTick, currentTick, totalEvents }
+  return data;
 }
 
 export async function fetchWorldSnapshot(tick: number): Promise<WorldSnapshot> {

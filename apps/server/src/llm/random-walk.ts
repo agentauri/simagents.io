@@ -12,6 +12,7 @@
 
 import type { AgentObservation, AgentDecision } from './types';
 import { CONFIG } from '../config';
+import { random, randomChoice } from '../utils/random';
 
 /**
  * Cardinal directions for random movement
@@ -53,7 +54,7 @@ export function getRandomWalkDecision(observation: AgentObservation): AgentDecis
   }
 
   // Default behavior: random movement
-  const direction = DIRECTIONS[Math.floor(Math.random() * DIRECTIONS.length)];
+  const direction = randomChoice(DIRECTIONS) ?? DIRECTIONS[0];
   const gridSize = CONFIG.simulation.gridSize;
 
   // Calculate new position with boundary clamping
@@ -85,7 +86,7 @@ export function getRandomExplorerDecision(observation: AgentObservation): AgentD
       (s) => s.x === self.x && s.y === self.y && s.currentAmount > 0
     );
 
-    if (atSpawn && Math.random() < 0.3) {
+    if (atSpawn && random() < 0.3) {
       return {
         action: 'gather',
         params: { resourceType: atSpawn.resourceType, quantity: 1 },

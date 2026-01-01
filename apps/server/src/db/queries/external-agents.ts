@@ -9,6 +9,7 @@ import { v4 as uuid } from 'uuid';
 import { db, externalAgents, agents, apiUsage } from '../index';
 import { generateApiKey, hashApiKey } from '../../middleware/auth';
 import type { ExternalAgent, NewExternalAgent, Agent } from '../schema';
+import { randomBelow, randomColor } from '../../utils/random';
 
 // =============================================================================
 // Registration
@@ -35,11 +36,11 @@ export async function registerExternalAgent(
   input: RegisterExternalAgentInput
 ): Promise<RegisterExternalAgentResult> {
   // Generate spawn position if not provided
-  const x = input.spawnPosition?.x ?? Math.floor(Math.random() * 100);
-  const y = input.spawnPosition?.y ?? Math.floor(Math.random() * 100);
+  const x = input.spawnPosition?.x ?? randomBelow(100);
+  const y = input.spawnPosition?.y ?? randomBelow(100);
 
   // Generate a random color for the agent
-  const color = `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`;
+  const color = randomColor();
 
   // Create the simulation agent first
   const agentResult = await db

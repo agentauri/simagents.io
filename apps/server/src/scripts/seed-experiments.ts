@@ -43,6 +43,7 @@ export interface VariantDefinition {
   configOverrides?: Record<string, unknown>;
   agentConfigs?: AgentConfig[];
   durationTicks: number;
+  worldSeed?: number; // For reproducibility
 }
 
 // =============================================================================
@@ -98,6 +99,7 @@ const RANDOM_WALK_EXPERIMENT: ExperimentDefinition = {
         useOnlyFallback: false,
       },
       durationTicks: 100,
+      worldSeed: 42001, // Reproducible seed
     },
     {
       name: 'LLM Decision Making (Treatment)',
@@ -107,6 +109,7 @@ const RANDOM_WALK_EXPERIMENT: ExperimentDefinition = {
         useOnlyFallback: false,
       },
       durationTicks: 100,
+      worldSeed: 42002, // Reproducible seed
     },
   ],
 };
@@ -150,6 +153,7 @@ const RULE_BASED_EXPERIMENT: ExperimentDefinition = {
         useOnlyFallback: true,
       },
       durationTicks: 100,
+      worldSeed: 43001, // Reproducible seed
     },
     {
       name: 'LLM Decision Making (Treatment)',
@@ -159,6 +163,7 @@ const RULE_BASED_EXPERIMENT: ExperimentDefinition = {
         useOnlyFallback: false,
       },
       durationTicks: 100,
+      worldSeed: 43002, // Reproducible seed
     },
   ],
 };
@@ -199,30 +204,35 @@ const LLM_COMPARISON_EXPERIMENT: ExperimentDefinition = {
       description: 'All agents use Claude LLM',
       agentConfigs: generateSingleTypeAgents('claude', '#ef4444'),
       durationTicks: 100,
+      worldSeed: 44001, // Reproducible seed
     },
     {
       name: 'Gemini Only',
       description: 'All agents use Gemini LLM',
       agentConfigs: generateSingleTypeAgents('gemini', '#10b981'),
       durationTicks: 100,
+      worldSeed: 44002, // Reproducible seed
     },
     {
       name: 'Codex Only',
       description: 'All agents use OpenAI Codex LLM',
       agentConfigs: generateSingleTypeAgents('codex', '#3b82f6'),
       durationTicks: 100,
+      worldSeed: 44003, // Reproducible seed
     },
     {
       name: 'DeepSeek Only',
       description: 'All agents use DeepSeek LLM',
       agentConfigs: generateSingleTypeAgents('deepseek', '#f59e0b'),
       durationTicks: 100,
+      worldSeed: 44004, // Reproducible seed
     },
     {
       name: 'Mixed LLMs (Control)',
       description: 'Diverse mix of all LLM types (default configuration)',
       agentConfigs: DEFAULT_AGENTS,
       durationTicks: 100,
+      worldSeed: 44005, // Reproducible seed
     },
   ],
 };
@@ -297,10 +307,11 @@ export async function seedExperiment(
       configOverrides: variantDef.configOverrides,
       agentConfigs: variantDef.agentConfigs,
       durationTicks: variantDef.durationTicks,
+      worldSeed: variantDef.worldSeed,
     });
 
     variantIds.push(variant.id);
-    console.log(`  [Created] Variant: ${variant.name} (${variant.id})`);
+    console.log(`  [Created] Variant: ${variant.name} (${variant.id}, seed: ${variantDef.worldSeed ?? 'auto'})`);
   }
 
   return { experimentId: experiment.id, variantIds };

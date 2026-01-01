@@ -28,7 +28,10 @@ function createFallbackDecision(observation: AgentObservation): AgentDecision {
     observation.self.energy,
     observation.self.balance,
     observation.self.x,
-    observation.self.y
+    observation.self.y,
+    observation.inventory,
+    observation.nearbyResourceSpawns,
+    observation.nearbyShelters
   );
 }
 

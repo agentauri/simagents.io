@@ -38,9 +38,19 @@ import {
   generateExperimentReport,
   reportToCSV,
   reportToJSON,
+  reportToLaTeX,
   analyzeSurvival,
   analyzeEconomics,
 } from '../analysis/experiment-analysis';
+import {
+  enrichEvent,
+  calculateNoveltyScores,
+  generateNoveltyReport,
+  type EnrichedEvent,
+} from '../analysis/novelty-detection';
+import { initializeRNG, resetRNG } from '../utils/random';
+import { getEventsByTickRange } from '../db/queries/events';
+import { getAgentById } from '../db/queries/agents';
 
 // =============================================================================
 // Types
@@ -55,7 +65,7 @@ interface ExperimentParams {
 }
 
 interface ExportQuery {
-  format?: 'json' | 'csv';
+  format?: 'json' | 'csv' | 'latex';
 }
 
 interface StartExperimentBody {
@@ -279,6 +289,18 @@ export async function registerExperimentRoutes(server: FastifyInstance): Promise
     const finalTickInterval = tickIntervalMs ?? (Number(process.env.TICK_INTERVAL_MS) || 60000);
     tickEngine.setTickInterval(finalTickInterval);
 
+    // Initialize RNG with variant seed for reproducibility
+    const worldSeed = variant.worldSeed;
+    if (worldSeed !== null && worldSeed !== undefined) {
+      initializeRNG(String(worldSeed));
+      console.log(`[Experiments] RNG initialized with seed: ${worldSeed}`);
+    } else {
+      // Generate a random seed for this run and log it
+      const generatedSeed = Date.now();
+      initializeRNG(String(generatedSeed));
+      console.log(`[Experiments] RNG initialized with generated seed: ${generatedSeed} (variant had no seed)`);
+    }
+
     // Set experiment context with variant configuration
     const configOverrides = variant.configOverrides as Record<string, unknown> | undefined;
     tickEngine.setExperimentContext({
@@ -409,11 +431,11 @@ export async function registerExperimentRoutes(server: FastifyInstance): Promise
   });
 
   // ---------------------------------------------------------------------------
-  // POST /api/experiments/:id/export - Export results to JSON/CSV
+  // POST /api/experiments/:id/export - Export results to JSON/CSV/LaTeX
   // ---------------------------------------------------------------------------
   server.post<{ Params: ExperimentParams; Querystring: ExportQuery }>('/api/experiments/:id/export', {
     schema: {
-      description: 'Export experiment results to JSON or CSV format',
+      description: 'Export experiment results to JSON, CSV, or LaTeX format',
       tags: ['Experiments'],
       params: {
         type: 'object',
@@ -427,8 +449,8 @@ export async function registerExperimentRoutes(server: FastifyInstance): Promise
         properties: {
           format: {
             type: 'string',
-            enum: ['json', 'csv'],
-            description: 'Export format (default: json)',
+            enum: ['json', 'csv', 'latex'],
+            description: 'Export format (default: json). latex generates publication-ready tables.',
           },
         },
       },
@@ -501,6 +523,13 @@ export async function registerExperimentRoutes(server: FastifyInstance): Promise
       reply.header('Content-Type', 'text/csv');
       reply.header('Content-Disposition', `attachment; filename="experiment-${id}.csv"`);
       return csv;
+    }
+
+    if (format === 'latex') {
+      const latex = reportToLaTeX(report);
+      reply.header('Content-Type', 'text/x-latex');
+      reply.header('Content-Disposition', `attachment; filename="experiment-${id}.tex"`);
+      return latex;
     }
 
     // Default to JSON
@@ -681,6 +710,138 @@ export async function registerExperimentRoutes(server: FastifyInstance): Promise
       },
       ticksRemaining,
     };
+  });
+
+  // ---------------------------------------------------------------------------
+  // GET /api/experiments/:id/novelty - Detect novel behaviors in experiment
+  // ---------------------------------------------------------------------------
+  server.get<{ Params: ExperimentParams; Querystring: { topN?: number } }>('/api/experiments/:id/novelty', {
+    schema: {
+      description: 'Detect and analyze novel/unusual behaviors in an experiment',
+      tags: ['Experiments', 'Analysis'],
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid', description: 'Experiment ID' },
+        },
+        required: ['id'],
+      },
+      querystring: {
+        type: 'object',
+        properties: {
+          topN: {
+            type: 'number',
+            default: 20,
+            description: 'Number of top novel events to return',
+          },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            experimentId: { type: 'string' },
+            tickRange: {
+              type: 'object',
+              properties: {
+                start: { type: 'number' },
+                end: { type: 'number' },
+              },
+            },
+            totalEvents: { type: 'number' },
+            novelEvents: { type: 'number' },
+            noveltyRate: { type: 'number' },
+            topNovelties: { type: 'array', items: { type: 'object' } },
+            actionDistribution: { type: 'object' },
+            sequencePatterns: { type: 'array', items: { type: 'object' } },
+            emergentBehaviors: { type: 'array', items: { type: 'object' } },
+          },
+        },
+        404: {
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const topN = request.query.topN ?? 20;
+
+    // Get experiment
+    const experiment = await getExperimentWithVariants(id);
+    if (!experiment) {
+      return reply.code(404).send({ error: 'Experiment not found' });
+    }
+
+    // Collect events from all completed variants
+    const allEnrichedEvents: EnrichedEvent[] = [];
+    let minTick = Infinity;
+    let maxTick = 0;
+
+    for (const variant of experiment.variants) {
+      if (variant.status !== 'completed') continue;
+
+      const startTick = variant.startTick ? Number(variant.startTick) : 0;
+      const endTick = variant.endTick ? Number(variant.endTick) : startTick + 100;
+
+      minTick = Math.min(minTick, startTick);
+      maxTick = Math.max(maxTick, endTick);
+
+      // Get events for this variant's tick range
+      const events = await getEventsByTickRange(startTick, endTick);
+
+      // Enrich events
+      for (const event of events) {
+        if (!event.agentId) continue;
+
+        // Get agent state at time of event (simplified - just use current)
+        const agent = await getAgentById(event.agentId);
+        const agentState = agent ? {
+          balance: agent.balance,
+          health: agent.health,
+          hunger: agent.hunger,
+          energy: agent.energy,
+          llmType: agent.llmType,
+        } : undefined;
+
+        const enriched = enrichEvent(
+          {
+            id: event.id,
+            eventType: event.eventType,
+            tick: event.tick,
+            agentId: event.agentId,
+            payload: event.payload as Record<string, unknown> ?? {},
+          },
+          agentState
+        );
+
+        allEnrichedEvents.push(enriched);
+      }
+    }
+
+    if (allEnrichedEvents.length === 0) {
+      return {
+        experimentId: id,
+        tickRange: { start: 0, end: 0 },
+        totalEvents: 0,
+        novelEvents: 0,
+        noveltyRate: 0,
+        topNovelties: [],
+        actionDistribution: {},
+        sequencePatterns: [],
+        emergentBehaviors: [],
+      };
+    }
+
+    // Generate novelty report
+    const report = generateNoveltyReport(allEnrichedEvents, {
+      experimentId: id,
+      topN,
+    });
+
+    return report;
   });
 
   console.log('[Routes] Experiment API routes registered');

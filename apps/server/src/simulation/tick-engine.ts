@@ -33,6 +33,7 @@ import { getGestatingStates, completeReproduction, createLineage, getLineage } f
 import { createAgent } from '../db/queries/agents';
 import { CONFIG } from '../config';
 import type { Agent, NewAgent } from '../db/schema';
+import { random, randomBelow, randomChoice, resetRNG } from '../utils/random';
 
 // Role update interval (every N ticks)
 const ROLE_UPDATE_INTERVAL = 20;
@@ -96,11 +97,12 @@ class TickEngine {
   }
 
   /**
-   * Clear experiment context
+   * Clear experiment context and reset RNG
    */
   clearExperimentContext(): void {
     this.experimentContext = null;
-    console.log('[TickEngine] Experiment context cleared');
+    resetRNG();
+    console.log('[TickEngine] Experiment context cleared, RNG reset');
   }
 
   /**
@@ -448,17 +450,17 @@ class TickEngine {
       // Determine offspring LLM type (inherit from parent or random mutation)
       const llmTypes: Array<'claude' | 'gemini' | 'codex' | 'deepseek' | 'qwen' | 'glm' | 'grok'> =
         ['claude', 'gemini', 'codex', 'deepseek', 'qwen', 'glm', 'grok'];
-      const offspringLLMType = Math.random() < 0.8
+      const offspringLLMType = random() < 0.8
         ? parentAgent.llmType as typeof llmTypes[number]
-        : llmTypes[Math.floor(Math.random() * llmTypes.length)];
+        : randomChoice(llmTypes) ?? 'claude';
 
       // Generate offspring color (slight variation from parent)
       const parentColor = parentAgent.color || '#888888';
       const offspringColor = this.mutateColor(parentColor);
 
       // Spawn near parent
-      const offspringX = parentAgent.x + Math.floor(Math.random() * 3) - 1;
-      const offspringY = parentAgent.y + Math.floor(Math.random() * 3) - 1;
+      const offspringX = parentAgent.x + randomBelow(3) - 1;
+      const offspringY = parentAgent.y + randomBelow(3) - 1;
 
       // Create offspring agent
       const offspringId = uuid();
@@ -518,7 +520,7 @@ class TickEngine {
     const b = parseInt(hexColor.slice(5, 7), 16);
 
     // Add small random variation (-20 to +20)
-    const mutate = (val: number) => Math.max(0, Math.min(255, val + Math.floor(Math.random() * 41) - 20));
+    const mutate = (val: number) => Math.max(0, Math.min(255, val + randomBelow(41) - 20));
 
     const newR = mutate(r).toString(16).padStart(2, '0');
     const newG = mutate(g).toString(16).padStart(2, '0');

@@ -26,7 +26,16 @@ export function BehaviorPanel() {
     );
   }
 
-  const { actionFrequency, byLlmType } = behavior;
+  const { actionFrequency = [], byLlmType = [] } = behavior;
+
+  // Handle empty data case
+  if (!actionFrequency.length) {
+    return (
+      <div className="flex items-center justify-center h-32 text-city-text-muted text-sm">
+        No behavior data available yet...
+      </div>
+    );
+  }
 
   // Prepare action frequency data
   const actionData = actionFrequency.map((d) => ({

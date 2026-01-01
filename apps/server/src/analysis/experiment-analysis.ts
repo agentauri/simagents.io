@@ -672,3 +672,261 @@ export function reportToCSV(report: ExperimentReport): string {
 export function reportToJSON(report: ExperimentReport): string {
   return JSON.stringify(report, null, 2);
 }
+
+// =============================================================================
+// Additional Statistical Functions for Scientific Publication
+// =============================================================================
+
+/**
+ * Calculate confidence interval for a mean
+ * Uses t-distribution approximation for small samples
+ */
+export function confidenceInterval(
+  values: number[],
+  confidenceLevel = 0.95
+): { lower: number; upper: number; margin: number } {
+  if (values.length < 2) {
+    const m = mean(values);
+    return { lower: m, upper: m, margin: 0 };
+  }
+
+  const m = mean(values);
+  const s = stdDev(values);
+  const n = values.length;
+
+  // Z-score for 95% confidence (1.96), 99% (2.576)
+  const zScores: Record<number, number> = {
+    0.90: 1.645,
+    0.95: 1.96,
+    0.99: 2.576,
+  };
+  const z = zScores[confidenceLevel] ?? 1.96;
+
+  // Standard error
+  const se = s / Math.sqrt(n);
+  const margin = z * se;
+
+  return {
+    lower: m - margin,
+    upper: m + margin,
+    margin,
+  };
+}
+
+/**
+ * Mann-Whitney U test (non-parametric alternative to t-test)
+ * Returns approximate p-value using normal approximation for large samples
+ */
+export function mannWhitneyU(group1: number[], group2: number[]): StatisticalTest {
+  const n1 = group1.length;
+  const n2 = group2.length;
+
+  if (n1 < 2 || n2 < 2) {
+    return {
+      test: 'mann-whitney-u',
+      statistic: 0,
+      pValue: 1,
+      significant: false,
+    };
+  }
+
+  // Combine and rank all values
+  const combined = [
+    ...group1.map((v) => ({ value: v, group: 1 })),
+    ...group2.map((v) => ({ value: v, group: 2 })),
+  ].sort((a, b) => a.value - b.value);
+
+  // Assign ranks (handling ties by averaging)
+  const ranks: Map<typeof combined[0], number> = new Map();
+  let i = 0;
+  while (i < combined.length) {
+    let j = i;
+    // Find all elements with the same value
+    while (j < combined.length && combined[j].value === combined[i].value) {
+      j++;
+    }
+    // Average rank for ties
+    const avgRank = (i + 1 + j) / 2;
+    for (let k = i; k < j; k++) {
+      ranks.set(combined[k], avgRank);
+    }
+    i = j;
+  }
+
+  // Calculate rank sum for group 1
+  const R1 = group1.reduce((sum, v) => {
+    const item = combined.find((c) => c.group === 1 && c.value === v);
+    return sum + (item ? (ranks.get(item) ?? 0) : 0);
+  }, 0);
+
+  // U statistic
+  const U1 = R1 - (n1 * (n1 + 1)) / 2;
+  const U2 = n1 * n2 - U1;
+  const U = Math.min(U1, U2);
+
+  // Mean and standard deviation of U under null hypothesis
+  const mU = (n1 * n2) / 2;
+  const sigmaU = Math.sqrt((n1 * n2 * (n1 + n2 + 1)) / 12);
+
+  // Z-score for normal approximation
+  const z = sigmaU > 0 ? (U - mU) / sigmaU : 0;
+
+  // Two-tailed p-value
+  const pValue = 2 * (1 - normalCDF(Math.abs(z)));
+
+  // Effect size (rank-biserial correlation)
+  const effectSize = 1 - (2 * U) / (n1 * n2);
+
+  return {
+    test: 'mann-whitney-u',
+    statistic: U,
+    pValue,
+    significant: pValue < 0.05,
+    effectSize,
+    effectInterpretation: interpretEffectSize(effectSize),
+  };
+}
+
+/**
+ * Generate LaTeX table for experiment results
+ */
+export function reportToLaTeX(report: ExperimentReport): string {
+  const lines: string[] = [];
+
+  // Table header
+  lines.push('% Auto-generated LaTeX table from AgentsCity experiment');
+  lines.push(`% Experiment: ${report.experimentName}`);
+  lines.push(`% Generated: ${new Date().toISOString()}`);
+  lines.push('');
+
+  // Summary table
+  lines.push('\\begin{table}[htbp]');
+  lines.push('\\centering');
+  lines.push(`\\caption{Experiment Results: ${report.experimentName}}`);
+  lines.push('\\label{tab:experiment-results}');
+  lines.push('\\begin{tabular}{lrrrrr}');
+  lines.push('\\toprule');
+  lines.push('Metric & Control & Treatment & Difference & \\% Change & Significant \\\\');
+  lines.push('\\midrule');
+
+  for (const mc of report.metricComparisons) {
+    const sig = mc.statisticalTest?.significant ? '$\\checkmark$' : '';
+    lines.push(
+      `${mc.metric} & ${mc.controlValue.toFixed(2)} & ${mc.treatmentValue.toFixed(2)} & ${mc.difference.toFixed(2)} & ${mc.percentChange.toFixed(1)}\\% & ${sig} \\\\`
+    );
+  }
+
+  lines.push('\\bottomrule');
+  lines.push('\\end{tabular}');
+  lines.push('\\end{table}');
+  lines.push('');
+
+  // Survival analysis table (if available)
+  if (report.survivalAnalysis.length > 0) {
+    lines.push('\\begin{table}[htbp]');
+    lines.push('\\centering');
+    lines.push('\\caption{Survival Analysis}');
+    lines.push('\\label{tab:survival-analysis}');
+    lines.push('\\begin{tabular}{lrrr}');
+    lines.push('\\toprule');
+    lines.push('Variant & Initial Agents & Final Agents & Survival Rate \\\\');
+    lines.push('\\midrule');
+
+    for (const sa of report.survivalAnalysis) {
+      lines.push(
+        `${sa.variantName} & ${sa.initialAgents} & ${sa.finalAgents} & ${(sa.survivalRate * 100).toFixed(1)}\\% \\\\`
+      );
+    }
+
+    lines.push('\\bottomrule');
+    lines.push('\\end{tabular}');
+    lines.push('\\end{table}');
+    lines.push('');
+  }
+
+  // Conclusion
+  lines.push('% Conclusion');
+  lines.push(`% ${report.conclusion}`);
+  lines.push('');
+
+  // Significant findings
+  if (report.significantFindings.length > 0) {
+    lines.push('% Key Findings:');
+    for (const finding of report.significantFindings) {
+      lines.push(`%   - ${finding}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Calculate statistical power (post-hoc)
+ * Uses Cohen's d and sample sizes to estimate achieved power
+ */
+export function statisticalPower(
+  group1: number[],
+  group2: number[],
+  alpha = 0.05
+): number {
+  const n1 = group1.length;
+  const n2 = group2.length;
+  const d = Math.abs(cohensD(group1, group2));
+
+  if (n1 < 2 || n2 < 2 || d === 0) return 0;
+
+  // Harmonic mean of sample sizes
+  const nH = (2 * n1 * n2) / (n1 + n2);
+
+  // Non-centrality parameter
+  const ncp = d * Math.sqrt(nH / 2);
+
+  // Critical z-value for alpha
+  const zCrit = alpha === 0.05 ? 1.96 : 2.576;
+
+  // Power approximation using normal distribution
+  // Power = P(Z > z_crit - ncp)
+  const power = 1 - normalCDF(zCrit - ncp);
+
+  return Math.min(Math.max(power, 0), 1);
+}
+
+/**
+ * Enhanced statistical comparison with confidence intervals and effect sizes
+ */
+export function enhancedStatisticalComparison(
+  controlValues: number[],
+  treatmentValues: number[],
+  metricName: string
+): MetricComparison & {
+  controlCI: { lower: number; upper: number };
+  treatmentCI: { lower: number; upper: number };
+  power: number;
+} {
+  const controlMean = mean(controlValues);
+  const treatmentMean = mean(treatmentValues);
+  const difference = treatmentMean - controlMean;
+  const percentChange = controlMean !== 0
+    ? ((treatmentMean - controlMean) / controlMean) * 100
+    : treatmentMean > 0 ? 100 : 0;
+
+  // Confidence intervals
+  const controlCI = confidenceInterval(controlValues);
+  const treatmentCI = confidenceInterval(treatmentValues);
+
+  // Statistical tests
+  const tTestResult = tTest(controlValues, treatmentValues);
+  const power = statisticalPower(controlValues, treatmentValues);
+
+  return {
+    metric: metricName,
+    controlValue: controlMean,
+    treatmentValue: treatmentMean,
+    difference,
+    percentChange,
+    statisticalTest: tTestResult,
+    controlCI: { lower: controlCI.lower, upper: controlCI.upper },
+    treatmentCI: { lower: treatmentCI.lower, upper: treatmentCI.upper },
+    power,
+  };
+}

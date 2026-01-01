@@ -3,7 +3,7 @@
  * Scientific model: uses resourceSpawns and shelters instead of typed locations
  */
 
-const API_BASE = 'http://localhost:3000';
+const API_BASE = '';
 
 export interface AgentState {
   id: string;

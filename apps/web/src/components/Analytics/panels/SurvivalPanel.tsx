@@ -17,7 +17,16 @@ export function SurvivalPanel() {
     );
   }
 
-  const { byLlmType, overall, deathCauses } = survival;
+  const { byLlmType = [], overall, deathCauses = { starvation: 0, exhaustion: 0 } } = survival;
+
+  // Handle empty data case
+  if (!byLlmType.length || !overall) {
+    return (
+      <div className="flex items-center justify-center h-32 text-city-text-muted text-sm">
+        No survival data available yet...
+      </div>
+    );
+  }
 
   // Prepare data for alive/dead chart
   const aliveData = byLlmType.map((d) => ({
