@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    allowedHosts: ['matteos-macbook-pro.tailbff87f.ts.net'],
+    host: true, // Allow external connections (for remote testing)
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:3000',

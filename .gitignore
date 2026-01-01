@@ -34,4 +34,24 @@ coverage/
 # Temporary files
 tmp/
 .tmp/
+
+# Environment files (all locations)
+.env
+.env.*
+!.env.example
 apps/server/.env
+apps/web/.env
+
+# Secrets (never commit)
+*.pem
+*.key
+secrets/
+.secrets
+
+# Docker volumes
+docker-data/
+postgres-data/
+redis-data/
+
+# Fly.io
+.fly/
