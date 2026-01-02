@@ -15,10 +15,6 @@ import {
   createExternalAgentAdapter,
   getFallbackDecision,
   getRandomWalkDecision,
-  tryLizardBrain,
-  recordLizardBrain,
-  recordWizardBrain,
-  getLizardBrainStats,
 } from '../llm';
 import { queueDecisions, waitForDecisions, type DecisionJobResult, type DecisionJobData } from '../queue';
 import { tickEngine } from '../simulation/tick-engine';
@@ -188,56 +184,17 @@ export async function processAgentsTick(tick: number): Promise<AgentTickResult[]
       usedFallback: true,
     }));
   } else {
-    // NORMAL MODE: Use Lizard Brain for survival, Wizard Brain (LLM) for social
-    const lizardBrainResults: DecisionJobResult[] = [];
-    const wizardBrainAgents: Array<{ agent: Agent; observation: AgentObservation }> = [];
+    // NORMAL MODE: All agents use LLM for decisions (Radical Emergence)
+    // Decision caching in the queue worker still provides performance optimization
+    const jobs = regularAgents.map(({ agent, observation }) => ({
+      agentId: agent.id,
+      llmType: agent.llmType as LLMType,
+      tick,
+      observation,
+    }));
 
-    // Phase 1: Try Lizard Brain for each agent
-    for (const { agent, observation } of regularAgents) {
-      const lizardResult = tryLizardBrain(observation);
-
-      if (lizardResult.handled && lizardResult.decision) {
-        // Lizard Brain handled this decision
-        recordLizardBrain();
-        lizardBrainResults.push({
-          agentId: agent.id,
-          tick,
-          decision: lizardResult.decision,
-          processingTimeMs: 0,
-          usedFallback: true, // Mark as fallback for tracking (no LLM call)
-        });
-      } else {
-        // Need Wizard Brain (LLM) for this agent
-        recordWizardBrain();
-        wizardBrainAgents.push({ agent, observation });
-      }
-    }
-
-    // Phase 2: Queue Wizard Brain agents through BullMQ
-    let wizardBrainResults: DecisionJobResult[] = [];
-    if (wizardBrainAgents.length > 0) {
-      const jobs = wizardBrainAgents.map(({ agent, observation }) => ({
-        agentId: agent.id,
-        llmType: agent.llmType as LLMType,
-        tick,
-        observation,
-      }));
-
-      const queuedJobs = await queueDecisions(jobs);
-      wizardBrainResults = await waitForDecisions(queuedJobs, 30000);
-    }
-
-    // Combine results
-    queuedDecisionResults = [...lizardBrainResults, ...wizardBrainResults];
-
-    // Log Lizard Brain stats
-    const stats = getLizardBrainStats();
-    if (regularAgents.length > 0) {
-      console.log(
-        `[Orchestrator] Lizard Brain: ${lizardBrainResults.length}/${regularAgents.length} agents ` +
-        `(${(stats.lizardBrainRate * 100).toFixed(1)}% overall)`
-      );
-    }
+    const queuedJobs = await queueDecisions(jobs);
+    queuedDecisionResults = await waitForDecisions(queuedJobs, 30000);
   }
 
   // Combine all decision results
