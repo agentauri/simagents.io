@@ -192,6 +192,11 @@ export const resourceSpawns = pgTable('resource_spawns', {
   x: integer('x').notNull(),
   y: integer('y').notNull(),
 
+  // Biome (affects regeneration rates and resource distribution)
+  // forest: high food, medium energy | desert: low all, high material
+  // tundra: low food, high energy | plains: balanced
+  biome: varchar('biome', { length: 20 }).notNull().default('plains'),
+
   // Resource properties
   resourceType: varchar('resource_type', { length: 20 }).notNull(), // 'food' | 'energy' | 'material'
   maxAmount: integer('max_amount').notNull().default(10),
@@ -203,6 +208,7 @@ export const resourceSpawns = pgTable('resource_spawns', {
   index('resource_spawns_tenant_idx').on(table.tenantId),
   index('resource_spawns_position_idx').on(table.x, table.y),
   index('resource_spawns_type_idx').on(table.resourceType),
+  index('resource_spawns_biome_idx').on(table.biome),
   index('resource_spawns_tenant_type_idx').on(table.tenantId, table.resourceType),
 ]);
 

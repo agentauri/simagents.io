@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useWorldStore, useAgents, useResourceSpawns, useShelters } from '../../stores/world';
+import { useWorldStore, useAgents, useResourceSpawns, useShelters, type BiomeType, BIOME_COLORS } from '../../stores/world';
 
 // Grid configuration
 const TILE_SIZE = 12; // Pixels per tile
@@ -97,6 +97,30 @@ export function ScientificCanvas() {
     ctx.save();
     ctx.translate(camera.x + width / 2, camera.y + height / 2);
     ctx.scale(zoom, zoom);
+
+    // Draw biome backgrounds (quadrant-based)
+    const midX = 50;
+    const midY = 50;
+    const biomeAlpha = 0.15; // Subtle background tint
+
+    // NW: Forest (green)
+    ctx.fillStyle = BIOME_COLORS.forest;
+    ctx.globalAlpha = biomeAlpha;
+    ctx.fillRect(0, 0, midX * TILE_SIZE, midY * TILE_SIZE);
+
+    // NE: Tundra (blue)
+    ctx.fillStyle = BIOME_COLORS.tundra;
+    ctx.fillRect(midX * TILE_SIZE, 0, midX * TILE_SIZE, midY * TILE_SIZE);
+
+    // SW: Desert (orange)
+    ctx.fillStyle = BIOME_COLORS.desert;
+    ctx.fillRect(0, midY * TILE_SIZE, midX * TILE_SIZE, midY * TILE_SIZE);
+
+    // SE: Plains (lime)
+    ctx.fillStyle = BIOME_COLORS.plains;
+    ctx.fillRect(midX * TILE_SIZE, midY * TILE_SIZE, midX * TILE_SIZE, midY * TILE_SIZE);
+
+    ctx.globalAlpha = 1;
 
     // Draw grid
     ctx.strokeStyle = COLORS.grid;
@@ -279,6 +303,38 @@ export function ScientificCanvas() {
         ctx.fillStyle = '#ffffff';
         ctx.fillText('Material', legendX + resourceSpacing * 2 + resourceSize + 15, resourceY + resourceSize - 1);
       }
+    }
+
+    // Biome legend (top right)
+    if (width >= 400) {
+      const biomeY = legendY;
+      const biomeX = width - 180;
+      const biomeSize = isMobile ? 8 : 10;
+
+      ctx.font = `bold ${fontSize}px monospace`;
+      ctx.fillStyle = '#888888';
+      ctx.textAlign = 'right';
+      ctx.fillText('Biomes:', biomeX - 5, biomeY);
+
+      ctx.textAlign = 'left';
+      const biomes: [BiomeType, string][] = [
+        ['forest', 'Forest'],
+        ['tundra', 'Tundra'],
+        ['desert', 'Desert'],
+        ['plains', 'Plains'],
+      ];
+
+      biomes.forEach(([biome, label], i) => {
+        const bx = biomeX + (i % 2) * 70;
+        const by = biomeY + Math.floor(i / 2) * lineHeight;
+        ctx.fillStyle = BIOME_COLORS[biome];
+        ctx.globalAlpha = 0.8;
+        ctx.fillRect(bx, by - biomeSize + 2, biomeSize, biomeSize);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${fontSize - 2}px monospace`;
+        ctx.fillText(label, bx + biomeSize + 3, by);
+      });
     }
 
   }, [agents, resourceSpawns, shelters, tick, selectedAgentId, camera, zoom]);

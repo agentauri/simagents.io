@@ -49,6 +49,68 @@ const AGENT_CONFIGS: AgentConfig[] = [
 ];
 
 // =============================================================================
+// Biome Configurations
+// =============================================================================
+
+export type BiomeType = 'forest' | 'desert' | 'tundra' | 'plains';
+
+export interface BiomeConfig {
+  type: BiomeType;
+  color: string;
+  emoji: string;
+  // Regeneration multipliers per resource type
+  regenMultipliers: {
+    food: number;
+    energy: number;
+    material: number;
+  };
+}
+
+export const BIOME_CONFIGS: Record<BiomeType, BiomeConfig> = {
+  forest: {
+    type: 'forest',
+    color: '#22c55e', // Green
+    emoji: '🌲',
+    regenMultipliers: { food: 1.5, energy: 1.0, material: 0.5 },
+  },
+  desert: {
+    type: 'desert',
+    color: '#f59e0b', // Orange
+    emoji: '🏜️',
+    regenMultipliers: { food: 0.3, energy: 0.5, material: 1.5 },
+  },
+  tundra: {
+    type: 'tundra',
+    color: '#38bdf8', // Light blue
+    emoji: '❄️',
+    regenMultipliers: { food: 0.5, energy: 1.5, material: 0.8 },
+  },
+  plains: {
+    type: 'plains',
+    color: '#a3e635', // Lime
+    emoji: '🌾',
+    regenMultipliers: { food: 1.0, energy: 1.0, material: 1.0 },
+  },
+};
+
+/**
+ * Determine biome based on position (quadrant system)
+ * - NW (x < 50, y < 50): forest - lush with food
+ * - NE (x >= 50, y < 50): tundra - cold with energy
+ * - SW (x < 50, y >= 50): desert - scarce but materials
+ * - SE (x >= 50, y >= 50): plains - balanced
+ */
+export function getBiomeForPosition(x: number, y: number): BiomeType {
+  const midX = 50;
+  const midY = 50;
+
+  if (x < midX && y < midY) return 'forest';
+  if (x >= midX && y < midY) return 'tundra';
+  if (x < midX && y >= midY) return 'desert';
+  return 'plains';
+}
+
+// =============================================================================
 // Resource Spawn Configurations (Sugarscape-style)
 // =============================================================================
 
@@ -58,6 +120,7 @@ export interface ResourceSpawnConfig {
   y: number;
   maxAmount: number;
   regenRate: number;
+  biome?: BiomeType; // Will be auto-assigned if not specified
 }
 
 // Resources distributed geographically - no functional labels
@@ -135,9 +198,17 @@ export async function spawnInitialResourceSpawns(): Promise<void> {
     return;
   }
 
-  console.log('[Spawner] Spawning resource spawns...');
+  console.log('[Spawner] Spawning resource spawns with biomes...');
 
   for (const config of RESOURCE_SPAWN_CONFIGS) {
+    // Auto-assign biome based on position if not specified
+    const biome = config.biome ?? getBiomeForPosition(config.x, config.y);
+    const biomeConfig = BIOME_CONFIGS[biome];
+
+    // Apply biome multiplier to regen rate
+    const resourceType = config.resourceType as 'food' | 'energy' | 'material';
+    const biomeRegenRate = config.regenRate * biomeConfig.regenMultipliers[resourceType];
+
     const spawn: NewResourceSpawn = {
       id: uuid(),
       x: config.x,
@@ -145,13 +216,14 @@ export async function spawnInitialResourceSpawns(): Promise<void> {
       resourceType: config.resourceType,
       maxAmount: config.maxAmount,
       currentAmount: config.maxAmount, // Start full
-      regenRate: config.regenRate,
+      regenRate: biomeRegenRate,
+      biome,
     };
 
     await createResourceSpawn(spawn);
 
     const emoji = config.resourceType === 'food' ? '🍎' : config.resourceType === 'energy' ? '⚡' : '🪵';
-    console.log(`  ${emoji} ${config.resourceType} spawn at (${config.x}, ${config.y}) - max ${config.maxAmount}`);
+    console.log(`  ${biomeConfig.emoji} ${emoji} ${config.resourceType} in ${biome} at (${config.x}, ${config.y}) - regen ${biomeRegenRate.toFixed(2)}`);
   }
 
   console.log('[Spawner] All resource spawns created');
@@ -321,8 +393,16 @@ export async function spawnWorldWithConfig(config?: SpawnConfiguration): Promise
 
   console.log(`[Spawner] Spawning world with custom config: ${agents.length} agents, ${resourceSpawns.length} resources, ${shelters.length} shelters`);
 
-  // Spawn resource spawns
+  // Spawn resource spawns with biome support
   for (const rsConfig of resourceSpawns) {
+    // Auto-assign biome based on position if not specified
+    const biome = rsConfig.biome ?? getBiomeForPosition(rsConfig.x, rsConfig.y);
+    const biomeConfig = BIOME_CONFIGS[biome];
+
+    // Apply biome multiplier to regen rate
+    const resourceType = rsConfig.resourceType as 'food' | 'energy' | 'material';
+    const biomeRegenRate = rsConfig.regenRate * biomeConfig.regenMultipliers[resourceType];
+
     const spawn: NewResourceSpawn = {
       id: uuid(),
       x: rsConfig.x,
@@ -330,11 +410,12 @@ export async function spawnWorldWithConfig(config?: SpawnConfiguration): Promise
       resourceType: rsConfig.resourceType,
       maxAmount: rsConfig.maxAmount,
       currentAmount: rsConfig.maxAmount,
-      regenRate: rsConfig.regenRate,
+      regenRate: biomeRegenRate,
+      biome,
     };
     await createResourceSpawn(spawn);
   }
-  console.log(`  ✅ ${resourceSpawns.length} resource spawns created`);
+  console.log(`  ✅ ${resourceSpawns.length} resource spawns created with biomes`);
 
   // Spawn shelters
   for (const shelterConfig of shelters) {

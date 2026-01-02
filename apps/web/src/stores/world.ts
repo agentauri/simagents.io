@@ -26,6 +26,16 @@ export interface Location {
   y: number;
 }
 
+// Biome types
+export type BiomeType = 'forest' | 'desert' | 'tundra' | 'plains';
+
+export const BIOME_COLORS: Record<BiomeType, string> = {
+  forest: '#22c55e',  // Green
+  desert: '#f59e0b',  // Orange
+  tundra: '#38bdf8',  // Light blue
+  plains: '#a3e635',  // Lime
+};
+
 // Scientific model types
 export interface ResourceSpawn {
   id: string;
@@ -34,6 +44,7 @@ export interface ResourceSpawn {
   resourceType: 'food' | 'energy' | 'material';
   currentAmount: number;
   maxAmount: number;
+  biome?: BiomeType; // Added for biome visualization
 }
 
 export interface Shelter {
