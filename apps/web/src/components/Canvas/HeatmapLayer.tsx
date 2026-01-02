@@ -10,9 +10,14 @@
  * - conflict: Areas of conflict (harm, steal)
  */
 
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo, useDeferredValue } from 'react';
 import { useAgents, useResourceSpawns, useEvents } from '../../stores/world';
-import { useHeatmapSettings, type HeatmapMetric } from '../../stores/visualization';
+import {
+  useHeatmapSettings,
+  type HeatmapMetric,
+  TRUST_EVENT_TYPES,
+  CONFLICT_EVENT_TYPES,
+} from '../../stores/visualization';
 
 // Grid configuration (must match ScientificCanvas)
 const TILE_SIZE = 12;
@@ -43,7 +48,19 @@ export function HeatmapLayer({ camera, zoom, width, height }: HeatmapLayerProps)
   const resourceSpawns = useResourceSpawns();
   const events = useEvents();
 
-  // Compute heatmap data based on metric
+  // Defer events to avoid recalculating on every event update (debouncing)
+  const deferredEvents = useDeferredValue(events);
+
+  // Create agent map for O(1) lookups instead of O(n) find()
+  const agentMap = useMemo(() => {
+    const map = new Map<string, typeof agents[0]>();
+    for (const agent of agents) {
+      map.set(agent.id, agent);
+    }
+    return map;
+  }, [agents]);
+
+  // Compute heatmap data based on metric (uses deferred events for smoother updates)
   const heatmapData = useMemo(() => {
     if (!enabled || metric === 'none') return null;
 
@@ -100,11 +117,11 @@ export function HeatmapLayer({ camera, zoom, width, height }: HeatmapLayerProps)
         break;
 
       case 'activity':
-        // Count recent events at each position
-        const recentEvents = events.slice(0, 50);
+        // Count recent events at each position (using deferred events)
+        const recentEvents = deferredEvents.slice(0, 50);
         for (const event of recentEvents) {
           if (event.agentId) {
-            const agent = agents.find((a) => a.id === event.agentId);
+            const agent = agentMap.get(event.agentId);
             if (agent) {
               const x = Math.min(GRID_SIZE - 1, Math.max(0, Math.floor(agent.x)));
               const y = Math.min(GRID_SIZE - 1, Math.max(0, Math.floor(agent.y)));
@@ -129,17 +146,15 @@ export function HeatmapLayer({ camera, zoom, width, height }: HeatmapLayerProps)
 
       case 'trust':
       case 'conflict':
-        // Filter events by type
-        const targetTypes =
-          metric === 'trust'
-            ? ['agent_trade', 'agent_traded', 'agent_share_info']
-            : ['agent_harm', 'agent_harmed', 'agent_steal', 'agent_stole'];
+        // Filter events by type (using deferred events and shared constants)
+        const targetTypes: readonly string[] =
+          metric === 'trust' ? TRUST_EVENT_TYPES : CONFLICT_EVENT_TYPES;
 
-        const filteredEvents = events.filter((e) => targetTypes.includes(e.type)).slice(0, 30);
+        const filteredEvents = deferredEvents.filter((e) => targetTypes.includes(e.type)).slice(0, 30);
 
         for (const event of filteredEvents) {
           if (event.agentId) {
-            const agent = agents.find((a) => a.id === event.agentId);
+            const agent = agentMap.get(event.agentId);
             if (agent) {
               const x = Math.min(GRID_SIZE - 1, Math.max(0, Math.floor(agent.x)));
               const y = Math.min(GRID_SIZE - 1, Math.max(0, Math.floor(agent.y)));
@@ -180,7 +195,7 @@ export function HeatmapLayer({ camera, zoom, width, height }: HeatmapLayerProps)
     }
 
     return grid;
-  }, [metric, enabled, agents, resourceSpawns, events]);
+  }, [metric, enabled, agents, agentMap, resourceSpawns, deferredEvents]);
 
   // Draw heatmap
   useEffect(() => {

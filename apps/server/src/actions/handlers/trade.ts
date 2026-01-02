@@ -12,10 +12,12 @@
  */
 
 import { v4 as uuid } from 'uuid';
+import { eq, and, sql } from 'drizzle-orm';
 import type { ActionIntent, ActionResult } from '../types';
 import type { Agent } from '../../db/schema';
+import { db, inventory } from '../../db';
 import { getAgentById } from '../../db/queries/agents';
-import { getInventoryItem, addToInventory, removeFromInventory } from '../../db/queries/inventory';
+import { getInventoryItem } from '../../db/queries/inventory';
 import { updateRelationshipTrust, storeMemory } from '../../db/queries/memories';
 import { getDistance } from '../../world/grid';
 import { CONFIG } from '../../config';
@@ -117,30 +119,87 @@ export async function handleTrade(
     };
   }
 
-  // Execute trade atomically
-  // Remove items from initiator
-  const removeResult1 = await removeFromInventory(agent.id, offeringItemType, offeringQuantity);
-  if (removeResult1 < 0) {
+  // Execute trade atomically using a database transaction
+  try {
+    await db.transaction(async (tx) => {
+      // Lock and update initiator's inventory (remove offered items)
+      const initiatorUpdate = await tx
+        .update(inventory)
+        .set({ quantity: sql`${inventory.quantity} - ${offeringQuantity}` })
+        .where(
+          and(
+            eq(inventory.agentId, agent.id),
+            eq(inventory.itemType, offeringItemType),
+            sql`${inventory.quantity} >= ${offeringQuantity}`
+          )
+        )
+        .returning();
+
+      if (initiatorUpdate.length === 0) {
+        throw new Error('Failed to remove offering items - insufficient quantity');
+      }
+
+      // Clean up zero-quantity items
+      if (initiatorUpdate[0].quantity <= 0) {
+        await tx.delete(inventory).where(eq(inventory.id, initiatorUpdate[0].id));
+      }
+
+      // Lock and update target's inventory (remove requested items)
+      const targetUpdate = await tx
+        .update(inventory)
+        .set({ quantity: sql`${inventory.quantity} - ${requestingQuantity}` })
+        .where(
+          and(
+            eq(inventory.agentId, targetAgentId),
+            eq(inventory.itemType, requestingItemType),
+            sql`${inventory.quantity} >= ${requestingQuantity}`
+          )
+        )
+        .returning();
+
+      if (targetUpdate.length === 0) {
+        throw new Error('Failed to remove target items - insufficient quantity');
+      }
+
+      // Clean up zero-quantity items
+      if (targetUpdate[0].quantity <= 0) {
+        await tx.delete(inventory).where(eq(inventory.id, targetUpdate[0].id));
+      }
+
+      // Add items to initiator (upsert)
+      await tx
+        .insert(inventory)
+        .values({
+          id: uuid(),
+          agentId: agent.id,
+          itemType: requestingItemType,
+          quantity: requestingQuantity,
+        })
+        .onConflictDoUpdate({
+          target: [inventory.agentId, inventory.itemType],
+          set: { quantity: sql`${inventory.quantity} + ${requestingQuantity}` },
+        });
+
+      // Add items to target (upsert)
+      await tx
+        .insert(inventory)
+        .values({
+          id: uuid(),
+          agentId: targetAgentId,
+          itemType: offeringItemType,
+          quantity: offeringQuantity,
+        })
+        .onConflictDoUpdate({
+          target: [inventory.agentId, inventory.itemType],
+          set: { quantity: sql`${inventory.quantity} + ${offeringQuantity}` },
+        });
+    });
+  } catch (error) {
     return {
       success: false,
-      error: 'Failed to remove offering items from inventory',
+      error: error instanceof Error ? error.message : 'Trade transaction failed',
     };
   }
-
-  // Remove items from target
-  const removeResult2 = await removeFromInventory(targetAgentId, requestingItemType, requestingQuantity);
-  if (removeResult2 < 0) {
-    // Rollback - add items back to initiator
-    await addToInventory(agent.id, offeringItemType, offeringQuantity);
-    return {
-      success: false,
-      error: 'Failed to remove items from target inventory',
-    };
-  }
-
-  // Add items to respective inventories
-  await addToInventory(agent.id, requestingItemType, requestingQuantity);
-  await addToInventory(targetAgentId, offeringItemType, offeringQuantity);
 
   // Update trust for both agents (symmetric positive relationship)
   await updateRelationshipTrust(

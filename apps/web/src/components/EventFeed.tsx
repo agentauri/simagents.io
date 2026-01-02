@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import { useEvents, useAgents, type WorldEvent, type Agent } from '../stores/world';
-import { useEventFilters, type EventTypeFilter } from '../stores/visualization';
+import { useEventFilters, mapEventToFilterType } from '../stores/visualization';
 
 // Format event type for display
 function formatEventType(type: string | undefined): string {
@@ -13,15 +13,14 @@ function formatEventType(type: string | undefined): string {
     .join(' ');
 }
 
-// Get agent by ID
-function getAgent(agents: Agent[], agentId?: string): Agent | undefined {
-  if (!agentId) return undefined;
-  return agents.find((a) => a.id === agentId);
-}
-
-// Event item component
-function EventItem({ event, agents }: { event: WorldEvent; agents: Agent[] }) {
-  const agent = getAgent(agents, event.agentId);
+// Event item component (memoized)
+const EventItem = memo(function EventItem({
+  event,
+  agent,
+}: {
+  event: WorldEvent;
+  agent: Agent | undefined;
+}) {
   const reasoning = event.payload?.reasoning as string | undefined;
 
   return (
@@ -59,35 +58,22 @@ function EventItem({ event, agents }: { event: WorldEvent; agents: Agent[] }) {
       )}
     </div>
   );
-}
+});
 
-// Map event types to filter types
-function eventTypeToFilterType(eventType: string): EventTypeFilter | null {
-  const mapping: Record<string, EventTypeFilter> = {
-    agent_move: 'move',
-    agent_gather: 'gather',
-    agent_consume: 'consume',
-    agent_sleep: 'sleep',
-    agent_work: 'work',
-    agent_buy: 'buy',
-    agent_trade: 'trade',
-    agent_traded: 'trade',
-    agent_harm: 'harm',
-    agent_harmed: 'harm',
-    agent_steal: 'steal',
-    agent_stole: 'steal',
-    agent_deceive: 'deceive',
-    agent_deceived: 'deceive',
-    agent_share_info: 'share_info',
-    agent_died: 'death',
-  };
-  return mapping[eventType] || null;
-}
 
 export function EventFeed() {
   const events = useEvents();
   const agents = useAgents();
   const { visibleTypes, enabled: filterEnabled } = useEventFilters();
+
+  // Create agent map for O(1) lookups instead of O(n) find()
+  const agentMap = useMemo(() => {
+    const map = new Map<string, Agent>();
+    for (const agent of agents) {
+      map.set(agent.id, agent);
+    }
+    return map;
+  }, [agents]);
 
   // Show recent events (last 30), filter out malformed events and apply type filter
   const recentEvents = useMemo(() => {
@@ -97,7 +83,7 @@ export function EventFeed() {
 
         // If filtering is enabled, check if this event type is visible
         if (filterEnabled) {
-          const filterType = eventTypeToFilterType(e.type);
+          const filterType = mapEventToFilterType(e.type);
           if (filterType && !visibleTypes.has(filterType)) {
             return false;
           }
@@ -130,7 +116,11 @@ export function EventFeed() {
           </div>
         ) : (
           recentEvents.map((event) => (
-            <EventItem key={event.id} event={event} agents={agents} />
+            <EventItem
+              key={event.id}
+              event={event}
+              agent={event.agentId ? agentMap.get(event.agentId) : undefined}
+            />
           ))
         )}
       </div>

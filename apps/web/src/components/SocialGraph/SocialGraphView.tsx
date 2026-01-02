@@ -45,6 +45,8 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
 export function SocialGraphView() {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const simulationRef = useRef<d3.Simulation<GraphNode, GraphLink> | null>(null);
+  const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
 
   const agents = useAgents();
   const events = useEvents();
@@ -128,7 +130,7 @@ export function SocialGraphView() {
     return { nodes, links };
   }, [agents, events, edgeTypes]);
 
-  // Render graph with D3
+  // Initialize D3 graph (only once when visible)
   useEffect(() => {
     if (!svgRef.current || !containerRef.current || !visible) return;
 
@@ -137,27 +139,73 @@ export function SocialGraphView() {
     const width = container.clientWidth;
     const height = container.clientHeight;
 
-    // Clear previous
-    svg.selectAll('*').remove();
+    // Only initialize once
+    if (!gRef.current) {
+      svg.selectAll('*').remove();
+      svg.attr('width', width).attr('height', height);
 
-    // Set up SVG
-    svg.attr('width', width).attr('height', height);
+      // Create zoom behavior
+      const zoom = d3.zoom<SVGSVGElement, unknown>()
+        .scaleExtent([0.3, 3])
+        .on('zoom', (event) => {
+          gRef.current?.attr('transform', event.transform);
+        });
 
-    // Create zoom behavior
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.3, 3])
-      .on('zoom', (event) => {
-        g.attr('transform', event.transform);
+      svg.call(zoom);
+
+      // Create main group for zoom/pan
+      gRef.current = svg.append('g');
+      gRef.current.append('g').attr('class', 'links');
+      gRef.current.append('g').attr('class', 'nodes');
+    }
+
+    // Cleanup only when hiding
+    return () => {
+      if (!visible && simulationRef.current) {
+        simulationRef.current.stop();
+        simulationRef.current = null;
+        gRef.current = null;
+        svg.selectAll('*').remove();
+      }
+    };
+  }, [visible]);
+
+  // Update graph data (nodes and links) - preserves simulation
+  useEffect(() => {
+    if (!svgRef.current || !containerRef.current || !visible || !gRef.current) return;
+
+    const g = gRef.current;
+    const container = containerRef.current;
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    // Create or update simulation
+    if (!simulationRef.current) {
+      simulationRef.current = d3.forceSimulation<GraphNode>(graphData.nodes);
+    } else {
+      // Preserve existing node positions
+      const oldNodes = new Map<string, GraphNode>();
+      simulationRef.current.nodes().forEach((n) => {
+        oldNodes.set(n.id, n);
       });
 
-    svg.call(zoom);
+      graphData.nodes.forEach((n) => {
+        const old = oldNodes.get(n.id);
+        if (old) {
+          n.x = old.x;
+          n.y = old.y;
+          n.vx = old.vx;
+          n.vy = old.vy;
+        }
+      });
 
-    // Create main group for zoom/pan
-    const g = svg.append('g');
+      simulationRef.current.nodes(graphData.nodes);
+    }
 
-    // Create force simulation
-    const simulation = d3
-      .forceSimulation<GraphNode>(graphData.nodes)
+    const simulation = simulationRef.current;
+
+    // Update forces
+    simulation
       .force(
         'link',
         d3
@@ -170,25 +218,31 @@ export function SocialGraphView() {
       .force('center', d3.forceCenter(width / 2, height / 2))
       .force('collision', d3.forceCollide().radius(30));
 
-    // Draw links
-    const link = g
-      .append('g')
-      .attr('class', 'links')
-      .selectAll('line')
-      .data(graphData.links)
-      .enter()
+    // Update links using D3 data join
+    const linkGroup = g.select<SVGGElement>('.links');
+    const link = linkGroup
+      .selectAll<SVGLineElement, GraphLink>('line')
+      .data(graphData.links, (d) => `${(d.source as GraphNode).id || d.source}-${(d.target as GraphNode).id || d.target}-${d.type}`);
+
+    link.exit().remove();
+
+    const linkEnter = link.enter()
       .append('line')
       .attr('stroke', (d) => EDGE_COLORS[d.type])
       .attr('stroke-width', (d) => Math.min(5, 1 + d.weight * 0.5))
       .attr('stroke-opacity', 0.6);
 
-    // Draw nodes
-    const node = g
-      .append('g')
-      .attr('class', 'nodes')
-      .selectAll('g')
-      .data(graphData.nodes)
-      .enter()
+    const linkMerge = linkEnter.merge(link);
+
+    // Update nodes using D3 data join
+    const nodeGroup = g.select<SVGGElement>('.nodes');
+    const node = nodeGroup
+      .selectAll<SVGGElement, GraphNode>('g')
+      .data(graphData.nodes, (d) => d.id);
+
+    node.exit().remove();
+
+    const nodeEnter = node.enter()
       .append('g')
       .attr('cursor', 'pointer')
       .call(
@@ -213,16 +267,15 @@ export function SocialGraphView() {
         selectAgent(d.id === selectedAgentId ? null : d.id);
       });
 
-    // Node circles
-    node
+    // Add elements to new nodes
+    nodeEnter
       .append('circle')
       .attr('r', 15)
       .attr('fill', (d) => d.color)
-      .attr('stroke', (d) => (d.id === selectedAgentId ? '#ffffff' : '#333'))
-      .attr('stroke-width', (d) => (d.id === selectedAgentId ? 3 : 1.5));
+      .attr('stroke', '#333')
+      .attr('stroke-width', 1.5);
 
-    // Node labels
-    node
+    nodeEnter
       .append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', 4)
@@ -231,9 +284,9 @@ export function SocialGraphView() {
       .attr('font-weight', 'bold')
       .text((d) => d.llmType.charAt(0).toUpperCase());
 
-    // Health indicator (small bar below node)
-    node
+    nodeEnter
       .append('rect')
+      .attr('class', 'health-bg')
       .attr('x', -12)
       .attr('y', 18)
       .attr('width', 24)
@@ -241,31 +294,46 @@ export function SocialGraphView() {
       .attr('fill', '#333')
       .attr('rx', 1);
 
-    node
+    nodeEnter
       .append('rect')
+      .attr('class', 'health-bar')
       .attr('x', -12)
       .attr('y', 18)
-      .attr('width', (d) => (d.health / 100) * 24)
       .attr('height', 3)
-      .attr('fill', (d) => (d.health > 50 ? '#22c55e' : d.health > 20 ? '#f59e0b' : '#ef4444'))
       .attr('rx', 1);
+
+    const nodeMerge = nodeEnter.merge(node);
+
+    // Update health bars for all nodes
+    nodeMerge.select('.health-bar')
+      .attr('width', (d) => (d.health / 100) * 24)
+      .attr('fill', (d) => (d.health > 50 ? '#22c55e' : d.health > 20 ? '#f59e0b' : '#ef4444'));
 
     // Update positions on simulation tick
     simulation.on('tick', () => {
-      link
+      linkMerge
         .attr('x1', (d) => (d.source as GraphNode).x ?? 0)
         .attr('y1', (d) => (d.source as GraphNode).y ?? 0)
         .attr('x2', (d) => (d.target as GraphNode).x ?? 0)
         .attr('y2', (d) => (d.target as GraphNode).y ?? 0);
 
-      node.attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`);
+      nodeMerge.attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`);
     });
 
-    // Cleanup
-    return () => {
-      simulation.stop();
-    };
-  }, [graphData, visible, selectedAgentId, selectAgent]);
+    // Restart simulation with low alpha for smooth updates
+    simulation.alpha(0.3).restart();
+  }, [graphData, visible, selectAgent, selectedAgentId]);
+
+  // Separate effect for selection highlight (no simulation restart needed)
+  useEffect(() => {
+    if (!gRef.current || !visible) return;
+
+    gRef.current.select('.nodes')
+      .selectAll<SVGGElement, GraphNode>('g')
+      .select('circle')
+      .attr('stroke', (d) => (d.id === selectedAgentId ? '#ffffff' : '#333'))
+      .attr('stroke-width', (d) => (d.id === selectedAgentId ? 3 : 1.5));
+  }, [selectedAgentId, visible]);
 
   if (!visible) return null;
 

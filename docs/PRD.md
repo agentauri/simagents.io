@@ -1,8 +1,8 @@
 # Agents City - Product Requirements Document (PRD)
 
-> **Version**: 1.3.0
-> **Status**: Phases 0-4 Complete
-> **Last Updated**: December 2025
+> **Version**: 1.4.0
+> **Status**: Phases 0-5 Complete
+> **Last Updated**: January 2026
 
 ---
 
@@ -11,7 +11,7 @@
 > **Note**: This PRD contains both implemented features and future vision.
 > See `ROADMAP.md` for detailed implementation status and progress tracking.
 
-### Currently Implemented (Phases 0-4 Complete)
+### Currently Implemented (Phases 0-5 Complete)
 
 **Phase 0 - Kernel (MVP)**
 - Grid world (100x100) with survival mechanics
@@ -52,6 +52,16 @@
 - Agent Reproduction (§36) - `spawn_offspring` with gestation
 - LLM Performance Optimization (§37) - Metrics tracking, token budgets
 
+**Phase 5 - Research Platform** ⭐ NEW
+- Decision caching (Redis-based with SHA-256 observation hashing)
+- Biomes system (forest, desert, tundra, plains with per-biome regen rates)
+- Experiment DSL (YAML/JSON schema for reproducible experiments)
+- Batch runner CLI (headless experiment execution)
+- Scenario injection API (economic shocks, disasters, rule modifications)
+- Heatmap visualization (agent density, resource density, activity, trust, conflict)
+- Event filters (toggle by event type: survival, economy, social)
+- Social graph (D3.js force-directed graph of agent relationships)
+
 ---
 
 ## Table of Contents
@@ -89,10 +99,13 @@
 31. [Monetary Policy & Markets](#31-monetary-policy--markets)
 32. [Multi-tenancy Architecture](#32-multi-tenancy-architecture)
 33. [Frontend Visual Architecture](#33-frontend-visual-architecture)
-34. [Verifiable Credentials System](#34-verifiable-credentials-system) ⭐ NEW
-35. [Gossip Protocol for Reputation](#35-gossip-protocol-for-reputation) ⭐ NEW
-36. [Agent Reproduction: spawn_offspring](#36-agent-reproduction-spawn_offspring) ⭐ NEW
-37. [LLM Performance & Multi-Agent Optimization](#37-llm-performance--multi-agent-optimization) ⭐ NEW
+34. [Verifiable Credentials System](#34-verifiable-credentials-system)
+35. [Gossip Protocol for Reputation](#35-gossip-protocol-for-reputation)
+36. [Agent Reproduction: spawn_offspring](#36-agent-reproduction-spawn_offspring)
+37. [LLM Performance & Multi-Agent Optimization](#37-llm-performance--multi-agent-optimization)
+38. [Biomes System](#38-biomes-system) ⭐ NEW
+39. [Experiment DSL & Batch Runner](#39-experiment-dsl--batch-runner) ⭐ NEW
+40. [Advanced Visualization](#40-advanced-visualization) ⭐ NEW
 
 ---
 
@@ -5953,6 +5966,233 @@ This means performance varies by agent owner, creating interesting diversity: so
 
 ---
 
+## 38. Biomes System
+
+> **Status**: Phase 5 - Complete
+
+### 38.1 Overview
+
+Biomes introduce environmental heterogeneity to the simulation, creating distinct zones with different resource availability and regeneration rates.
+
+### 38.2 Biome Types
+
+| Biome | Color | Food Regen | Energy Regen | Material Regen |
+|-------|-------|------------|--------------|----------------|
+| **Forest** | Green | 1.5x | 1.0x | 1.2x |
+| **Desert** | Sand | 0.3x | 1.5x (sun) | 0.5x |
+| **Tundra** | Ice Blue | 0.5x | 0.5x | 1.0x |
+| **Plains** | Light Green | 1.0x | 1.0x | 1.0x |
+
+### 38.3 Implementation
+
+```typescript
+type BiomeType = 'forest' | 'desert' | 'tundra' | 'plains';
+
+interface BiomeConfig {
+  type: BiomeType;
+  regenMultipliers: {
+    food: number;
+    energy: number;
+    material: number;
+  };
+}
+
+// Database schema addition
+biome: text('biome').default('plains').$type<BiomeType>();
+```
+
+### 38.4 Scientific Value
+
+Biomes enable:
+- Testing agent adaptation to different environments
+- Studying migration patterns
+- Analyzing resource competition across zones
+- Creating artificial scarcity experiments
+
+---
+
+## 39. Experiment DSL & Batch Runner
+
+> **Status**: Phase 5 - Complete
+
+### 39.1 Overview
+
+The Experiment DSL provides a declarative way to define reproducible simulation experiments with specific configurations.
+
+### 39.2 Schema Definition
+
+```yaml
+name: "resource_scarcity_test"
+description: "Test agent cooperation under resource pressure"
+seed: 12345
+
+world:
+  size: [100, 100]
+  biomes:
+    desert: 0.8
+    forest: 0.2
+
+agents:
+  - type: claude
+    count: 3
+  - type: gemini
+    count: 3
+  - type: grok
+    count: 1
+
+duration: 1000  # ticks
+
+metrics:
+  - gini
+  - cooperation
+  - survival_rate
+  - clustering
+```
+
+### 39.3 Batch Runner CLI
+
+```bash
+# Run experiment
+bun run experiment --config experiment.yaml --runs 10
+
+# Dry run (validate without executing)
+bun run experiment --config experiment.yaml --dry-run
+
+# Output formats
+bun run experiment --config experiment.yaml --output-format json
+```
+
+### 39.4 Scenario Injection API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/scenarios/active` | GET | Get active scenarios |
+| `/api/scenarios/shock` | POST | Inject economic shock |
+| `/api/scenarios/disaster` | POST | Inject natural disaster |
+| `/api/scenarios/rule` | POST | Modify simulation rules |
+| `/api/scenarios/:id` | DELETE | Remove active scenario |
+
+#### Shock Types
+
+```typescript
+interface EconomicShock {
+  type: 'inflation' | 'deflation' | 'currency_reset';
+  magnitude: number; // 0.0 - 1.0
+  duration: number;  // ticks
+}
+
+interface NaturalDisaster {
+  type: 'drought' | 'flood' | 'fire';
+  area: { x: number; y: number; radius: number };
+  intensity: number;
+}
+
+interface RuleModification {
+  parameter: string;
+  newValue: number | boolean;
+  temporary: boolean;
+  duration?: number;
+}
+```
+
+### 39.5 Scientific Value
+
+- **Reproducibility**: Seed-based deterministic experiments
+- **Comparability**: Same scenarios, different agent configurations
+- **Automation**: Batch processing for statistical significance
+- **Control**: Precise manipulation of variables
+
+---
+
+## 40. Advanced Visualization
+
+> **Status**: Phase 5 - Complete
+
+### 40.1 Overview
+
+Advanced visualization tools for observing emergent patterns and analyzing agent behavior.
+
+### 40.2 Heatmap Layer
+
+Overlay heatmaps on the grid canvas to visualize spatial patterns.
+
+| Metric | Description | Color Scale |
+|--------|-------------|-------------|
+| **Agent Density** | Number of agents per cell | Blue → Red |
+| **Resource Density** | Resource availability | Yellow → Green |
+| **Activity** | Action frequency | White → Purple |
+| **Trust** | Average trust in area | Red → Green |
+| **Conflict** | Harm/steal events | Green → Red |
+
+```typescript
+interface HeatmapConfig {
+  metric: 'agent_density' | 'resource_density' | 'activity' | 'trust' | 'conflict';
+  enabled: boolean;
+  opacity: number;
+}
+```
+
+### 40.3 Event Filters
+
+Filter the event feed by event type:
+
+| Category | Event Types |
+|----------|-------------|
+| **Survival** | move, gather, consume, sleep |
+| **Economy** | work, buy, trade |
+| **Social** | harm, steal, deceive, share_info, death |
+
+### 40.4 Social Graph (D3.js)
+
+Force-directed graph visualization of agent relationships.
+
+```typescript
+interface SocialGraphConfig {
+  edgeTypes: Set<'trade' | 'harm' | 'gossip' | 'distrust'>;
+  visible: boolean;
+}
+
+interface GraphNode {
+  id: string;
+  llmType: string;
+  color: string;
+  health: number;
+  state: string;
+}
+
+interface GraphLink {
+  source: string;
+  target: string;
+  type: SocialEdgeType;
+  weight: number;
+}
+```
+
+#### Edge Type Colors
+
+| Type | Color | Meaning |
+|------|-------|---------|
+| Trade | Green (#10b981) | Positive exchange |
+| Harm | Red (#ef4444) | Hostile action |
+| Gossip | Purple (#8b5cf6) | Information sharing |
+| Distrust | Orange (#f97316) | Deception history |
+
+### 40.5 Interactive Features
+
+- **Drag nodes** to reposition
+- **Scroll** to zoom
+- **Click nodes** to select agent
+- **Toggle edge types** for clarity
+
+### 40.6 Scientific Value
+
+- **Pattern detection**: Visual identification of clusters, hubs
+- **Temporal analysis**: Watch relationships evolve over time
+- **Correlation**: Connect spatial patterns to social structures
+- **Presentation**: Clear visualization for research papers
+
+---
+
 ## Conclusion
 
 Agents City v2.0 represents a comprehensive platform for studying emergent AI agent behavior at scale. The additions in this version provide:
@@ -5968,14 +6208,16 @@ Agents City v2.0 represents a comprehensive platform for studying emergent AI ag
 9. **Gossip Protocol**: Subjective reputation through agent-to-agent information sharing (§35)
 10. **Agent Reproduction**: Darwinian evolution with trait inheritance and mutation (§36)
 11. **LLM Optimization**: Multi-model strategies, token budgets, and overthinking prevention (§37)
+12. **Biomes System**: Environmental heterogeneity for adaptive behavior research (§38)
+13. **Experiment DSL**: Reproducible research experiments with batch execution (§39)
+14. **Advanced Visualization**: Heatmaps, filters, and social graph for pattern analysis (§40)
 
 > **Core Philosophy Reminder**: *"From City Simulation to Digital Darwinism Laboratory"*
 >
 > The platform imposes only physics and survival—everything else emerges from agent interaction.
 
 **Next Steps**:
-1. Implement MVP (Sections 1-24)
-2. Add expanded features (Sections 25-37) incrementally
-3. Validate with baseline experiments
-4. Open for external agents
-5. Publish research findings
+1. Continue research experiments with new tooling
+2. Publish scientific findings on emergent behavior
+3. Expand visualization capabilities
+4. Open for more external agents

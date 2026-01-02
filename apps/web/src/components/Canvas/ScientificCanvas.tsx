@@ -13,7 +13,7 @@
  * - Tap to select agent
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useWorldStore, useAgents, useResourceSpawns, useShelters, type BiomeType, BIOME_COLORS } from '../../stores/world';
 import { HeatmapLayer, HeatmapControls } from './HeatmapLayer';
 
@@ -79,6 +79,19 @@ export function ScientificCanvas() {
   const tick = useWorldStore((s) => s.tick);
   const selectedAgentId = useWorldStore((s) => s.selectedAgentId);
   const selectAgent = useWorldStore((s) => s.selectAgent);
+
+  // Memoize agent grouping by position (O(n) instead of O(n²) per frame)
+  const agentsByPosition = useMemo(() => {
+    const map = new Map<string, typeof agents>();
+    for (const agent of agents) {
+      const key = `${agent.x},${agent.y}`;
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key)!.push(agent);
+    }
+    return map;
+  }, [agents]);
 
   // Draw the canvas
   useEffect(() => {
@@ -185,17 +198,7 @@ export function ScientificCanvas() {
       );
     }
 
-    // Group agents by position to handle overlapping
-    const agentsByPosition = new Map<string, typeof agents>();
-    for (const agent of agents) {
-      const key = `${agent.x},${agent.y}`;
-      if (!agentsByPosition.has(key)) {
-        agentsByPosition.set(key, []);
-      }
-      agentsByPosition.get(key)!.push(agent);
-    }
-
-    // Draw agents with offset for overlapping ones
+    // Draw agents with offset for overlapping ones (uses memoized agentsByPosition)
     for (const agent of agents) {
       const key = `${agent.x},${agent.y}`;
       const agentsAtPosition = agentsByPosition.get(key) || [];
@@ -338,7 +341,7 @@ export function ScientificCanvas() {
       });
     }
 
-  }, [agents, resourceSpawns, shelters, tick, selectedAgentId, camera, zoom]);
+  }, [agents, agentsByPosition, resourceSpawns, shelters, tick, selectedAgentId, camera, zoom]);
 
   // Handle resize
   useEffect(() => {

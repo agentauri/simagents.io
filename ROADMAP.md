@@ -1,17 +1,18 @@
 # AgentsCity Roadmap
 
-> Last updated: 2025-12-30
+> Last updated: 2026-01-02
 
 ## Overview
 
 AgentsCity is a persistent "world-as-a-service" where external AI agents live, interact, and evolve. This roadmap tracks implementation progress against the PRD (docs/PRD.md).
 
-**Current Status**: Phases 0-4 Complete ✅
+**Current Status**: Phases 0-5 Complete ✅
 - Phase 0: Kernel (MVP) - Core simulation
 - Phase 1: Emergence Observation - Memory, trust, trade
 - Phase 2: Social Complexity - Conflict, gossip, roles
 - Phase 3: External Agents - A2A protocol, replay
 - Phase 4: Advanced Features - Credentials, reproduction, LLM optimization
+- Phase 5: Research Platform - Biomes, Experiments, Visualization
 
 **Current Mode**: Scientific Model (Sugarscape-inspired)
 - Resources spawn at geographical locations (food, energy, material)
@@ -411,6 +412,103 @@ AgentsCity is a persistent "world-as-a-service" where external AI agents live, i
 | Gossip spreads reputation information | [x] |
 | Agents can reproduce with mutations | [x] |
 | LLM performance is monitored and optimized | [x] |
+
+---
+
+## Phase 5: Research Platform - 100% COMPLETE ✅
+
+**Goal**: Transform into a scientific research platform with reproducible experiments and advanced visualization.
+
+### Sprint 1: Decision Caching
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Decision cache | [x] | Redis-based with SHA-256 observation hashing |
+| Lizard Brain evaluation | [x] | Evaluated and removed for scientific purity |
+
+> **Note**: Lizard Brain (heuristic fallback for survival-critical states) was implemented and then removed after AI consultation (Gemini + Codex). Rationale: Bypassing LLM during stress states would suppress emergent social behaviors (stealing, bargaining, alliances born of scarcity). Decision: Maximum scientific purity > Performance optimization.
+
+### Sprint 2: Biomes System
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Biome types | [x] | forest, desert, tundra, plains |
+| Per-biome regen rates | [x] | Different resource regeneration by biome |
+| Biome field on resource_spawns | [x] | Database schema updated |
+| Biome visualization | [x] | Colored background tiles on canvas |
+| World initialization with biomes | [x] | Procedural biome assignment |
+
+### Sprint 3: Experiment DSL & Batch Runner
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Experiment schema (YAML/JSON) | [x] | `apps/server/src/experiments/schema.ts` |
+| Batch runner CLI | [x] | `apps/server/src/experiments/runner.ts` |
+| Scenario injection API | [x] | `apps/server/src/routes/scenarios-api.ts` |
+| Shock scenarios | [x] | Economic, disaster, rule modifications |
+| Metrics collection | [x] | gini, cooperation, survival_rate, clustering |
+| Experiment snapshots | [x] | Per-interval state snapshots |
+| Dry-run mode | [x] | `--dry-run` flag for validation |
+
+#### Experiment DSL Example
+
+```yaml
+name: "resource_scarcity_test"
+seed: 12345
+world:
+  size: [100, 100]
+  biomes: { desert: 0.8, forest: 0.2 }
+agents:
+  - type: claude, count: 3
+  - type: gemini, count: 3
+duration: 1000  # ticks
+metrics: [gini, cooperation, survival_rate]
+```
+
+### Sprint 4: Visualization
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Visualization store | [x] | Zustand store for heatmap, filters, social graph |
+| Heatmap layer | [x] | Agent density, resource density, activity, trust, conflict |
+| Heatmap controls | [x] | Toggle metrics and opacity |
+| Event filters | [x] | Toggle by event type (survival, economy, social) |
+| Social graph (D3.js) | [x] | Force-directed graph of agent relationships |
+| Edge types | [x] | Trade, harm, gossip, distrust with colors |
+| Interactive graph | [x] | Drag, zoom, pan, click to select |
+
+### API Endpoints (Scenarios)
+
+| Endpoint | Status | Notes |
+|----------|--------|-------|
+| `GET /api/scenarios/active` | [x] | Get active scenarios |
+| `POST /api/scenarios/shock` | [x] | Inject economic shock |
+| `POST /api/scenarios/disaster` | [x] | Inject natural disaster |
+| `POST /api/scenarios/rule` | [x] | Modify simulation rules |
+| `DELETE /api/scenarios/:id` | [x] | Remove active scenario |
+
+### New Files Created
+
+| File | Purpose |
+|------|---------|
+| `apps/server/src/experiments/schema.ts` | Experiment DSL types and validation |
+| `apps/server/src/experiments/runner.ts` | Headless batch experiment runner |
+| `apps/server/src/routes/scenarios-api.ts` | Scenario injection API |
+| `apps/web/src/stores/visualization.ts` | Visualization state management |
+| `apps/web/src/components/Canvas/HeatmapLayer.tsx` | Heatmap overlay component |
+| `apps/web/src/components/Controls/EventFilters.tsx` | Event filter toggles |
+| `apps/web/src/components/SocialGraph/SocialGraphView.tsx` | D3.js social graph |
+
+### Success Criteria
+
+| Criterion | Status |
+|-----------|--------|
+| Experiments are reproducible with seed | [x] |
+| Batch runner can execute headless experiments | [x] |
+| Scenarios can be injected at runtime | [x] |
+| Heatmaps visualize spatial patterns | [x] |
+| Events can be filtered by type | [x] |
+| Social graph shows agent relationships | [x] |
 
 ---
 

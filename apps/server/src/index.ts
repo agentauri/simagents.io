@@ -101,8 +101,8 @@ import {
   getAgentTimeline,
 } from './db/queries/replay';
 
-// Test mode imports
-import { isTestMode, setTestMode } from './config';
+// Test mode and config imports
+import { isTestMode, setTestMode, CONFIG } from './config';
 
 // LLM Cache imports
 import { getLLMCacheStats, getLLMCacheSize } from './cache/llm-cache';
@@ -121,7 +121,21 @@ const server = Fastify({
 });
 
 await server.register(cors, {
-  origin: true,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+    // Check if origin is in allowed list or if wildcard is present
+    const allowedOrigins = CONFIG.cors.allowedOrigins;
+    if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`Origin ${origin} not allowed by CORS`), false);
+    }
+  },
+  credentials: CONFIG.cors.credentials,
 });
 
 // =============================================================================

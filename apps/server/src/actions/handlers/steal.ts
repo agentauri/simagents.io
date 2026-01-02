@@ -14,11 +14,12 @@
 import { v4 as uuid } from 'uuid';
 import type { ActionIntent, ActionResult, StealParams } from '../types';
 import type { Agent } from '../../db/schema';
-import { getAgentById, getAliveAgents } from '../../db/queries/agents';
+import { getAgentById } from '../../db/queries/agents';
 import { getInventoryItem, addToInventory, removeFromInventory } from '../../db/queries/inventory';
 import { updateRelationshipTrust, storeMemory } from '../../db/queries/memories';
 import { checkIsRetaliation, recordRetaliationChain } from '../../db/queries/roles';
-import { getDistance, getVisibleAgents } from '../../world/grid';
+import { getDistance } from '../../world/grid';
+import { findWitnesses } from '../utils/witnesses';
 import { CONFIG } from '../../config';
 import { random } from '../../utils/random';
 
@@ -96,9 +97,9 @@ export async function handleSteal(
   const newEnergy = Math.max(0, agent.energy - energyCost);
 
   // Find witnesses
-  const allAgents = await getAliveAgents();
-  const witnesses = getVisibleAgents(
-    allAgents.filter((a) => a.id !== agent.id && a.id !== targetAgentId),
+  const witnesses = await findWitnesses(
+    agent.id,
+    targetAgentId,
     { x: agent.x, y: agent.y },
     CONFIG.actions.steal.witnessRadius
   );

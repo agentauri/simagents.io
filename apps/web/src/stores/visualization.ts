@@ -80,6 +80,51 @@ export const EVENT_TYPE_LABELS: Record<EventTypeFilter, string> = {
   death: 'Death',
 };
 
+// =============================================================================
+// Event Type Mapping (shared utility)
+// =============================================================================
+
+/**
+ * Maps raw event types from the backend to filter types.
+ * Used by EventFeed, HeatmapLayer, and SocialGraph.
+ */
+export const EVENT_TYPE_MAPPING: Record<string, EventTypeFilter> = {
+  agent_move: 'move',
+  agent_gather: 'gather',
+  agent_consume: 'consume',
+  agent_sleep: 'sleep',
+  agent_work: 'work',
+  agent_buy: 'buy',
+  agent_trade: 'trade',
+  agent_traded: 'trade',
+  agent_harm: 'harm',
+  agent_harmed: 'harm',
+  agent_steal: 'steal',
+  agent_stole: 'steal',
+  agent_deceive: 'deceive',
+  agent_deceived: 'deceive',
+  agent_share_info: 'share_info',
+  agent_died: 'death',
+};
+
+/**
+ * Get the filter type for a raw event type string.
+ * Returns undefined if the event type is not recognized.
+ */
+export function mapEventToFilterType(eventType: string): EventTypeFilter | undefined {
+  return EVENT_TYPE_MAPPING[eventType];
+}
+
+/**
+ * Event types that represent trust-building actions (for heatmaps/social graph)
+ */
+export const TRUST_EVENT_TYPES = ['agent_trade', 'agent_traded', 'agent_share_info'] as const;
+
+/**
+ * Event types that represent conflict/harm actions (for heatmaps/social graph)
+ */
+export const CONFLICT_EVENT_TYPES = ['agent_harm', 'agent_harmed', 'agent_steal', 'agent_stole'] as const;
+
 // Social graph edge types
 export type SocialEdgeType = 'trade' | 'harm' | 'gossip' | 'trust' | 'distrust';
 

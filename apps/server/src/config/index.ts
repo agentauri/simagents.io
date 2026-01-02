@@ -24,6 +24,25 @@ function envBool(key: string, defaultValue: boolean): boolean {
 }
 
 // =============================================================================
+// Production Environment Validation
+// =============================================================================
+
+function validateProductionEnv(): void {
+  if (process.env.NODE_ENV === 'production') {
+    const required = ['DATABASE_URL', 'REDIS_URL'];
+    const missing = required.filter((k) => !process.env[k]);
+    if (missing.length > 0) {
+      throw new Error(
+        `Missing required environment variables in production: ${missing.join(', ')}`
+      );
+    }
+  }
+}
+
+// Validate on module load
+validateProductionEnv();
+
+// =============================================================================
 // Configuration Object
 // =============================================================================
 
@@ -338,6 +357,22 @@ export const CONFIG = {
   server: {
     port: env('PORT', 3000),
     host: envString('HOST', '0.0.0.0'),
+  },
+
+  // ---------------------------------------------------------------------------
+  // CORS
+  // ---------------------------------------------------------------------------
+  cors: {
+    /** Comma-separated list of allowed origins (use * for all in dev) */
+    allowedOrigins: envString(
+      'CORS_ALLOWED_ORIGINS',
+      'http://localhost:5173,http://localhost:3000'
+    )
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean),
+    /** Whether to allow credentials in CORS requests */
+    credentials: envBool('CORS_CREDENTIALS', true),
   },
 
   // ---------------------------------------------------------------------------

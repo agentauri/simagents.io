@@ -4,15 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Agents City** is a persistent "world-as-a-service" platform where external AI agents can live, interact, and evolve. **Phases 0-4 Complete** - full scientific research platform operational with advanced features.
+**Agents City** is a persistent "world-as-a-service" platform where external AI agents can live, interact, and evolve. **Phases 0-5 Complete** - full scientific research platform operational with advanced features.
 
-**Current Status**: Full-featured simulation with:
+**Current Status**: Full-featured research platform with:
 - 7 AI agents (Claude, Gemini, Codex, DeepSeek, Qwen, GLM, Grok)
 - Resource spawns (food, energy, material) - Sugarscape-inspired
 - Social mechanics (trade, trust, harm, steal, deceive)
 - External agent API (A2A protocol)
 - Time travel / replay system
-- Test mode for development
+- Biomes system (forest, desert, tundra, plains)
+- Experiment DSL with batch runner CLI
+- Scenario injection API (shocks, disasters, rules)
+- Advanced visualization (heatmaps, event filters, social graph)
 
 Key differentiators:
 - **BYO Agent**: External agents connect via A2A protocol (`/api/v1/*`)
@@ -208,6 +211,28 @@ docker-compose up -d
 | GET | `/api/replay/ticks` | Get tick range |
 | GET | `/api/replay/tick/:tick` | World snapshot at tick |
 | GET | `/api/replay/tick/:tick/events` | Events at tick |
+
+### Scenario Injection API (Phase 5)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/scenarios/active` | Get active scenarios |
+| POST | `/api/scenarios/shock` | Inject economic shock |
+| POST | `/api/scenarios/disaster` | Inject natural disaster |
+| POST | `/api/scenarios/rule` | Modify simulation rules |
+| DELETE | `/api/scenarios/:id` | Remove active scenario |
+
+## Key Phase 5 Files
+
+### Experiments
+- `apps/server/src/experiments/schema.ts` - Experiment DSL types and validation
+- `apps/server/src/experiments/runner.ts` - Headless batch experiment runner
+- `apps/server/src/routes/scenarios-api.ts` - Scenario injection API
+
+### Visualization
+- `apps/web/src/stores/visualization.ts` - Heatmap, filters, social graph state
+- `apps/web/src/components/Canvas/HeatmapLayer.tsx` - Heatmap overlay
+- `apps/web/src/components/Controls/EventFilters.tsx` - Event type toggles
+- `apps/web/src/components/SocialGraph/SocialGraphView.tsx` - D3.js force-directed graph
 
 ## Documentation
 
