@@ -148,37 +148,37 @@ describe('buildObservationPrompt', () => {
     });
   });
 
-  describe('status emojis', () => {
-    test('shows green emoji for high values (>=70)', () => {
+  describe('status indicators', () => {
+    test('shows OK indicator for high values (>=70)', () => {
       const obs = createMockObservation({
         self: { ...createMockObservation().self, hunger: 80 },
       });
       const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('80.0/100 🟢');
+      expect(prompt).toContain('80.0/100 [OK]');
     });
 
-    test('shows yellow emoji for moderate values (40-69)', () => {
+    test('shows WARN indicator for moderate values (40-69)', () => {
       const obs = createMockObservation({
         self: { ...createMockObservation().self, hunger: 50 },
       });
       const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('50.0/100 🟡');
+      expect(prompt).toContain('50.0/100 [WARN]');
     });
 
-    test('shows orange emoji for low values (20-39)', () => {
+    test('shows LOW indicator for low values (20-39)', () => {
       const obs = createMockObservation({
         self: { ...createMockObservation().self, hunger: 25 },
       });
       const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('25.0/100 🟠');
+      expect(prompt).toContain('25.0/100 [LOW]');
     });
 
-    test('shows red emoji for critical values (<20)', () => {
+    test('shows CRITICAL indicator for critical values (<20)', () => {
       const obs = createMockObservation({
         self: { ...createMockObservation().self, hunger: 15 },
       });
       const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('15.0/100 🔴');
+      expect(prompt).toContain('15.0/100 [CRITICAL]');
     });
   });
 
@@ -252,7 +252,7 @@ describe('buildObservationPrompt', () => {
   });
 
   describe('nearby resource spawns', () => {
-    test('lists resource spawns with emoji', () => {
+    test('lists resource spawns with label', () => {
       const obs = createMockObservation({
         nearbyResourceSpawns: [
           { id: 'spawn-1', x: 55, y: 50, resourceType: 'food', currentAmount: 15, maxAmount: 20 },
@@ -260,29 +260,29 @@ describe('buildObservationPrompt', () => {
       });
       const prompt = buildObservationPrompt(obs);
       expect(prompt).toContain('Nearby Resource Spawns');
-      expect(prompt).toContain('🍎');
+      expect(prompt).toContain('[FOOD]');
       expect(prompt).toContain('food');
       expect(prompt).toContain('15/20');
     });
 
-    test('shows energy spawn with lightning emoji', () => {
+    test('shows energy spawn with label', () => {
       const obs = createMockObservation({
         nearbyResourceSpawns: [
           { id: 'spawn-1', x: 55, y: 50, resourceType: 'energy', currentAmount: 10, maxAmount: 15 },
         ],
       });
       const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('⚡');
+      expect(prompt).toContain('[ENERGY]');
     });
 
-    test('shows material spawn with wood emoji', () => {
+    test('shows material spawn with label', () => {
       const obs = createMockObservation({
         nearbyResourceSpawns: [
           { id: 'spawn-1', x: 55, y: 50, resourceType: 'material', currentAmount: 5, maxAmount: 10 },
         ],
       });
       const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('🪵');
+      expect(prompt).toContain('[MATERIAL]');
     });
 
     test('shows distance to spawn', () => {
@@ -296,7 +296,7 @@ describe('buildObservationPrompt', () => {
       expect(prompt).toContain('5 tiles away');
     });
 
-    test('shows star when at spawn location', () => {
+    test('shows indicator when at spawn location', () => {
       const obs = createMockObservation({
         self: { ...createMockObservation().self, x: 50, y: 50 },
         nearbyResourceSpawns: [
@@ -304,12 +304,12 @@ describe('buildObservationPrompt', () => {
         ],
       });
       const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('⭐ YOU ARE HERE');
+      expect(prompt).toContain('YOU ARE HERE');
     });
   });
 
   describe('nearby shelters', () => {
-    test('lists shelters with house emoji', () => {
+    test('lists shelters with location', () => {
       const obs = createMockObservation({
         nearbyShelters: [
           { id: 'shelter-1', x: 52, y: 50, canSleep: true },
@@ -317,7 +317,6 @@ describe('buildObservationPrompt', () => {
       });
       const prompt = buildObservationPrompt(obs);
       expect(prompt).toContain('Nearby Shelters');
-      expect(prompt).toContain('🏠');
       expect(prompt).toContain('Shelter at (52, 50)');
     });
 
@@ -331,7 +330,7 @@ describe('buildObservationPrompt', () => {
       expect(prompt).toContain('can rest');
     });
 
-    test('shows star when at shelter', () => {
+    test('shows indicator when at shelter', () => {
       const obs = createMockObservation({
         self: { ...createMockObservation().self, x: 52, y: 50 },
         nearbyShelters: [
@@ -339,19 +338,19 @@ describe('buildObservationPrompt', () => {
         ],
       });
       const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('⭐ YOU ARE HERE');
+      expect(prompt).toContain('YOU ARE HERE');
     });
   });
 
   describe('nearby claims', () => {
-    test('shows territory claim with flag emoji', () => {
+    test('shows territory claim with label', () => {
       const obs = createMockObservation({
         nearbyClaims: [
           { id: 'claim-1', agentId: 'other-agent', x: 48, y: 50, claimType: 'territory', strength: 5, claimedAtTick: 10 },
         ],
       });
       const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('🚩');
+      expect(prompt).toContain('[TERRITORY]');
       expect(prompt).toContain('territory');
     });
 
@@ -505,95 +504,75 @@ describe('buildObservationPrompt', () => {
     });
   });
 
-  describe('urgency warnings', () => {
-    test('shows critical hunger warning with food in inventory', () => {
+  describe('physical sensations', () => {
+    test('shows starvation sensation for critical hunger with food', () => {
       const obs = createMockObservation({
         self: { ...createMockObservation().self, hunger: 15 },
         inventory: [{ type: 'food', quantity: 1 }],
       });
       const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('WARNINGS');
-      expect(prompt).toContain('🚨');
-      expect(prompt).toContain('CRITICAL HUNGER');
-      expect(prompt).toContain('"action": "consume"');
+      expect(prompt).toContain('Physical Sensations');
+      expect(prompt).toContain('stomach cramps painfully');
+      expect(prompt).toContain('Starvation is imminent');
+      expect(prompt).toContain('You have 1 food in your possession');
     });
 
-    test('shows critical hunger warning with money to buy food', () => {
+    test('shows starvation sensation for critical hunger without food', () => {
       const obs = createMockObservation({
         self: { ...createMockObservation().self, hunger: 15, balance: 50 },
         inventory: [],
       });
       const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('CRITICAL HUNGER');
-      expect(prompt).toContain('"action": "buy"');
+      expect(prompt).toContain('Physical Sensations');
+      expect(prompt).toContain('stomach cramps painfully');
+      expect(prompt).toContain('Starvation is imminent');
     });
 
-    test('shows critical hunger warning with no food and no money', () => {
-      const obs = createMockObservation({
-        self: { ...createMockObservation().self, hunger: 15, balance: 5 },
-        inventory: [],
-      });
-      const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('CRITICAL HUNGER');
-      expect(prompt).toContain('WORK NOW');
-    });
-
-    test('shows hunger warning (not critical) with food', () => {
+    test('shows hunger sensation for moderate hunger', () => {
       const obs = createMockObservation({
         self: { ...createMockObservation().self, hunger: 40 },
         inventory: [{ type: 'food', quantity: 2 }],
       });
       const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('⚠️');
-      expect(prompt).toContain('HUNGER WARNING');
-      expect(prompt).toContain('Consider consuming');
+      expect(prompt).toContain('Physical Sensations');
+      expect(prompt).toContain('Hunger gnaws at you persistently');
     });
 
-    test('shows critical energy warning', () => {
+    test('shows exhaustion sensation for critical energy', () => {
       const obs = createMockObservation({
         self: { ...createMockObservation().self, energy: 15 },
       });
       const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('🚨');
-      expect(prompt).toContain('CRITICAL ENERGY');
-      expect(prompt).toContain('"action": "sleep"');
+      expect(prompt).toContain('Physical Sensations');
+      expect(prompt).toContain('Exhaustion overwhelms you');
+      expect(prompt).toContain('body demands rest');
     });
 
-    test('shows low energy warning', () => {
+    test('shows fatigue sensation for low energy', () => {
       const obs = createMockObservation({
         self: { ...createMockObservation().self, energy: 35 },
       });
       const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('⚠️');
-      expect(prompt).toContain('LOW ENERGY');
+      expect(prompt).toContain('Physical Sensations');
+      expect(prompt).toContain('Fatigue weighs on your limbs');
     });
 
-    test('shows dying warning for low health', () => {
+    test('shows dying sensation for low health', () => {
       const obs = createMockObservation({
         self: { ...createMockObservation().self, health: 25 },
       });
       const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('🚨');
-      expect(prompt).toContain('DYING');
+      expect(prompt).toContain('Physical Sensations');
+      expect(prompt).toContain('body is failing');
+      expect(prompt).toContain('Death feels close');
     });
 
-    test('shows tip when hunger moderate and no food/money', () => {
-      const obs = createMockObservation({
-        self: { ...createMockObservation().self, hunger: 65, balance: 5 },
-        inventory: [],
-      });
-      const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('💡');
-      expect(prompt).toContain('TIP');
-      expect(prompt).toContain('Work now');
-    });
-
-    test('no warnings when all values are good', () => {
+    test('no sensations when all values are good', () => {
       const obs = createMockObservation({
         self: { ...createMockObservation().self, hunger: 80, energy: 80, health: 100 },
       });
       const prompt = buildObservationPrompt(obs);
-      expect(prompt).not.toContain('WARNINGS');
+      expect(prompt).not.toContain('Physical Sensations');
     });
   });
 
@@ -627,7 +606,7 @@ describe('buildObservationPrompt', () => {
         ],
       });
       const prompt = buildObservationPrompt(obs);
-      expect(prompt).toContain('⚠️ WARNING');
+      expect(prompt).toContain('WARNING');
     });
 
     test('shows information age', () => {

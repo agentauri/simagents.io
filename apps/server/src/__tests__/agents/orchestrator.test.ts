@@ -24,7 +24,10 @@ function createFallbackDecision(observation: AgentObservation): AgentDecision {
     observation.self.energy,
     observation.self.balance,
     observation.self.x,
-    observation.self.y
+    observation.self.y,
+    observation.inventory,
+    observation.nearbyResourceSpawns,
+    observation.nearbyShelters
   );
 }
 
@@ -36,6 +39,9 @@ function createMockObservation(overrides: Partial<{
   balance: number;
   x: number;
   y: number;
+  inventory: Array<{ type: string; quantity: number }>;
+  nearbyShelters: Array<{ id: string; x: number; y: number; canSleep: boolean }>;
+  nearbyResourceSpawns: Array<{ id: string; x: number; y: number; resourceType: string; currentAmount: number; maxAmount: number }>;
 }> = {}): AgentObservation {
   return {
     tick: 1,
@@ -54,7 +60,9 @@ function createMockObservation(overrides: Partial<{
     nearbyLocations: [],
     availableActions: [],
     recentEvents: [],
-    inventory: [],
+    inventory: overrides.inventory ?? [],
+    nearbyShelters: overrides.nearbyShelters,
+    nearbyResourceSpawns: overrides.nearbyResourceSpawns,
   };
 }
 
@@ -118,13 +126,30 @@ describe('AgentTickResult', () => {
 
 describe('Orchestrator Fallback Decision', () => {
   describe('createFallbackDecision wrapper', () => {
-    test('creates valid decision for hungry agent', () => {
-      const observation = createMockObservation({ hunger: 20, balance: 100 });
+    test('creates valid decision for hungry agent at shelter', () => {
+      // Agent is at (50, 50) and there's a shelter there - can buy food
+      const observation = createMockObservation({
+        hunger: 20,
+        balance: 100,
+        x: 50,
+        y: 50,
+        nearbyShelters: [{ id: 'shelter-1', x: 50, y: 50, canSleep: true }],
+      });
       const decision = createFallbackDecision(observation);
 
       expect(decision).toBeDefined();
       expect(decision.action).toBe('buy');
       expect(decision.params).toEqual({ itemType: 'food', quantity: 1 });
+    });
+
+    test('hungry agent without shelter works instead of buying', () => {
+      // Agent is hungry but NOT at a shelter - should work or explore
+      const observation = createMockObservation({ hunger: 20, balance: 100 });
+      const decision = createFallbackDecision(observation);
+
+      expect(decision).toBeDefined();
+      // Without shelter, agent can't buy, so it will explore (move)
+      expect(decision.action).toBe('move');
     });
 
     test('creates valid decision for exhausted agent', () => {

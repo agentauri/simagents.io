@@ -242,22 +242,48 @@ describe('parseResponse', () => {
 
 describe('getFallbackDecision', () => {
   describe('hunger priority', () => {
-    test('buys food when critically hungry with money', () => {
-      const decision = getFallbackDecision(20, 80, 100); // hungry, good energy, has money
+    test('buys food when critically hungry with money at shelter', () => {
+      // Agent at (50, 50) with shelter there - can buy
+      const decision = getFallbackDecision(
+        20, // hunger (critical)
+        80, // energy
+        100, // balance
+        50, // x
+        50, // y
+        [], // inventory (no food)
+        undefined, // nearbyResourceSpawns
+        [{ x: 50, y: 50 }] // nearbyShelters (at agent position)
+      );
 
       expect(decision.action).toBe('buy');
       expect(decision.params).toEqual({ itemType: 'food', quantity: 1 });
     });
 
-    test('consumes food when hungry but no money', () => {
-      const decision = getFallbackDecision(40, 80, 5); // hungry, good energy, poor
+    test('consumes food when hungry and has food in inventory', () => {
+      // Agent has food in inventory - should consume
+      const decision = getFallbackDecision(
+        40, // hunger
+        80, // energy
+        5, // balance (poor)
+        50, // x
+        50, // y
+        [{ type: 'food', quantity: 1 }] // inventory with food
+      );
 
       expect(decision.action).toBe('consume');
       expect(decision.params).toEqual({ itemType: 'food' });
     });
 
-    test('consumes food when moderately hungry', () => {
-      const decision = getFallbackDecision(45, 80, 100); // moderately hungry
+    test('consumes food when moderately hungry with food', () => {
+      // Agent moderately hungry with food in inventory
+      const decision = getFallbackDecision(
+        45, // hunger (moderately hungry, < 50)
+        80, // energy
+        100, // balance
+        50, // x
+        50, // y
+        [{ type: 'food', quantity: 2 }] // inventory with food
+      );
 
       expect(decision.action).toBe('consume');
     });
