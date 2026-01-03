@@ -4,7 +4,7 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { BaseLLMAdapter } from './base';
+import { BaseLLMAdapter, type RawPromptOptions, type RawPromptResult } from './base';
 import type { LLMType, LLMMethod } from '../types';
 
 export class GeminiAPIAdapter extends BaseLLMAdapter {
@@ -37,5 +37,32 @@ export class GeminiAPIAdapter extends BaseLLMAdapter {
 
     const result = await model.generateContent(prompt);
     return result.response.text();
+  }
+
+  /**
+   * Call the LLM with a raw prompt and custom options.
+   * Used by Genesis system for meta-generation.
+   */
+  override async callWithRawPrompt(
+    prompt: string,
+    options?: RawPromptOptions
+  ): Promise<RawPromptResult> {
+    const client = this.getClient();
+    const model = client.getGenerativeModel({
+      model: 'gemini-2.0-flash',
+      generationConfig: {
+        maxOutputTokens: options?.maxTokens ?? 4096,
+        temperature: options?.temperature ?? 0.8,
+      },
+    });
+
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+
+    return {
+      response: response.text(),
+      inputTokens: response.usageMetadata?.promptTokenCount,
+      outputTokens: response.usageMetadata?.candidatesTokenCount,
+    };
   }
 }

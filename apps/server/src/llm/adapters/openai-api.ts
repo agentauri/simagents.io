@@ -4,7 +4,7 @@
  */
 
 import OpenAI from 'openai';
-import { BaseLLMAdapter } from './base';
+import { BaseLLMAdapter, type RawPromptOptions, type RawPromptResult } from './base';
 import type { LLMType, LLMMethod } from '../types';
 
 export class OpenAIAPIAdapter extends BaseLLMAdapter {
@@ -41,5 +41,29 @@ export class OpenAIAPIAdapter extends BaseLLMAdapter {
     });
 
     return response.choices[0]?.message?.content ?? '';
+  }
+
+  /**
+   * Call the LLM with a raw prompt and custom options.
+   * Used by Genesis system for meta-generation.
+   */
+  override async callWithRawPrompt(
+    prompt: string,
+    options?: RawPromptOptions
+  ): Promise<RawPromptResult> {
+    const client = this.getClient();
+
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      max_tokens: options?.maxTokens ?? 4096,
+      temperature: options?.temperature ?? 0.8,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    return {
+      response: response.choices[0]?.message?.content ?? '',
+      inputTokens: response.usage?.prompt_tokens,
+      outputTokens: response.usage?.completion_tokens,
+    };
   }
 }

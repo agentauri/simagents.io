@@ -4,7 +4,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { BaseLLMAdapter, type LLMCallResult } from './base';
+import { BaseLLMAdapter, type LLMCallResult, type RawPromptOptions, type RawPromptResult } from './base';
 import type { LLMType, LLMMethod } from '../types';
 
 const MODEL_NAME = 'claude-3-5-haiku-20241022';
@@ -55,6 +55,33 @@ export class ClaudeAPIAdapter extends BaseLLMAdapter {
       inputTokens: response.usage?.input_tokens,
       outputTokens: response.usage?.output_tokens,
       model: MODEL_NAME,
+    };
+  }
+
+  /**
+   * Call the LLM with a raw prompt and custom options.
+   * Used by Genesis system for meta-generation.
+   */
+  override async callWithRawPrompt(
+    prompt: string,
+    options?: RawPromptOptions
+  ): Promise<RawPromptResult> {
+    const client = this.getClient();
+
+    const response = await client.messages.create({
+      model: MODEL_NAME,
+      max_tokens: options?.maxTokens ?? 4096,
+      temperature: options?.temperature ?? 0.8,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const textBlock = response.content.find((block) => block.type === 'text');
+    const responseText = textBlock?.type === 'text' ? textBlock.text : '';
+
+    return {
+      response: responseText,
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
     };
   }
 }

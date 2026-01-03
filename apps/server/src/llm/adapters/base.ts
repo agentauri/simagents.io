@@ -60,6 +60,23 @@ export interface LLMCallResult {
   model?: string;
 }
 
+/**
+ * Options for raw prompt calls (used by Genesis system)
+ */
+export interface RawPromptOptions {
+  temperature?: number;
+  maxTokens?: number;
+}
+
+/**
+ * Result from raw prompt call
+ */
+export interface RawPromptResult {
+  response: string;
+  inputTokens?: number;
+  outputTokens?: number;
+}
+
 export abstract class BaseLLMAdapter implements LLMAdapter {
   abstract readonly type: LLMType;
   abstract readonly method: LLMMethod;
@@ -69,6 +86,24 @@ export abstract class BaseLLMAdapter implements LLMAdapter {
    * Call the LLM with a prompt and get response
    */
   protected abstract callLLM(prompt: string): Promise<string>;
+
+  /**
+   * Call the LLM with a raw prompt (no observation wrapping).
+   * Used by Genesis system for meta-generation.
+   * Subclasses should override to provide temperature and maxTokens support.
+   */
+  async callWithRawPrompt(
+    prompt: string,
+    options?: RawPromptOptions
+  ): Promise<RawPromptResult> {
+    // Default implementation delegates to callLLMWithMetrics
+    const result = await this.callLLMWithMetrics(prompt);
+    return {
+      response: result.response,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+    };
+  }
 
   /**
    * Call the LLM with metrics tracking (optional override)

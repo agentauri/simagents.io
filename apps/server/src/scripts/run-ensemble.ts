@@ -24,7 +24,14 @@ import { parseArgs } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 import { initializeRNG, resetRNG } from '../utils/random';
-import { clearWorld, spawnWorldWithConfig, type SpawnConfiguration, type AgentConfig } from '../agents/spawner';
+import {
+  clearWorld,
+  spawnWorldWithConfig,
+  spawnWorldWithGenesis,
+  type SpawnConfiguration,
+  type GenesisSpawnConfiguration,
+  type AgentConfig,
+} from '../agents/spawner';
 import { getAliveAgents, getAllAgents } from '../db/queries/agents';
 import { getEventsByTickRange } from '../db/queries/events';
 import { resetTickCounter, initWorldState } from '../db/queries/world';
@@ -39,6 +46,8 @@ import {
   median,
 } from '../analysis/experiment-analysis';
 import { initGlobalVersion } from '../db/queries/events';
+import type { GenesisConfig, GenesisResult } from '../agents/genesis-types';
+import type { LLMType } from '../llm/types';
 
 // =============================================================================
 // Types
@@ -50,6 +59,17 @@ export interface ExperimentConfig {
   agents?: AgentConfig[];
   decisionMode?: 'llm' | 'fallback' | 'random-walk';
   startingFood?: number;
+  /** Genesis configuration for LLM mother-child generation */
+  genesis?: {
+    enabled: boolean;
+    childrenPerMother: number;
+    mothers: LLMType[];
+    mode?: 'single' | 'evolutionary';
+    diversityThreshold?: number;
+    requiredArchetypes?: string[];
+    temperature?: number;
+    useCache?: boolean;
+  };
 }
 
 export interface RunMetrics {
@@ -72,6 +92,13 @@ export interface RunMetrics {
   harmCount: number;
   stealCount: number;
   deathCount: number;
+  /** Genesis-specific metrics (only present when genesis is enabled) */
+  genesis?: {
+    totalChildren: number;
+    motherTypes: string[];
+    diversityScore: number;
+    lineageSurvivalRates: Record<string, number>;
+  };
 }
 
 export interface AggregatedMetric {
@@ -130,6 +157,10 @@ Options:
   -c, --config FILE       Path to experiment config JSON (optional)
   -o, --output FILE       Path to output results JSON (optional)
   -d, --decision-mode M   Decision mode: 'llm', 'fallback', or 'random-walk' (default: 'fallback')
+  -g, --genesis           Enable genesis mode (LLM mothers generate child agents)
+  -m, --mothers LIST      Comma-separated list of mother LLM types (default: 'claude,gemini,codex')
+  -n, --children N        Children per mother (default: 10)
+      --no-cache          Disable genesis caching (regenerate each run)
       --silent            Suppress progress output (for CI mode)
   -h, --help              Show this help message
 
@@ -137,6 +168,7 @@ Examples:
   bun run src/scripts/run-ensemble.ts --seeds 10 --ticks 100
   bun run src/scripts/run-ensemble.ts -s 5 -t 50 -c experiments/baseline.json -o results/run.json
   bun run src/scripts/run-ensemble.ts --decision-mode random-walk --seeds 20 --silent
+  bun run src/scripts/run-ensemble.ts --genesis --mothers claude,gemini --children 20 --ticks 500
 `);
 }
 
@@ -148,6 +180,10 @@ function parseArguments(): {
   silent: boolean;
   decisionMode: 'llm' | 'fallback' | 'random-walk';
   help: boolean;
+  genesis: boolean;
+  mothers: LLMType[];
+  childrenPerMother: number;
+  useGenesisCache: boolean;
 } {
   const { values } = parseArgs({
     options: {
@@ -158,6 +194,10 @@ function parseArguments(): {
       silent: { type: 'boolean', default: false },
       'decision-mode': { type: 'string', short: 'd', default: 'fallback' },
       help: { type: 'boolean', short: 'h', default: false },
+      genesis: { type: 'boolean', short: 'g', default: false },
+      mothers: { type: 'string', short: 'm', default: 'claude,gemini,codex' },
+      children: { type: 'string', short: 'n', default: '10' },
+      'no-cache': { type: 'boolean', default: false },
     },
     allowPositionals: false,
   });
@@ -167,6 +207,10 @@ function parseArguments(): {
     throw new Error(`Invalid decision mode: ${decisionMode}. Must be 'llm', 'fallback', or 'random-walk'`);
   }
 
+  // Parse mothers list
+  const mothersStr = values.mothers || 'claude,gemini,codex';
+  const mothers = mothersStr.split(',').map((m) => m.trim()) as LLMType[];
+
   return {
     seeds: parseInt(values.seeds || '10', 10),
     ticks: parseInt(values.ticks || '100', 10),
@@ -175,6 +219,10 @@ function parseArguments(): {
     silent: values.silent || false,
     decisionMode: decisionMode as 'llm' | 'fallback' | 'random-walk',
     help: values.help || false,
+    genesis: values.genesis || false,
+    mothers,
+    childrenPerMother: parseInt(values.children || '10', 10),
+    useGenesisCache: !values['no-cache'],
   };
 }
 
@@ -330,17 +378,26 @@ async function computeRunMetrics(
 // Single Run Execution
 // =============================================================================
 
+interface GenesisOptions {
+  enabled: boolean;
+  mothers: LLMType[];
+  childrenPerMother: number;
+  useCache: boolean;
+}
+
 async function runSingleExperiment(
   seed: number,
   ticks: number,
   config: ExperimentConfig,
   decisionMode: 'llm' | 'fallback' | 'random-walk',
-  silent: boolean
+  silent: boolean,
+  genesisOptions?: GenesisOptions
 ): Promise<RunMetrics> {
   const seedStr = seed.toString();
 
   if (!silent) {
-    console.log(`\n[Run] Seed ${seed} - Starting...`);
+    const mode = genesisOptions?.enabled ? ' [Genesis]' : '';
+    console.log(`\n[Run] Seed ${seed}${mode} - Starting...`);
   }
 
   // Initialize RNG with seed
@@ -358,13 +415,51 @@ async function runSingleExperiment(
   await db.delete(events);
   await initGlobalVersion();
 
-  // Spawn world with deterministic positions based on seed
-  const spawnConfig: SpawnConfiguration = {
-    agents: config.agents,
-    startingFood: config.startingFood ?? 1,
-    seed,
-  };
-  await spawnWorldWithConfig(spawnConfig);
+  // Track genesis results for metrics
+  let genesisResults: GenesisResult[] | undefined;
+
+  // Spawn world: use genesis or standard mode
+  if (genesisOptions?.enabled) {
+    // Build genesis config
+    const genesisConfig: GenesisConfig = {
+      enabled: true,
+      childrenPerMother: genesisOptions.childrenPerMother,
+      mothers: genesisOptions.mothers,
+      mode: 'single',
+      diversityThreshold: 0.3,
+      temperature: 0.8,
+      seed,
+    };
+
+    // Spawn with genesis
+    const genesisSpawnConfig: GenesisSpawnConfiguration = {
+      genesis: genesisConfig,
+      useGenesisCache: genesisOptions.useCache,
+      enablePersonalities: true,
+      startingFood: config.startingFood ?? 1,
+      seed,
+    };
+
+    if (!silent) {
+      console.log(`  Generating ${genesisOptions.childrenPerMother} children from ${genesisOptions.mothers.length} mothers...`);
+    }
+
+    const result = await spawnWorldWithGenesis(genesisSpawnConfig);
+    genesisResults = result.genesisResults;
+
+    if (!silent && genesisResults) {
+      const totalChildren = genesisResults.reduce((sum, r) => sum + r.children.length, 0);
+      console.log(`  Generated ${totalChildren} total children`);
+    }
+  } else {
+    // Standard spawn
+    const spawnConfig: SpawnConfiguration = {
+      agents: config.agents,
+      startingFood: config.startingFood ?? 1,
+      seed,
+    };
+    await spawnWorldWithConfig(spawnConfig);
+  }
 
   // Set experiment context for tick engine
   const experimentContext: ExperimentContext = {
@@ -431,12 +526,48 @@ async function runSingleExperiment(
     }))
   );
 
+  // Add genesis-specific metrics if available
+  if (genesisResults && genesisResults.length > 0) {
+    const agents = await getAllAgents();
+    const aliveAgents = agents.filter((a) => a.state !== 'dead');
+
+    // Compute lineage survival rates by mother type
+    const lineageSurvivalRates: Record<string, number> = {};
+    for (const result of genesisResults) {
+      // Match spawned agents by name pattern (e.g., "Claude-BoldPioneer-1")
+      const motherAgents = agents.filter((a) =>
+        a.llmType === result.motherType ||
+        (a as unknown as { name?: string }).name?.startsWith(
+          result.motherType.charAt(0).toUpperCase() + result.motherType.slice(1)
+        )
+      );
+      const aliveMotherAgents = motherAgents.filter((a) => a.state !== 'dead');
+      lineageSurvivalRates[result.motherType] =
+        motherAgents.length > 0 ? aliveMotherAgents.length / motherAgents.length : 0;
+    }
+
+    // Compute average diversity score
+    const avgDiversity =
+      genesisResults.reduce((sum, r) => sum + r.metadata.diversityScore, 0) /
+      genesisResults.length;
+
+    metrics.genesis = {
+      totalChildren: genesisResults.reduce((sum, r) => sum + r.children.length, 0),
+      motherTypes: genesisResults.map((r) => r.motherType),
+      diversityScore: avgDiversity,
+      lineageSurvivalRates,
+    };
+  }
+
   // Clear experiment context
   tickEngine.clearExperimentContext();
   resetRNG();
 
   if (!silent) {
     console.log(`  Gini: ${metrics.gini.toFixed(3)}, Survival: ${(metrics.survivalRate * 100).toFixed(1)}%, Cooperation: ${(metrics.cooperationIndex * 100).toFixed(1)}%`);
+    if (metrics.genesis) {
+      console.log(`  Genesis: ${metrics.genesis.totalChildren} children, diversity: ${metrics.genesis.diversityScore.toFixed(2)}`);
+    }
   }
 
   return metrics;
@@ -490,6 +621,16 @@ async function main(): Promise<void> {
 
   const config = loadConfig(args.config);
 
+  // Build genesis options if enabled
+  const genesisOptions: GenesisOptions | undefined = args.genesis
+    ? {
+        enabled: true,
+        mothers: args.mothers,
+        childrenPerMother: args.childrenPerMother,
+        useCache: args.useGenesisCache,
+      }
+    : undefined;
+
   if (!args.silent) {
     console.log('========================================');
     console.log('  AgentsCity Ensemble Experiment Runner');
@@ -500,14 +641,21 @@ async function main(): Promise<void> {
     console.log(`  Decision mode: ${args.decisionMode}`);
     console.log(`  Config file:   ${args.config || '(default)'}`);
     console.log(`  Output file:   ${args.output || '(stdout)'}`);
+    if (genesisOptions) {
+      console.log();
+      console.log('  Genesis Mode:');
+      console.log(`    Mothers:     ${genesisOptions.mothers.join(', ')}`);
+      console.log(`    Children:    ${genesisOptions.childrenPerMother} per mother`);
+      console.log(`    Cache:       ${genesisOptions.useCache ? 'enabled' : 'disabled'}`);
+    }
     console.log();
   }
 
   // Generate seeds (deterministic sequence starting from 1)
   const seeds = Array.from({ length: args.seeds }, (_, i) => i + 1);
 
-  // Start worker for LLM mode
-  if (args.decisionMode === 'llm') {
+  // Start worker for LLM mode or genesis mode
+  if (args.decisionMode === 'llm' || genesisOptions) {
     startWorker();
   }
 
@@ -524,13 +672,14 @@ async function main(): Promise<void> {
       args.ticks,
       config,
       args.decisionMode,
-      args.silent
+      args.silent,
+      genesisOptions
     );
     runResults.push(metrics);
   }
 
   // Stop worker
-  if (args.decisionMode === 'llm') {
+  if (args.decisionMode === 'llm' || genesisOptions) {
     await stopWorker();
   }
 

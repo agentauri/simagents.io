@@ -35,6 +35,18 @@ import {
   isPersonalityEnabled,
   type PersonalityTrait,
 } from './personalities';
+import {
+  type GenesisConfig,
+  type GenesisResult,
+  type ChildSpecification,
+  DEFAULT_GENESIS_CONFIG,
+} from './genesis-types';
+import {
+  generateChildrenFromAllMothers,
+  generateChildrenFromAllMothersCached,
+  type LLMInvoker,
+} from './genesis';
+import { createProductionInvoker, createDiverseMockInvoker } from './genesis-llm-invoker';
 
 // =============================================================================
 // Agent Configurations
@@ -637,4 +649,159 @@ export async function spawnWorldWithConfig(config?: SpawnConfiguration): Promise
 export async function resetWorldWithConfig(config?: SpawnConfiguration): Promise<void> {
   await clearWorld();
   await spawnWorldWithConfig(config);
+}
+
+// =============================================================================
+// Genesis Spawning (Meta-Generation)
+// =============================================================================
+
+/**
+ * Extended spawn configuration with genesis support.
+ */
+export interface GenesisSpawnConfiguration extends SpawnConfiguration {
+  /** Genesis configuration for LLM meta-generation */
+  genesis?: GenesisConfig;
+  /** Use mock LLM invoker for testing */
+  useMockGenesis?: boolean;
+  /** Enable Redis caching for genesis results (default: true) */
+  useGenesisCache?: boolean;
+}
+
+/**
+ * Convert a genesis child specification to an agent config.
+ *
+ * @param child - Child specification from genesis
+ * @param motherType - LLM type that generated this child
+ * @param index - Index for positioning
+ * @returns AgentConfig ready for spawning
+ */
+function childToAgentConfig(
+  child: ChildSpecification,
+  motherType: LLMType,
+  index: number
+): AgentConfig {
+  // Generate color based on mother type
+  const colorMap: Partial<Record<LLMType, string>> = {
+    claude: '#ef4444',   // Red
+    codex: '#3b82f6',    // Blue
+    gemini: '#10b981',   // Green
+    deepseek: '#f59e0b', // Orange
+    qwen: '#8b5cf6',     // Purple
+    glm: '#ec4899',      // Pink
+    grok: '#1d4ed8',     // Dark blue
+  };
+
+  const baseColor = colorMap[motherType] ?? '#6b7280';
+
+  // Position agents in a grid pattern based on mother
+  const motherIndex = ['claude', 'codex', 'gemini', 'deepseek', 'qwen', 'glm', 'grok'].indexOf(motherType);
+  const startX = 20 + (motherIndex % 4) * 15;
+  const startY = 15 + Math.floor(motherIndex / 4) * 20;
+  const offsetX = (index % 10) * 2;
+  const offsetY = Math.floor(index / 10) * 2;
+
+  return {
+    llmType: motherType,
+    name: child.name,
+    color: baseColor,
+    startX: startX + offsetX,
+    startY: startY + offsetY,
+    personality: child.personality,
+  };
+}
+
+/**
+ * Spawn world with genesis meta-generation.
+ * LLM mothers generate child agents before simulation begins.
+ *
+ * @param config - Genesis spawn configuration
+ * @returns Genesis results for analytics
+ */
+export async function spawnWorldWithGenesis(
+  config: GenesisSpawnConfiguration
+): Promise<{
+  genesisResults: GenesisResult[];
+  totalAgents: number;
+}> {
+  const genesisConfig = config.genesis ?? DEFAULT_GENESIS_CONFIG;
+
+  if (!genesisConfig.enabled) {
+    console.log('[Spawner] Genesis disabled, using standard spawn');
+    await spawnWorldWithConfig(config);
+    return { genesisResults: [], totalAgents: 0 };
+  }
+
+  console.log('[Spawner] Starting Genesis Phase...');
+  console.log(`[Spawner] Mothers: ${genesisConfig.mothers.join(', ')}`);
+  console.log(`[Spawner] Children per mother: ${genesisConfig.childrenPerMother}`);
+
+  // Choose invoker (mock for testing, production for real)
+  const invoker: LLMInvoker = config.useMockGenesis
+    ? createDiverseMockInvoker()
+    : createProductionInvoker();
+
+  // Generate children from all mothers (with or without cache)
+  const useCache = config.useGenesisCache !== false; // Default to true
+  const genesisResults = useCache
+    ? await generateChildrenFromAllMothersCached(genesisConfig, invoker)
+    : await generateChildrenFromAllMothers(genesisConfig, invoker);
+
+  if (genesisResults.length === 0) {
+    console.error('[Spawner] Genesis failed - no results from mothers');
+    throw new Error('Genesis generation failed for all mothers');
+  }
+
+  // Convert genesis results to agent configs
+  const agentConfigs: AgentConfig[] = [];
+
+  for (const result of genesisResults) {
+    console.log(`[Spawner] ${result.motherType}: ${result.children.length} children generated`);
+
+    for (let i = 0; i < result.children.length; i++) {
+      const child = result.children[i];
+      const agentConfig = childToAgentConfig(child, result.motherType, i);
+
+      // Store additional genesis metadata in agent (via extended backstory)
+      agentConfigs.push(agentConfig);
+    }
+  }
+
+  console.log(`[Spawner] Total agents from genesis: ${agentConfigs.length}`);
+
+  // Spawn world with generated agents
+  const spawnConfig: SpawnConfiguration = {
+    ...config,
+    agents: agentConfigs,
+    enablePersonalities: true, // Genesis children have personalities
+    includeBaselineAgents: config.includeBaselineAgents ?? false,
+  };
+
+  await spawnWorldWithConfig(spawnConfig);
+
+  // Log genesis summary
+  console.log('[Spawner] Genesis Phase Complete');
+  for (const result of genesisResults) {
+    console.log(`  ${result.motherType}:`);
+    console.log(`    Children: ${result.children.length}`);
+    console.log(`    Diversity: ${result.metadata.diversityScore.toFixed(2)}`);
+    console.log(`    Latency: ${result.metadata.latencyMs}ms`);
+  }
+
+  return {
+    genesisResults,
+    totalAgents: agentConfigs.length,
+  };
+}
+
+/**
+ * Reset world with genesis configuration.
+ */
+export async function resetWorldWithGenesis(
+  config: GenesisSpawnConfiguration
+): Promise<{
+  genesisResults: GenesisResult[];
+  totalAgents: number;
+}> {
+  await clearWorld();
+  return spawnWorldWithGenesis(config);
 }

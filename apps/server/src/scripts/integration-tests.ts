@@ -451,7 +451,6 @@ const testSuites: TestSuite[] = [
         name: 'Format functions produce valid output',
         fn: async () => {
           const { generateReport, formatTable, formatCSV, formatLaTeX } = await import('./compare-ensembles');
-          const { EnsembleResult: _EnsembleResultType } = await import('./run-ensemble') as { EnsembleResult: unknown };
 
           // Create mock ensemble results - type defined inline since dynamic import types are complex
           type EnsembleResult = {
@@ -485,7 +484,13 @@ const testSuites: TestSuite[] = [
 
           const mockResult2 = { ...mockResult1, experiment: { ...mockResult1.experiment, name: 'Test2' } };
 
-          const report = generateReport(['file1.json', 'file2.json'], [mockResult1, mockResult2], 0.05, 'holm');
+          // Cast to unknown since local mock type doesn't include optional genesis fields
+          const report = generateReport(
+            ['file1.json', 'file2.json'],
+            [mockResult1, mockResult2] as unknown as Parameters<typeof generateReport>[1],
+            0.05,
+            'holm'
+          );
 
           // Test formatters
           const table = formatTable(report);
