@@ -114,8 +114,8 @@ export class ExternalAgentAdapter implements LLMAdapter {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-AgentsCity-Tick': observation.tick.toString(),
-          'X-AgentsCity-Agent-Id': observation.self.id,
+          'X-SimAgents-Tick': observation.tick.toString(),
+          'X-SimAgents-Agent-Id': observation.self.id,
         },
         body: JSON.stringify({
           tick: observation.tick,

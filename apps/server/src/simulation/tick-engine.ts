@@ -19,7 +19,7 @@ import {
   withSpan,
   createTracedLogger,
 } from '../telemetry';
-import { TICK_INTERVAL_MS } from '@agentscity/shared';
+import { TICK_INTERVAL_MS } from '@simagents/shared';
 import { incrementTick, getCurrentTick, getWorldState } from '../db/queries/world';
 import { getAliveAgents, updateAgent } from '../db/queries/agents';
 import { appendEvent } from '../db/queries/events';
@@ -514,8 +514,8 @@ class TickEngine {
       return {
         id: offspringId,
         generation: offspringGeneration,
-        x: offspring.x,
-        y: offspring.y,
+        x: offspring.x as number,
+        y: offspring.y as number,
       };
     } catch (error) {
       console.error('[TickEngine] Error spawning offspring:', error);

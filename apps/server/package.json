@@ -13,7 +13,7 @@
     "seed-experiments": "bun run src/scripts/seed-experiments.ts"
   },
   "dependencies": {
-    "@agentscity/shared": "workspace:*",
+    "@simagents/shared": "workspace:*",
     "@anthropic-ai/sdk": "^0.71.2",
     "@fastify/cors": "^10.0.2",
     "@fastify/swagger": "^9.6.1",

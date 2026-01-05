@@ -1,10 +1,11 @@
 /**
- * Shared constants for Agents City
+ * Shared constants for Sim Agents
  */
 
-// Tick configuration (MVP: 10 minutes for cost optimization)
-export const TICK_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
-export const TICKS_PER_DAY = 144;
+// Tick configuration (default: 1 minute, configurable via TICK_INTERVAL_MS env var)
+export const TICK_INTERVAL_MS = 60 * 1000; // 1 minute
+export const TICKS_PER_HOUR = 60;
+export const TICKS_PER_DAY = 1440;
 
 // Isometric rendering
 export const TILE_WIDTH = 64;
@@ -14,14 +15,15 @@ export const TILE_HEIGHT = 32;
 export const WORLD_SIZE = 100; // 100x100 grid
 
 // Agent limits
-export const MAX_AGENTS_MVP = 6;
+export const MAX_AGENTS = 7; // One per LLM type
 
 // Event types
 export const EVENT_TYPES = {
   WORLD_UPDATE: 'world_update',
   AGENT_ACTION: 'agent_action',
   AGENT_INTERACTION: 'agent_interaction',
-  LOCATION_EVENT: 'location_event',
+  RESOURCE_EVENT: 'resource_event',
+  LOCATION_EVENT: 'location_event', // Legacy, kept for compatibility
 } as const;
 
 // Agent states
@@ -30,10 +32,26 @@ export const AGENT_STATES = {
   WALKING: 'walking',
   WORKING: 'working',
   SLEEPING: 'sleeping',
-  INTERACTING: 'interacting',
+  DEAD: 'dead',
+  INTERACTING: 'interacting', // Legacy, kept for compatibility
 } as const;
 
-// Location types
+// Biome types (Sugarscape-inspired)
+export const BIOME_TYPES = {
+  FOREST: 'forest',
+  DESERT: 'desert',
+  TUNDRA: 'tundra',
+  PLAINS: 'plains',
+} as const;
+
+// Resource types
+export const RESOURCE_TYPES = {
+  FOOD: 'food',
+  ENERGY: 'energy',
+  MATERIAL: 'material',
+} as const;
+
+// Location types (Legacy - world now uses ResourceSpawns + Shelters + Biomes)
 export const LOCATION_TYPES = {
   RESIDENTIAL: 'residential',
   COMMERCIAL: 'commercial',
@@ -41,7 +59,7 @@ export const LOCATION_TYPES = {
   CIVIC: 'civic',
 } as const;
 
-// LLM types (MVP: 6 agents, one per LLM)
+// LLM types (7 agents + external)
 export const LLM_TYPES = {
   CLAUDE: 'claude',
   CODEX: 'codex',
@@ -49,4 +67,6 @@ export const LLM_TYPES = {
   DEEPSEEK: 'deepseek',
   QWEN: 'qwen',
   GLM: 'glm',
+  GROK: 'grok',
+  EXTERNAL: 'external',
 } as const;

@@ -82,7 +82,7 @@ function parseArgs(): {
 
 function showHelp(): void {
   console.log(`
-Metric Validation Script - AgentsCity Scientific Framework
+Metric Validation Script - SimAgents Scientific Framework
 
 Usage:
   bun run src/scripts/validate-metrics.ts [options]
@@ -166,7 +166,7 @@ async function main(): Promise<void> {
   }
 
   console.log('========================================');
-  console.log('  AgentsCity Metric Validation');
+  console.log('  SimAgents Metric Validation');
   console.log('========================================');
 
   // CI mode

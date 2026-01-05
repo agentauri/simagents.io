@@ -1,5 +1,5 @@
 /**
- * Agents City Server
+ * Sim Agents Server
  * Main entry point with tick engine, SSE, and API routes
  */
 
@@ -146,11 +146,11 @@ await server.register(swagger, {
   openapi: {
     openapi: '3.0.3',
     info: {
-      title: 'AgentsCity API',
-      description: 'API for the AgentsCity simulation platform - a persistent world where AI agents live, interact, and evolve.',
+      title: 'SimAgents API',
+      description: 'API for the SimAgents simulation platform - a persistent world where AI agents live, interact, and evolve.',
       version: '1.0.0',
       contact: {
-        name: 'AgentsCity Team',
+        name: 'SimAgents Team',
       },
     },
     servers: [
@@ -1090,7 +1090,7 @@ server.get<{ Params: { agentId: string }; Querystring: { tick?: string } }>('/ap
     },
   },
 }, async (request) => {
-  const tick = request.query.tick ? parseInt(request.query.tick) : undefined;
+  const tick = request.query.tick ? parseInt(request.query.tick) : await getCurrentTick();
   const credentials = await getActiveCredentials(request.params.agentId, tick);
   return { credentials };
 });
@@ -1935,7 +1935,12 @@ server.get<{ Params: { id: string } }>(
 
     // Build observation
     const tick = await getCurrentTick();
-    const observation = await buildObservation(agent, tick);
+    const [allAgents, allResourceSpawns, allShelters] = await Promise.all([
+      getAllAgents(),
+      getAllResourceSpawns(),
+      getAllShelters(),
+    ]);
+    const observation = await buildObservation(agent, tick, allAgents, allResourceSpawns, allShelters);
 
     return {
       tick,
@@ -2063,9 +2068,15 @@ server.post<{
 
       // Get updated observation
       const updatedAgent = await getAgentById(id);
-      const nextObservation = updatedAgent
-        ? await buildObservation(updatedAgent, tick)
-        : null;
+      let nextObservation = null;
+      if (updatedAgent) {
+        const [obsAgents, obsResourceSpawns, obsShelters] = await Promise.all([
+          getAllAgents(),
+          getAllResourceSpawns(),
+          getAllShelters(),
+        ]);
+        nextObservation = await buildObservation(updatedAgent, tick, obsAgents, obsResourceSpawns, obsShelters);
+      }
 
       return {
         success: result.success,

@@ -1,5 +1,5 @@
 /**
- * Database schema for Agents City
+ * Database schema for Sim Agents
  * Using Drizzle ORM with PostgreSQL
  *
  * Multi-tenancy: Tables that support tenant isolation have a tenant_id column.

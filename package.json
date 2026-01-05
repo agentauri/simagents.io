@@ -1,5 +1,5 @@
 {
-  "name": "agentscity",
+  "name": "simagents",
   "private": true,
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {

@@ -602,7 +602,7 @@ export function ReplayPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h1 className="text-base font-semibold text-city-text">Agents City</h1>
+          <h1 className="text-base font-semibold text-city-text">Sim Agents</h1>
           <span className="text-xs text-city-text-muted">Time Travel Replay</span>
         </div>
       </div>

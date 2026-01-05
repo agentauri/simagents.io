@@ -1,6 +1,6 @@
-# AgentsCity Deployment Guide
+# SimAgents Deployment Guide
 
-This guide covers deploying AgentsCity to Fly.io with PostgreSQL and Redis.
+This guide covers deploying SimAgents to Fly.io with PostgreSQL and Redis.
 
 ## Prerequisites
 
@@ -46,7 +46,7 @@ fly auth login
 cd apps/server
 
 # Create the app (skip if using CI/CD)
-fly apps create agentscity-server
+fly apps create simagents-server
 ```
 
 ### 2. Provision PostgreSQL Database
@@ -54,14 +54,14 @@ fly apps create agentscity-server
 ```bash
 # Create Fly Postgres cluster
 fly postgres create \
-  --name agentscity-db \
+  --name simagents-db \
   --region iad \
   --initial-cluster-size 1 \
   --vm-size shared-cpu-1x \
   --volume-size 10
 
 # Attach to your app (this sets DATABASE_URL secret automatically)
-fly postgres attach agentscity-db --app agentscity-server
+fly postgres attach simagents-db --app simagents-server
 ```
 
 ### 3. Provision Redis (Upstash)
@@ -69,13 +69,13 @@ fly postgres attach agentscity-db --app agentscity-server
 ```bash
 # Create Upstash Redis through Fly.io
 fly redis create \
-  --name agentscity-redis \
+  --name simagents-redis \
   --region iad \
   --no-eviction
 
 # Note the connection URL provided
 # Set it as a secret:
-fly secrets set REDIS_URL="redis://default:xxx@fly-agentscity-redis.upstash.io:6379" --app agentscity-server
+fly secrets set REDIS_URL="redis://default:xxx@fly-simagents-redis.upstash.io:6379" --app simagents-server
 ```
 
 ### 4. Configure Secrets
@@ -87,17 +87,20 @@ Set all required secrets for production:
 cd apps/server
 
 # LLM API Keys (set the ones you need)
-fly secrets set ANTHROPIC_API_KEY="sk-ant-xxx" --app agentscity-server
-fly secrets set GOOGLE_API_KEY="xxx" --app agentscity-server
-fly secrets set OPENAI_API_KEY="sk-xxx" --app agentscity-server
-fly secrets set DEEPSEEK_API_KEY="xxx" --app agentscity-server
+fly secrets set ANTHROPIC_API_KEY="sk-ant-xxx" --app simagents-server
+fly secrets set GOOGLE_API_KEY="xxx" --app simagents-server
+fly secrets set OPENAI_API_KEY="sk-xxx" --app simagents-server
+fly secrets set DEEPSEEK_API_KEY="xxx" --app simagents-server
+fly secrets set QWEN_API_KEY="xxx" --app simagents-server
+fly secrets set GLM_API_KEY="xxx" --app simagents-server
+fly secrets set GROK_API_KEY="xxx" --app simagents-server
 
 # Database and Redis (if not using fly postgres attach)
-fly secrets set DATABASE_URL="postgres://user:pass@host:5432/db" --app agentscity-server
-fly secrets set REDIS_URL="redis://host:6379" --app agentscity-server
+fly secrets set DATABASE_URL="postgres://user:pass@host:5432/db" --app simagents-server
+fly secrets set REDIS_URL="redis://host:6379" --app simagents-server
 
 # List all secrets (names only)
-fly secrets list --app agentscity-server
+fly secrets list --app simagents-server
 ```
 
 ### 5. Deploy
@@ -137,12 +140,17 @@ The CI workflow (`.github/workflows/ci.yml`) runs on:
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `REDIS_URL` | Redis connection string |
-| `ANTHROPIC_API_KEY` | Claude API key |
+| `DATABASE_URL` | PostgreSQL connection string (required) |
+| `REDIS_URL` | Redis connection string (required) |
+| `ANTHROPIC_API_KEY` | Claude API key (optional) |
 | `GOOGLE_API_KEY` | Gemini API key (optional) |
 | `OPENAI_API_KEY` | OpenAI/Codex API key (optional) |
 | `DEEPSEEK_API_KEY` | DeepSeek API key (optional) |
+| `QWEN_API_KEY` | Alibaba Qwen API key (optional) |
+| `GLM_API_KEY` | Zhipu GLM API key (optional) |
+| `GROK_API_KEY` | xAI Grok API key (optional) |
+
+> **Note**: At least one LLM API key is required for agent decision-making. Use `TEST_MODE=true` to run without LLM calls.
 
 ### Environment Variables (in fly.toml)
 
@@ -160,13 +168,13 @@ The CI workflow (`.github/workflows/ci.yml`) runs on:
 
 ```bash
 # Scale to 2 instances
-fly scale count 2 --app agentscity-server
+fly scale count 2 --app simagents-server
 
 # Scale VM size
-fly scale vm shared-cpu-2x --app agentscity-server
+fly scale vm shared-cpu-2x --app simagents-server
 
 # Scale memory
-fly scale memory 1024 --app agentscity-server
+fly scale memory 1024 --app simagents-server
 ```
 
 ### Auto-scaling Configuration
@@ -178,7 +186,7 @@ The `fly.toml` is configured with:
 
 For max instances, use:
 ```bash
-fly scale count 3 --app agentscity-server
+fly scale count 3 --app simagents-server
 ```
 
 ## Database Migrations
@@ -187,11 +195,11 @@ fly scale count 3 --app agentscity-server
 
 ```bash
 # Via Fly SSH
-fly ssh console --app agentscity-server -C "bunx drizzle-kit push"
+fly ssh console --app simagents-server -C "bunx drizzle-kit push"
 
 # Or via proxy (from local machine)
-fly proxy 5433:5432 --app agentscity-db &
-DATABASE_URL="postgres://user:pass@localhost:5433/agentscity" bunx drizzle-kit push
+fly proxy 5433:5432 --app simagents-db &
+DATABASE_URL="postgres://user:pass@localhost:5433/simagents" bunx drizzle-kit push
 ```
 
 ## Monitoring & Logs
@@ -200,28 +208,28 @@ DATABASE_URL="postgres://user:pass@localhost:5433/agentscity" bunx drizzle-kit p
 
 ```bash
 # Real-time logs
-fly logs --app agentscity-server
+fly logs --app simagents-server
 
 # Last 100 lines
-fly logs --app agentscity-server -n 100
+fly logs --app simagents-server -n 100
 ```
 
 ### Health Checks
 
 ```bash
 # Check app status
-fly status --app agentscity-server
+fly status --app simagents-server
 
 # Check health endpoint
-curl https://agentscity-server.fly.dev/health
+curl https://simagents-server.fly.dev/health
 
 # Check detailed status
-curl https://agentscity-server.fly.dev/api/status
+curl https://simagents-server.fly.dev/api/status
 ```
 
 ### Metrics Dashboard
 
-Access Fly.io metrics at: https://fly.io/apps/agentscity-server/monitoring
+Access Fly.io metrics at: https://fly.io/apps/simagents-server/monitoring
 
 ## Troubleshooting
 
@@ -230,28 +238,28 @@ Access Fly.io metrics at: https://fly.io/apps/agentscity-server/monitoring
 1. **Database Connection Failed**
    ```bash
    # Verify DATABASE_URL is set
-   fly secrets list --app agentscity-server
+   fly secrets list --app simagents-server
 
    # Check postgres status
-   fly status --app agentscity-db
+   fly status --app simagents-db
    ```
 
 2. **Redis Connection Failed**
    ```bash
    # Verify REDIS_URL is set correctly
-   fly ssh console --app agentscity-server -C "echo \$REDIS_URL"
+   fly ssh console --app simagents-server -C "echo \$REDIS_URL"
    ```
 
 3. **Out of Memory**
    ```bash
    # Scale up memory
-   fly scale memory 1024 --app agentscity-server
+   fly scale memory 1024 --app simagents-server
    ```
 
 4. **Deploy Failed**
    ```bash
    # Check build logs
-   fly logs --app agentscity-server
+   fly logs --app simagents-server
 
    # Redeploy with verbose output
    fly deploy --verbose
@@ -261,23 +269,23 @@ Access Fly.io metrics at: https://fly.io/apps/agentscity-server/monitoring
 
 ```bash
 # SSH into running instance
-fly ssh console --app agentscity-server
+fly ssh console --app simagents-server
 
 # Run a command
-fly ssh console --app agentscity-server -C "ls -la"
+fly ssh console --app simagents-server -C "ls -la"
 ```
 
 ## Rollback
 
 ```bash
 # List recent releases
-fly releases --app agentscity-server
+fly releases --app simagents-server
 
 # Rollback to previous release
-fly releases rollback --app agentscity-server
+fly releases rollback --app simagents-server
 
 # Rollback to specific version
-fly releases rollback v5 --app agentscity-server
+fly releases rollback v5 --app simagents-server
 ```
 
 ## Cost Optimization
@@ -306,7 +314,7 @@ For deploying the frontend separately (e.g., to Vercel or Cloudflare Pages):
 cd apps/web
 
 # Build with production API URL
-VITE_API_URL=https://agentscity-server.fly.dev npm run build
+VITE_API_URL=https://simagents-server.fly.dev npm run build
 
 # Deploy to Vercel
 vercel --prod

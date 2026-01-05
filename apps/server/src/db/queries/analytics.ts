@@ -2488,7 +2488,7 @@ export async function getResourceEfficiencyMetrics(): Promise<ResourceEfficiency
   const gatherRows = Array.isArray(gatherData) ? gatherData : (gatherData as any).rows || [];
 
   // Calculate by LLM type
-  const byLlmType = gatherRows.map((row) => {
+  const byLlmType = gatherRows.map((row: Record<string, unknown>) => {
     const gatherCount = Number(row.gather_count) || 0;
     const totalResourcesGathered = Number(row.total_resources) || 0;
     const avgResourcesPerGather = gatherCount > 0 ? totalResourcesGathered / gatherCount : 0;
@@ -2503,8 +2503,8 @@ export async function getResourceEfficiencyMetrics(): Promise<ResourceEfficiency
   });
 
   // Calculate overall stats
-  const totalGatherActions = byLlmType.reduce((sum, r) => sum + r.gatherCount, 0);
-  const totalResourcesGathered = byLlmType.reduce((sum, r) => sum + r.totalResourcesGathered, 0);
+  const totalGatherActions = byLlmType.reduce((sum: number, r: { gatherCount: number }) => sum + r.gatherCount, 0);
+  const totalResourcesGathered = byLlmType.reduce((sum: number, r: { totalResourcesGathered: number }) => sum + r.totalResourcesGathered, 0);
   const avgResourcesPerGather = totalGatherActions > 0 ? totalResourcesGathered / totalGatherActions : 0;
 
   // Find most/least efficient

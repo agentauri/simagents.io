@@ -1,5 +1,5 @@
 /**
- * Zod validation schemas for Agents City
+ * Zod validation schemas for Sim Agents
  * Used for runtime validation of API inputs/outputs
  */
 

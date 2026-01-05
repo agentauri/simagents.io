@@ -23,6 +23,9 @@ import { findWitnesses } from '../utils/witnesses';
 import { CONFIG } from '../../config';
 import { random } from '../../utils/random';
 
+// Hunger cost for stealing (sneaking is tiring)
+const HUNGER_COST = 2;
+
 export async function handleSteal(
   intent: ActionIntent<StealParams>,
   agent: Agent
@@ -93,8 +96,9 @@ export async function handleSteal(
   const successRate = CONFIG.actions.steal.baseSuccessRate + sleepBonus - healthPenalty;
   const succeeded = random() < Math.min(successRate, 0.9);
 
-  // Energy consumed regardless
+  // Energy and hunger consumed regardless
   const newEnergy = Math.max(0, agent.energy - energyCost);
+  const newHunger = Math.max(0, agent.hunger - HUNGER_COST);
 
   // Find witnesses
   const witnesses = await findWitnesses(
@@ -184,7 +188,7 @@ export async function handleSteal(
 
     return {
       success: true,
-      changes: { energy: newEnergy },
+      changes: { energy: newEnergy, hunger: newHunger },
       events: [
         {
           id: uuid(),
@@ -199,6 +203,8 @@ export async function handleSteal(
             quantity,
             witnessIds: witnesses.map((w) => w.id),
             position: { x: agent.x, y: agent.y },
+            energyCost,
+            hungerCost: HUNGER_COST,
           },
         },
       ],
@@ -239,7 +245,7 @@ export async function handleSteal(
 
     return {
       success: false,
-      changes: { energy: newEnergy },
+      changes: { energy: newEnergy, hunger: newHunger },
       error: 'Theft attempt failed - caught by target',
       events: [
         {
@@ -254,6 +260,8 @@ export async function handleSteal(
             targetItemType,
             quantity,
             position: { x: agent.x, y: agent.y },
+            energyCost,
+            hungerCost: HUNGER_COST,
           },
         },
       ],

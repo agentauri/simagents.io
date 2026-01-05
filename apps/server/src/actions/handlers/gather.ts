@@ -18,6 +18,7 @@ import { storeMemory } from '../../db/queries/memories';
 // Gather configuration
 const CONFIG = {
   energyCostPerUnit: 1, // Energy cost per resource unit gathered
+  hungerCostPerUnit: 0.3, // Hunger cost per resource unit gathered
   maxGatherPerAction: 5, // Maximum units that can be gathered at once
 } as const;
 
@@ -105,9 +106,11 @@ export async function handleGather(
   // Add to inventory
   await addToInventory(agent.id, itemType, actualGathered);
 
-  // Calculate actual energy cost (based on what was actually gathered)
+  // Calculate actual energy and hunger cost (based on what was actually gathered)
   const actualEnergyCost = CONFIG.energyCostPerUnit * actualGathered;
+  const actualHungerCost = CONFIG.hungerCostPerUnit * actualGathered;
   const newEnergy = agent.energy - actualEnergyCost;
+  const newHunger = Math.max(0, agent.hunger - actualHungerCost);
 
   // Store memory of gathering
   await storeMemory({
@@ -125,6 +128,7 @@ export async function handleGather(
     success: true,
     changes: {
       energy: newEnergy,
+      hunger: newHunger,
     },
     events: [
       {
@@ -141,7 +145,9 @@ export async function handleGather(
           amountGathered: actualGathered,
           spawnRemainingAmount: targetSpawn.currentAmount - actualGathered,
           energyCost: actualEnergyCost,
+          hungerCost: actualHungerCost,
           newEnergy,
+          newHunger,
         },
       },
     ],

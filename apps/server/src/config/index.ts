@@ -364,7 +364,7 @@ export const CONFIG = {
   // Database
   // ---------------------------------------------------------------------------
   database: {
-    connectionString: envString('DATABASE_URL', 'postgres://dev:dev@localhost:5432/agentscity'),
+    connectionString: envString('DATABASE_URL', 'postgres://dev:dev@localhost:5432/simagents'),
   },
 
   // ---------------------------------------------------------------------------
@@ -477,7 +477,7 @@ export const CONFIG = {
     /** Whether telemetry is enabled */
     enabled: envString('OTEL_ENABLED', 'true') === 'true',
     /** Service name for tracing */
-    serviceName: envString('OTEL_SERVICE_NAME', 'agentscity-server'),
+    serviceName: envString('OTEL_SERVICE_NAME', 'simagents-server'),
     /** OTLP endpoint URL (empty for console-only) */
     otlpEndpoint: envString('OTEL_EXPORTER_OTLP_ENDPOINT', ''),
     /** Whether to use console exporter (defaults to true in development) */

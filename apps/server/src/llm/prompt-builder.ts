@@ -365,6 +365,43 @@ export function buildObservationPrompt(
     lines.push('', '### Physical Sensations', ...sensations);
   }
 
+  // Survival Projection - show "runway to death" in ticks
+  const survivalWarnings: string[] = [];
+
+  // Get state-based decay rate for hunger
+  const stateMultipliers: Record<string, number> = {
+    idle: 1.0,
+    walking: 1.5,
+    working: 1.3,
+    sleeping: 0.5,
+  };
+  const hungerDecayRate = stateMultipliers[obs.self.state] ?? 1.0;
+
+  // Calculate ticks until critical hunger (< 10)
+  const ticksToHungerCritical = Math.floor((obs.self.hunger - 10) / hungerDecayRate);
+
+  // If already critically hungry, show death countdown
+  if (obs.self.hunger < 10) {
+    const ticksToDeath = Math.floor(obs.self.health / 2); // -2 HP/tick when starving
+    survivalWarnings.push(`🚨 STARVING: Taking -2 HP/tick! Death in ~${ticksToDeath} ticks without food!`);
+  } else if (ticksToHungerCritical < 30) {
+    survivalWarnings.push(`⚠️ SURVIVAL: Critical hunger in ~${ticksToHungerCritical} ticks at current activity`);
+  }
+
+  // Energy warning
+  const energyDecayRate = (stateMultipliers[obs.self.state] ?? 1.0) * 0.5 + (obs.self.hunger < 20 ? 1.0 : 0);
+  const ticksToEnergyCritical = Math.floor((obs.self.energy - 10) / Math.max(0.1, energyDecayRate));
+
+  if (obs.self.energy < 10) {
+    survivalWarnings.push(`🚨 EXHAUSTED: Forced to sleep and taking -1 HP/tick!`);
+  } else if (ticksToEnergyCritical < 20) {
+    survivalWarnings.push(`⚠️ ENERGY: Critical exhaustion in ~${ticksToEnergyCritical} ticks`);
+  }
+
+  if (survivalWarnings.length > 0) {
+    lines.push('', '### Survival Projection', ...survivalWarnings);
+  }
+
   lines.push('', '## Your Decision', 'What action will you take? Respond with JSON only.');
 
   return lines.join('\n');

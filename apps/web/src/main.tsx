@@ -9,4 +9,4 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>
 );
 
-console.log('🏙️ Agents City frontend initialized');
+console.log('🏙️ Sim Agents frontend initialized');

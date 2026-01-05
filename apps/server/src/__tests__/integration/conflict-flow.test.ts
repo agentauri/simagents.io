@@ -33,6 +33,8 @@ function createConflictAgent(id: string, position: { x: number; y: number } = { 
     createdAt: new Date(),
     updatedAt: new Date(),
     diedAt: null,
+    tenantId: null,
+    personality: null,
   };
 }
 

@@ -4,252 +4,135 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Agents City** is a persistent "world-as-a-service" platform where external AI agents can live, interact, and evolve. **Phases 0-5 Complete** - full scientific research platform operational with advanced features.
-
-**Current Status**: Full-featured research platform with:
-- 7 AI agents (Claude, Gemini, Codex, DeepSeek, Qwen, GLM, Grok)
-- Resource spawns (food, energy, material) - Sugarscape-inspired
-- Social mechanics (trade, trust, harm, steal, deceive)
-- External agent API (A2A protocol)
-- Time travel / replay system
-- Biomes system (forest, desert, tundra, plains)
-- Experiment DSL with batch runner CLI
-- Scenario injection API (shocks, disasters, rules)
-- Advanced visualization (heatmaps, event filters, social graph)
+**Sim Agents** is a persistent "world-as-a-service" platform where external AI agents can live, interact, and evolve. A scientific research platform for studying emergent AI behavior.
 
 Key differentiators:
 - **BYO Agent**: External agents connect via A2A protocol (`/api/v1/*`)
 - **Radical Emergence**: Only survival is imposed; everything else emerges from agent interaction
-- **Minimal Physical Registry**: Only ID + endpoint + presence; reputation/trust is emergent
 - **Full Event Sourcing**: Complete action logging for replay and scientific analysis
 
 ## Core Philosophy: IMPOSED vs EMERGENT
 
 When implementing features, always distinguish:
 
-**IMPOSED (Infrastructure)**:
-- Grid world (100x100), movement physics, event logging
-- Agent identity (UUID + LLM type), physical presence
-- Survival pressure (hunger, energy decay), health system
-- Resource distribution (geographical spawns)
-- Currency infrastructure (CITY)
+**IMPOSED (Infrastructure)**: Grid world (100x100), movement physics, event logging, agent identity, survival pressure (hunger, energy decay), health system, resource distribution, currency (CITY)
 
-**EMERGENT (Agent-Created)**:
-- Movement patterns, resource gathering strategies
-- Trade conventions (if any)
-- Reputation, trust, social structures
-- Property conventions, economic systems
-- Laws, rules, morality
+**EMERGENT (Agent-Created)**: Movement patterns, trade conventions, reputation, trust, social structures, property conventions, laws, morality
 
 **Rule**: The system validates physics, not morality. Never add central databases for reputation, crime tracking, or justice.
 
 ## Tech Stack
 
+- **Runtime**: Bun + TypeScript
+- **Backend**: Fastify + PostgreSQL (Drizzle ORM) + Redis + BullMQ
+- **Frontend**: React + Vite + TailwindCSS + Zustand + HTML5 Canvas
+- **AI**: Multi-LLM (Claude, Gemini, Codex, DeepSeek, Qwen, GLM, Grok)
+
+## Commands
+
+```bash
+# Development (from root - runs all apps)
+bun dev                          # Start both server and web
+bun dev:server                   # Backend only (localhost:3000)
+bun dev:web                      # Frontend only (localhost:5173)
+
+# Test mode (no LLM API calls, uses fallback decisions)
+TEST_MODE=true bun dev:server
+
+# Testing
+bun test                         # Run all tests
+cd apps/server && bun test       # Server tests only
+cd apps/server && bun test src/__tests__/actions/move.test.ts  # Single file
+
+# Type checking and linting
+bun typecheck                    # All workspaces
+bun lint                         # All workspaces
+
+# Database
+cd apps/server && bunx drizzle-kit push   # Apply schema changes
+
+# Build
+bun build                        # All workspaces
+
+# Docker (PostgreSQL + Redis)
+docker-compose up -d
 ```
-Runtime:     Bun + TypeScript
-Framework:   Fastify (REST API)
-Database:    PostgreSQL (Drizzle ORM)
-Cache:       Redis (projections + pub/sub)
-Real-time:   SSE (Server-Sent Events)
-Queue:       BullMQ (async LLM decisions)
-AI:          Multi-LLM (Claude, Gemini, Codex, DeepSeek, Qwen, GLM, Grok)
-Frontend:    React + Vite + TailwindCSS + Zustand + HTML5 Canvas
-Infra:       Docker Compose (dev), Fly.io (prod)
+
+## Initial Setup
+
+```bash
+bun install
+cp .env.example apps/server/.env
+docker-compose up -d
+cd apps/server && bunx drizzle-kit push
 ```
 
 ## Project Structure
 
 ```
 apps/
-  server/           # Backend (Fastify + BullMQ)
-    src/
-      actions/      # Action handlers (move, gather, sleep, work, buy, consume, trade, harm, steal, deceive, share_info)
-      agents/       # Spawner, observer, orchestrator
-      db/           # Drizzle schema and queries
-      llm/          # LLM adapters (claude, gemini, codex, etc.)
-      queue/        # BullMQ worker for LLM decisions
-      simulation/   # Tick engine
-      cache/        # Redis projections and pub/sub
-  web/              # Frontend (React + Vite)
-    src/
-      components/   # UI components (Canvas, Controls, etc.)
-      hooks/        # Custom hooks (useSSE, useWorldControl)
-      stores/       # Zustand stores (world, editor)
-docs/
-  PRD.md            # Product Requirements Document
-  appendix/         # Scientific framework, stack rationale
+  server/src/
+    actions/handlers/    # Action implementations (move, gather, trade, harm, etc.)
+    agents/              # Spawner, observer, orchestrator
+    db/                  # Drizzle schema and queries
+    llm/adapters/        # LLM provider adapters
+    simulation/          # Tick engine
+    experiments/         # Experiment DSL and runner
+    routes/              # API route handlers
+  web/src/
+    components/          # UI components (Canvas, Controls)
+    stores/              # Zustand stores (world, editor, visualization)
+    hooks/               # Custom hooks (useSSE, useWorldControl)
+packages/
+  shared/                # Shared types, schemas, constants (imported as @simagents/shared)
 ```
 
-## Key Files
+## Key Architecture Files
 
-### Backend
-- `apps/server/src/index.ts` - Server entry point, API routes
 - `apps/server/src/simulation/tick-engine.ts` - Main simulation loop
 - `apps/server/src/agents/orchestrator.ts` - Agent decision coordination
 - `apps/server/src/llm/prompt-builder.ts` - LLM prompt construction
-- `apps/server/src/db/schema.ts` - Database schema
+- `apps/server/src/db/schema.ts` - Database schema (Drizzle)
+- `apps/server/src/config/index.ts` - Centralized configuration
+- `apps/web/src/stores/world.ts` - World state management
 
-### Frontend
-- `apps/web/src/App.tsx` - Main app component
-- `apps/web/src/components/Canvas/ScientificCanvas.tsx` - Grid visualization
-- `apps/web/src/stores/world.ts` - World state (agents, resources, shelters)
-- `apps/web/src/hooks/useSSE.ts` - Real-time event subscription
+## Testing
 
-## Common Commands
-
-```bash
-# Start development (from root)
-cd apps/server && bun run dev    # Backend on :3000
-cd apps/web && npm run dev       # Frontend on :5173
-
-# Test mode (fallback-only decisions, no LLM calls)
-TEST_MODE=true cd apps/server && bun run dev
-
-# Database
-cd apps/server && bunx drizzle-kit push  # Apply schema changes
-
-# Build
-cd apps/server && bun run build
-cd apps/web && npm run build
-
-# Docker services (PostgreSQL + Redis)
-docker-compose up -d
-```
-
-## Data Models
-
-### Agent
+Uses bun:test with describe/expect pattern:
 ```typescript
-{
-  id: string;
-  llmType: 'claude' | 'gemini' | 'codex' | 'deepseek' | 'qwen' | 'glm' | 'grok' | 'external';
-  x: number; y: number;
-  hunger: number; energy: number; health: number;
-  balance: number;
-  state: 'idle' | 'walking' | 'working' | 'sleeping' | 'dead';
-}
+import { describe, expect, test } from 'bun:test';
 ```
 
-### ResourceSpawn
-```typescript
-{
-  id: string;
-  x: number; y: number;
-  resourceType: 'food' | 'energy' | 'material';
-  currentAmount: number;
-  maxAmount: number;
-  regenRate: number;
-}
-```
+Tests are in `apps/server/src/__tests__/` organized by domain (actions/, integration/, llm/, etc.)
 
-### Shelter
-```typescript
-{
-  id: string;
-  x: number; y: number;
-  canSleep: boolean;
-}
-```
+## Key Environment Variables
 
-## Actions
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TEST_MODE` | `false` | Use fallback decisions instead of LLM calls |
+| `TICK_INTERVAL_MS` | `60000` | Simulation tick interval |
+| `GRID_SIZE` | `100` | World grid size (NxN) |
+| `DATABASE_URL` | `postgres://dev:dev@localhost:5432/simagents` | PostgreSQL connection |
+| `REDIS_URL` | `redis://localhost:6379` | Redis connection |
+| `RANDOM_SEED` | timestamp | Seed for reproducible experiments |
 
-### Core Actions (Phase 0)
-| Action | Description | Requirements |
-|--------|-------------|--------------|
-| `move` | Move to adjacent cell | Energy > 0 |
-| `gather` | Collect resource from spawn | At spawn location |
-| `consume` | Use inventory item | Has item in inventory |
-| `sleep` | Rest to restore energy | At shelter |
-| `work` | Convert energy to CITY | Energy > 10 |
-| `buy` | Purchase items with CITY | Has CITY balance |
+See `apps/server/src/config/index.ts` for full configuration options.
 
-### Social Actions (Phase 1-2)
-| Action | Description | Requirements |
-|--------|-------------|--------------|
-| `trade` | Exchange items with another agent | Adjacent to target, has items |
-| `share_info` | Share or gossip information | Adjacent to target |
-| `harm` | Attack another agent | Adjacent to target |
-| `steal` | Steal items from another agent | Adjacent to target |
-| `deceive` | Spread false information | Adjacent to target |
-| `claim` | Claim ownership of a location | At location |
-| `name_location` | Give a name to a location | At location |
+## Adding New Actions
 
-### Advanced Actions (Phase 4)
-| Action | Description | Requirements |
-|--------|-------------|--------------|
-| `issue_credential` | Issue a verifiable credential | Adjacent to target |
-| `revoke_credential` | Revoke a previously issued credential | Must be original issuer |
-| `spread_gossip` | Spread reputation gossip | Adjacent to target |
-| `spawn_offspring` | Start reproduction process | High balance, energy, health |
+1. Create handler in `apps/server/src/actions/handlers/`
+2. Add type to `apps/server/src/actions/types.ts`
+3. Register in action dispatcher
+4. Add tests in `apps/server/src/__tests__/actions/`
 
-## API Endpoints
+## Adding New LLM Providers
 
-### Core API
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/docs` | OpenAPI documentation (Swagger UI) |
-| GET | `/api/world/state` | Full world snapshot |
-| POST | `/api/world/start` | Start simulation |
-| POST | `/api/world/pause` | Pause simulation |
-| POST | `/api/world/resume` | Resume simulation |
-| POST | `/api/world/reset` | Reset simulation |
-| GET | `/api/events` | SSE event stream |
-| GET | `/api/events/recent` | Recent events |
-| GET | `/api/analytics/*` | Analytics data |
-| GET | `/api/test/mode` | Get test mode status |
-| POST | `/api/test/mode` | Toggle test mode |
-
-### External Agent API (v1)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/agents/register` | Register external agent |
-| GET | `/api/v1/agents/:id/observe` | Get agent observation |
-| POST | `/api/v1/agents/:id/decide` | Submit decision |
-| DELETE | `/api/v1/agents/:id` | Deregister agent |
-
-### Replay API
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/replay/ticks` | Get tick range |
-| GET | `/api/replay/tick/:tick` | World snapshot at tick |
-| GET | `/api/replay/tick/:tick/events` | Events at tick |
-
-### Scenario Injection API (Phase 5)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/scenarios/active` | Get active scenarios |
-| POST | `/api/scenarios/shock` | Inject economic shock |
-| POST | `/api/scenarios/disaster` | Inject natural disaster |
-| POST | `/api/scenarios/rule` | Modify simulation rules |
-| DELETE | `/api/scenarios/:id` | Remove active scenario |
-
-### Experiments API (Phase 5)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/experiments` | List all experiments |
-| POST | `/api/experiments` | Create new experiment |
-| GET | `/api/experiments/:id` | Get experiment details |
-| DELETE | `/api/experiments/:id` | Delete experiment |
-| POST | `/api/experiments/:id/run` | Run experiment |
-| POST | `/api/experiments/:id/stop` | Stop experiment |
-| GET | `/api/experiments/:id/compare` | Compare experiment variants |
-
-## Key Phase 5 Files
-
-### Experiments
-- `apps/server/src/experiments/schema.ts` - Experiment DSL types and validation
-- `apps/server/src/experiments/runner.ts` - Headless batch experiment runner
-- `apps/server/src/routes/scenarios-api.ts` - Scenario injection API
-
-### Visualization
-- `apps/web/src/stores/visualization.ts` - Heatmap, filters, social graph state
-- `apps/web/src/components/Canvas/HeatmapLayer.tsx` - Heatmap overlay
-- `apps/web/src/components/Controls/EventFilters.tsx` - Event type toggles
-- `apps/web/src/components/SocialGraph/SocialGraphView.tsx` - D3.js force-directed graph
+1. Create adapter in `apps/server/src/llm/adapters/`
+2. Add type to shared types
+3. Register in LLM factory
 
 ## Documentation
 
-- `docs/PRD.md` - Complete Product Requirements Document
-- `docs/appendix/scientific-framework.md` - Validation methodology
-- `docs/appendix/stack-rationale.md` - Technical decisions
-- `ROADMAP.md` - Implementation progress and phases
+- `docs/PRD.md` - Product Requirements Document
+- `docs/experiment-design-guide.md` - Research experiment guide
+- `ROADMAP.md` - Implementation progress

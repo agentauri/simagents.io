@@ -155,16 +155,19 @@ const testSuites: TestSuite[] = [
           const agent = new QLearningAgent();
 
           const mockObservation = {
+            tick: 1,
+            timestamp: Date.now(),
             self: { id: 'test-ql', x: 50, y: 50, hunger: 30, energy: 80, health: 100, balance: 100, state: 'idle' as const },
             nearbyAgents: [],
             nearbyResourceSpawns: [{ id: 's1', x: 50, y: 50, resourceType: 'food' as const, currentAmount: 5, maxAmount: 10 }],
             nearbyShelters: [],
+            nearbyLocations: [],
+            availableActions: [],
+            recentEvents: [],
             inventory: [{ type: 'food', quantity: 2 }],
-            currentTick: 1,
-            biome: 'plains' as const,
           };
 
-          const decision = agent.decide(mockObservation);
+          const decision = agent.decide(mockObservation as Parameters<typeof agent.decide>[0]);
           assertDefined(decision, 'Decision should be defined');
           assertDefined(decision.action, 'Decision should have action');
           assertDefined(decision.reasoning, 'Decision should have reasoning');
@@ -612,7 +615,7 @@ async function runTest(name: string, fn: () => Promise<void>): Promise<TestResul
 
 async function runAllTests(options: { verbose: boolean; filter?: string }): Promise<void> {
   console.log('╔══════════════════════════════════════════════════════════════════════╗');
-  console.log('║              AgentsCity Integration Tests                            ║');
+  console.log('║              SimAgents Integration Tests                            ║');
   console.log('╚══════════════════════════════════════════════════════════════════════╝');
   console.log();
 
@@ -708,7 +711,7 @@ async function main(): Promise<void> {
 
   if (values.help) {
     console.log(`
-Integration Tests for AgentsCity
+Integration Tests for SimAgents
 
 Usage:
   bun run src/scripts/integration-tests.ts [options]

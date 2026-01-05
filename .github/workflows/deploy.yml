@@ -1,4 +1,4 @@
-# GitHub Actions workflow for AgentsCity deployment to Fly.io
+# GitHub Actions workflow for SimAgents deployment to Fly.io
 # Triggers on push to main branch or manual dispatch
 
 name: Deploy to Fly.io
@@ -54,7 +54,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Typecheck shared package
-        run: bun run --filter @agentscity/shared typecheck
+        run: bun run --filter @simagents/shared typecheck
 
       - name: Typecheck server
         run: bun run --filter server typecheck
@@ -124,7 +124,7 @@ jobs:
     timeout-minutes: 10
     environment:
       name: ${{ github.event.inputs.environment || 'production' }}
-      url: https://agentscity-server.fly.dev
+      url: https://simagents-server.fly.dev
 
     steps:
       - name: Checkout repository
@@ -141,7 +141,7 @@ jobs:
       - name: Verify deployment health
         run: |
           sleep 10
-          curl -f https://agentscity-server.fly.dev/health || exit 1
+          curl -f https://simagents-server.fly.dev/health || exit 1
         continue-on-error: true
 
       - name: Post deployment status
@@ -151,7 +151,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Environment:** ${{ github.event.inputs.environment || 'production' }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **URL:** https://agentscity-server.fly.dev" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL:** https://simagents-server.fly.dev" >> $GITHUB_STEP_SUMMARY
 
   # ============================================================================
   # Job 4: Run database migrations (optional)
@@ -173,6 +173,6 @@ jobs:
       - name: Run migrations via Fly proxy
         run: |
           echo "Migrations should be run via Fly.io proxy or as part of app startup"
-          echo "Run: fly ssh console -C 'bunx drizzle-kit push' --app agentscity-server"
+          echo "Run: fly ssh console -C 'bunx drizzle-kit push' --app simagents-server"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

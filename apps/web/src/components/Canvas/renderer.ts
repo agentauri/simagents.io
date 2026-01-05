@@ -1,5 +1,5 @@
 /**
- * Isometric Sprite Renderer for Agents City
+ * Isometric Sprite Renderer for Sim Agents
  * Complete rewrite using IsoCity tileset (MIT License) by victorqribeiro
  *
  * Tileset: 12 columns x 6 rows, each sprite 130x230 pixels

@@ -1,4 +1,4 @@
-# AgentsCity Server - Multi-stage Dockerfile for Bun
+# SimAgents Server - Multi-stage Dockerfile for Bun
 # Optimized for Fly.io deployment
 #
 # Build context should be the repository root:
@@ -55,8 +55,8 @@ RUN apk add --no-cache curl
 WORKDIR /app
 
 # Create non-root user for security
-RUN addgroup --system --gid 1001 agentscity && \
-    adduser --system --uid 1001 agentscity
+RUN addgroup --system --gid 1001 simagents && \
+    adduser --system --uid 1001 simagents
 
 # Copy production dependencies
 COPY --from=deps /app/node_modules ./node_modules
@@ -71,10 +71,10 @@ COPY --from=builder /app/apps/server/tsconfig.json ./apps/server/
 COPY --from=builder /app/tsconfig.json ./
 
 # Set ownership
-RUN chown -R agentscity:agentscity /app
+RUN chown -R simagents:simagents /app
 
 # Switch to non-root user
-USER agentscity
+USER simagents
 
 # Set working directory to server
 WORKDIR /app/apps/server

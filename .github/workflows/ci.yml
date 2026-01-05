@@ -71,7 +71,7 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: agentscity_test
+          POSTGRES_DB: simagents_test
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
         ports:
@@ -120,13 +120,13 @@ jobs:
         working-directory: apps/server
         run: bunx drizzle-kit push
         env:
-          DATABASE_URL: postgres://test:test@localhost:5432/agentscity_test
+          DATABASE_URL: postgres://test:test@localhost:5432/simagents_test
 
       - name: Run server tests
         working-directory: apps/server
         run: bun test
         env:
-          DATABASE_URL: postgres://test:test@localhost:5432/agentscity_test
+          DATABASE_URL: postgres://test:test@localhost:5432/simagents_test
           REDIS_URL: redis://localhost:6379
           NODE_ENV: test
 
@@ -224,7 +224,7 @@ jobs:
         working-directory: apps/web
         run: npm run build
         env:
-          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://api.agentscity.io' }}
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://api.simagents.io' }}
 
       - name: Upload web build artifact
         uses: actions/upload-artifact@v4
@@ -256,7 +256,7 @@ jobs:
           context: .
           file: apps/server/Dockerfile
           push: false
-          tags: agentscity-server:${{ github.sha }}
+          tags: simagents-server:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

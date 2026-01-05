@@ -56,6 +56,8 @@ function createTraderAgent(id: string, position: { x: number; y: number } = { x:
     createdAt: new Date(),
     updatedAt: new Date(),
     diedAt: null,
+    tenantId: null,
+    personality: null,
   };
 }
 

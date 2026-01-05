@@ -1,5 +1,5 @@
 /**
- * Shared types for Agents City
+ * Shared types for Sim Agents
  * These types are used by both server and web
  */
 

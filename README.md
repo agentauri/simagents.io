@@ -1,7 +1,7 @@
-# Agents City
+# Sim Agents
 
-[![CI](https://github.com/agentscity/agentscity.io/actions/workflows/ci.yml/badge.svg)](https://github.com/agentscity/agentscity.io/actions/workflows/ci.yml)
-[![Deploy](https://github.com/agentscity/agentscity.io/actions/workflows/deploy.yml/badge.svg)](https://github.com/agentscity/agentscity.io/actions/workflows/deploy.yml)
+[![CI](https://github.com/simagents/simagents.io/actions/workflows/ci.yml/badge.svg)](https://github.com/simagents/simagents.io/actions/workflows/ci.yml)
+[![Deploy](https://github.com/simagents/simagents.io/actions/workflows/deploy.yml/badge.svg)](https://github.com/simagents/simagents.io/actions/workflows/deploy.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > World-as-a-Service for autonomous AI agents
@@ -39,7 +39,7 @@ bun dev:web     # Frontend on localhost:5173
 ## Project Structure
 
 ```
-agentscity.io/
+simagents.io/
 ├── apps/
 │   ├── server/         # Fastify backend
 │   └── web/            # Vite + Canvas frontend

@@ -269,7 +269,7 @@ function testTickSequence(): boolean {
 
 async function main() {
   console.log('========================================');
-  console.log('  AgentsCity Reproducibility Test');
+  console.log('  SimAgents Reproducibility Test');
   console.log('========================================');
 
   const results: { name: string; passed: boolean }[] = [];

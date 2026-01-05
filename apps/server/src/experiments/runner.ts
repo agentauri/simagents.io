@@ -322,7 +322,7 @@ export async function runExperiment(options: RunnerOptions): Promise<RunResult[]
   const report = generateExperimentReport(
     experiment.id,
     experiment.name,
-    schema.hypothesis,
+    schema.hypothesis ?? null,
     [], // variants will be fetched by report
     comparison
   );
@@ -426,7 +426,7 @@ async function main() {
       case '--help':
       case '-h':
         console.log(`
-Agents City Experiment Runner
+Sim Agents Experiment Runner
 
 Usage:
   bun run src/experiments/runner.ts --config <file> [options]

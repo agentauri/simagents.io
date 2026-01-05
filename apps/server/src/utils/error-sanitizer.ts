@@ -22,7 +22,7 @@ const SENSITIVE_PATTERNS = [
   /api[_-]?key[=:]\s*\S+/gi,
   /bearer\s+[a-zA-Z0-9_\-.]+/gi,
 
-  // AgentsCity agent keys
+  // SimAgents agent keys
   /ac_[a-f0-9]{64}/gi,
 
   // Generic secrets

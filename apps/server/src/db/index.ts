@@ -1,12 +1,12 @@
 /**
- * Database connection for Agents City
+ * Database connection for Sim Agents
  */
 
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from './schema';
 
-const connectionString = process.env.DATABASE_URL || 'postgres://dev:dev@localhost:5432/agentscity';
+const connectionString = process.env.DATABASE_URL || 'postgres://dev:dev@localhost:5432/simagents';
 
 // Connection pool
 const client = postgres(connectionString, {

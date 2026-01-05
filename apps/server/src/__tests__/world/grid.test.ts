@@ -228,6 +228,8 @@ describe('getAgentsAtPosition', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
     diedAt: null,
+    tenantId: null,
+    personality: null,
   });
 
   test('returns agents at exact position', () => {
@@ -276,6 +278,8 @@ describe('getVisibleAgents', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
     diedAt: null,
+    tenantId: null,
+    personality: null,
   });
 
   test('returns agents within radius', () => {

@@ -18,6 +18,7 @@ import { storeMemory } from '../../db/queries/memories';
 const CONFIG = {
   basePayPerTick: 10, // CITY per tick of work
   energyCostPerTick: 2,
+  hungerCostPerTick: 0.5, // Working makes you hungry
   minDuration: 1,
   maxDuration: 5,
 } as const;
@@ -67,11 +68,15 @@ export async function handleWork(
 
   const salary = CONFIG.basePayPerTick * duration;
 
+  // Calculate hunger cost
+  const hungerCost = CONFIG.hungerCostPerTick * duration;
+
   // Success - return changes and events
   // Note: Work is an instant action - no state change needed
   // Previously set state to 'working' which caused agents to get stuck
   const newBalance = agent.balance + salary;
   const newEnergy = agent.energy - energyCost;
+  const newHunger = Math.max(0, agent.hunger - hungerCost);
 
   // Store memory of working
   await storeMemory({
@@ -90,6 +95,7 @@ export async function handleWork(
     changes: {
       balance: newBalance,
       energy: newEnergy,
+      hunger: newHunger,
     },
     events: [
       {
@@ -103,8 +109,10 @@ export async function handleWork(
           duration,
           salary,
           energyCost,
+          hungerCost,
           newBalance,
           newEnergy,
+          newHunger,
         },
       },
       // Also emit balance_changed event

@@ -1,10 +1,10 @@
-# AgentsCity Roadmap
+# SimAgents Roadmap
 
 > Last updated: 2026-01-02
 
 ## Overview
 
-AgentsCity is a persistent "world-as-a-service" where external AI agents live, interact, and evolve. This roadmap tracks implementation progress against the PRD (docs/PRD.md).
+SimAgents is a persistent "world-as-a-service" where external AI agents live, interact, and evolve. This roadmap tracks implementation progress against the PRD (docs/PRD.md).
 
 **Current Status**: Phases 0-5 Complete ✅
 - Phase 0: Kernel (MVP) - Core simulation
@@ -310,18 +310,18 @@ AgentsCity is a persistent "world-as-a-service" where external AI agents live, i
 
 | Date | Description |
 |------|-------------|
-| 2025-12-30 | feat: add scientific metrics (emergence index, market efficiency, governance) |
-| 2025-12-30 | test: add integration tests for tick cycle, trade, conflict, external agent |
-| 2025-12-30 | feat: implement technical debt, multi-tenancy, and production infrastructure |
-| 2025-12-29 | Feat: Phase 1 Emergence - location claiming + naming conventions |
-| 2025-12-29 | Feat: Emergence detection analytics (trends, roles, stability) |
-| 2025-12-29 | Fix: Add shelter location requirement for work/buy actions |
-| 2025-12-29 | Fix: Add action_failed event emission for agent learning |
+| 2026-01-05 | docs: reorganize and deduplicate documentation |
+| 2026-01-04 | feat: implement Genesis System for LLM meta-generation |
+| 2026-01-03 | fix: update tests to match implementation changes |
+| 2026-01-02 | feat: implement scientific research platform with code quality fixes |
+| 2026-01-01 | feat: implement security fixes and performance optimizations |
+| 2025-12-31 | feat: implement Sprint 4 - Visualization (heatmaps, event filters, social graph) |
+| 2025-12-30 | feat: implement Sprint 3 - Research Platform (experiments, baselines, statistics) |
+| 2025-12-30 | feat: implement biome system (Phase 5 Sprint 2) |
+| 2025-12-29 | fix: remove Lizard Brain to preserve Radical Emergence |
+| 2025-12-29 | feat: implement credentials, gossip, reproduction, LLM metrics (Phase 4) |
 | 2025-12-28 | Refactor: Scientific model (resources/shelters instead of location types) |
-| 2025-12-28 | Feat: Gather action for resource collection |
 | 2025-12-28 | Feat: Scientific Canvas visualization |
-| 2025-12-26 | Fix: Resolve null decision results and orchestrator timeout |
-| 2025-12-26 | Feat: Integrate orchestrator into tick engine for LLM decisions |
 | 2025-12-26 | Feat: Implement MVP Phase 0 (Kernel) - full stack simulation |
 
 ---

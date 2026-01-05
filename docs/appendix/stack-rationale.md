@@ -1,6 +1,6 @@
 # Stack Rationale - Appendix
 
-> Technical reasoning behind Agents City architectural decisions
+> Technical reasoning behind Sim Agents architectural decisions
 
 ## Table of Contents
 
@@ -101,7 +101,7 @@ The 2% package incompatibility is acceptable for MVP.
 Hono is optimized for edge/serverless with minimal overhead.
 Fastify is optimized for long-running servers with complex routing.
 
-Agents City needs:
+Sim Agents needs:
 - Complex routing (agents, events, projections)
 - Plugin architecture (auth, validation, logging)
 - Built-in WebSocket/SSE support
@@ -245,7 +245,7 @@ async function rebuildAggregate(streamId: string): Promise<Aggregate> {
 
 **Rationale**:
 ```
-Agents City communication pattern:
+Sim Agents communication pattern:
 - Server → Client: 95% (agent updates, events)
 - Client → Server: 5% (commands via REST)
 
@@ -338,7 +338,7 @@ LangChain is valuable for:
 - Complex RAG pipelines
 - Teams unfamiliar with LLM APIs
 
-Agents City doesn't need LangChain because:
+Sim Agents doesn't need LangChain because:
 - Single LLM provider (initially)
 - Custom memory system (not LangChain memory)
 - Custom agent loop (not LangChain agents)
@@ -568,7 +568,7 @@ function useEventStream(url: string) {
 
 **Rationale**:
 ```
-Fly.io advantages for Agents City:
+Fly.io advantages for Sim Agents:
 - Managed PostgreSQL with replicas
 - Edge deployment (lower latency globally)
 - Simple scaling (fly scale count)

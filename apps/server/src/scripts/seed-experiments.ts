@@ -413,7 +413,7 @@ async function main() {
   const experimentType = args[0] || 'all';
 
   console.log('========================================');
-  console.log('  AgentsCity Experiment Seeder');
+  console.log('  SimAgents Experiment Seeder');
   console.log('========================================');
 
   try {

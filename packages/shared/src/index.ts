@@ -1,6 +1,6 @@
 /**
- * @agentscity/shared
- * Shared types, schemas, and constants for Agents City
+ * @simagents/shared
+ * Shared types, schemas, and constants for Sim Agents
  */
 
 // Re-export everything

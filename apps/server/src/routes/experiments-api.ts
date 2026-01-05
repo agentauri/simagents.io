@@ -808,7 +808,7 @@ export async function registerExperimentRoutes(server: FastifyInstance): Promise
 
         const enriched = enrichEvent(
           {
-            id: event.id,
+            id: String(event.id),
             eventType: event.eventType,
             tick: event.tick,
             agentId: event.agentId,

@@ -26,7 +26,7 @@
  * - move_random, gather, consume_food, sleep, work, buy_food
  */
 
-import type { AgentObservation, AgentDecision } from '../../llm/types';
+import type { AgentObservation, AgentDecision, NearbyResourceSpawn } from '../../llm/types';
 import type { BaselineAgent, BaselineAgentConfig } from './types';
 import { random, randomChoice } from '../../utils/random';
 import { CONFIG } from '../../config';
@@ -579,7 +579,7 @@ export class QLearningAgent implements BaselineAgent {
     spawns: AgentObservation['nearbyResourceSpawns'],
     x: number,
     y: number
-  ): AgentObservation['nearbyResourceSpawns'][0] | undefined {
+  ): NearbyResourceSpawn | undefined {
     if (!spawns || spawns.length === 0) return undefined;
 
     const withResources = spawns.filter((s) => s.currentAmount > 0);

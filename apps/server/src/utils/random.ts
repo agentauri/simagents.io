@@ -70,7 +70,7 @@ export function isSeeded(): boolean {
  * Drop-in replacement for Math.random().
  */
 export function random(): number {
-  return rng ? rng() : Math.random();
+  return rng ? (rng as () => number)() : Math.random();
 }
 
 /**

@@ -633,7 +633,7 @@ async function main(): Promise<void> {
 
   if (!args.silent) {
     console.log('========================================');
-    console.log('  AgentsCity Ensemble Experiment Runner');
+    console.log('  SimAgents Ensemble Experiment Runner');
     console.log('========================================');
     console.log();
     console.log(`  Seeds:         ${args.seeds}`);

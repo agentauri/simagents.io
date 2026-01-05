@@ -97,7 +97,7 @@ function CompactErrorFallback({ error, resetError, sectionName }: ErrorFallbackP
  * - Retry button to reset the error boundary
  * - Collapsible technical details for debugging
  *
- * Styled to match the AgentsCity dark theme (city-* CSS variables)
+ * Styled to match the SimAgents dark theme (city-* CSS variables)
  */
 export function ErrorFallback({
   error,

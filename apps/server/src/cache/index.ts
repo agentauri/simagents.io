@@ -1,5 +1,5 @@
 /**
- * Redis client for Agents City
+ * Redis client for Sim Agents
  */
 
 import Redis from 'ioredis';

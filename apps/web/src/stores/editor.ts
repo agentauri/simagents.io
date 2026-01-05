@@ -6,8 +6,8 @@ import { type TileDef, type TileCatalogEntry, GRASS_TILE, GRID_SIZE, createEmpty
 // LocalStorage Persistence
 // =============================================================================
 
-const STORAGE_KEY = 'agentscity_grid';
-const VIEW_MODE_STORAGE_KEY = 'agentscity_view_mode';
+const STORAGE_KEY = 'simagents_grid';
+const VIEW_MODE_STORAGE_KEY = 'simagents_view_mode';
 
 function loadGridFromStorage(): TileDef[][] | null {
   try {

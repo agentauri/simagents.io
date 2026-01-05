@@ -1,4 +1,4 @@
-# Bun test configuration for AgentsCity server
+# Bun test configuration for SimAgents server
 
 [test]
 # Run tests in parallel for faster execution

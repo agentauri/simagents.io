@@ -118,7 +118,7 @@ jobs:
     needs: [create-release]
     environment:
       name: production
-      url: https://agentscity.io
+      url: https://simagents.io
     timeout-minutes: 20
 
     env:
@@ -151,7 +151,7 @@ jobs:
         run: |
           echo "Deploying server to production..."
           flyctl deploy \
-            --app agentscity-server \
+            --app simagents-server \
             --remote-only \
             --wait-timeout 300
 
@@ -163,7 +163,7 @@ jobs:
           # Check server health
           for i in {1..5}; do
             response=$(curl -s -o /dev/null -w "%{http_code}" \
-              "https://agentscity-server.fly.dev/health" || echo "000")
+              "https://simagents-server.fly.dev/health" || echo "000")
             if [[ "$response" == "200" ]]; then
               echo "Server is healthy"
               break
@@ -191,5 +191,5 @@ jobs:
           echo "| Version | \`${{ needs.create-release.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Release Created | ${{ needs.create-release.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Production Deploy | ${{ needs.deploy-production.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Server URL | https://agentscity-server.fly.dev |" >> $GITHUB_STEP_SUMMARY
+          echo "| Server URL | https://simagents-server.fly.dev |" >> $GITHUB_STEP_SUMMARY
           echo "| GitHub Release | https://github.com/${{ github.repository }}/releases/tag/${{ needs.create-release.outputs.version }} |" >> $GITHUB_STEP_SUMMARY

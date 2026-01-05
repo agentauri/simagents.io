@@ -4,8 +4,8 @@ import { create } from 'zustand';
 // LocalStorage Persistence
 // =============================================================================
 
-const SOUND_ENABLED_KEY = 'agentscity_sound_enabled';
-const SOUND_VOLUME_KEY = 'agentscity_sound_volume';
+const SOUND_ENABLED_KEY = 'simagents_sound_enabled';
+const SOUND_VOLUME_KEY = 'simagents_sound_volume';
 
 function loadSoundEnabledFromStorage(): boolean {
   try {

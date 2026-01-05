@@ -1,10 +1,10 @@
-# fly.toml - Fly.io configuration for AgentsCity Server
+# fly.toml - Fly.io configuration for SimAgents Server
 # Documentation: https://fly.io/docs/reference/configuration/
 #
 # Deploy with: fly deploy
 # From repository root
 
-app = "agentscity-server"
+app = "simagents-server"
 primary_region = "iad"
 
 # Build configuration - Dockerfile in apps/server, context is root

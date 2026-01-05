@@ -794,7 +794,7 @@ export function reportToLaTeX(report: ExperimentReport): string {
   const lines: string[] = [];
 
   // Table header
-  lines.push('% Auto-generated LaTeX table from AgentsCity experiment');
+  lines.push('% Auto-generated LaTeX table from SimAgents experiment');
   lines.push(`% Experiment: ${report.experimentName}`);
   lines.push(`% Generated: ${new Date().toISOString()}`);
   lines.push('');

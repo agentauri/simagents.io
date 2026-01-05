@@ -57,10 +57,10 @@ export function buildGenesisPrompt(
     .filter(Boolean)
     .join('\n') ?? '';
 
-  return `You are ${motherType.toUpperCase()}, an AI creating ${count} unique child agents for a survival simulation called AgentsCity.
+  return `You are ${motherType.toUpperCase()}, an AI creating ${count} unique child agents for a survival simulation called SimAgents.
 
 ## World Context
-AgentsCity is a 100x100 grid world where agents must:
+SimAgents is a 100x100 grid world where agents must:
 - Gather resources (food, energy, material) from spawns
 - Manage hunger, energy, and health levels
 - Interact with other agents (trade, share info, cooperate, or compete)

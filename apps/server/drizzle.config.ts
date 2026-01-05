@@ -5,7 +5,7 @@ export default defineConfig({
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL || 'postgres://dev:dev@localhost:5432/agentscity',
+    url: process.env.DATABASE_URL || 'postgres://dev:dev@localhost:5432/simagents',
   },
   verbose: true,
   strict: true,

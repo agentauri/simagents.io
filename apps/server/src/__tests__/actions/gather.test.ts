@@ -52,6 +52,8 @@ function createMockAgent(overrides: Partial<Agent> = {}): Agent {
     createdAt: new Date(),
     updatedAt: new Date(),
     diedAt: null,
+    tenantId: null,
+    personality: null,
     ...overrides,
   };
 }
@@ -80,6 +82,9 @@ function createMockResourceSpawn(overrides: Partial<ResourceSpawn> = {}): Resour
     currentAmount: 10,
     maxAmount: 20,
     regenRate: 1,
+    createdAt: new Date(),
+    tenantId: null,
+    biome: 'plains',
     ...overrides,
   };
 }

@@ -38,6 +38,8 @@ function createMockAgent(overrides: Partial<Agent> = {}): Agent {
     createdAt: new Date(),
     updatedAt: new Date(),
     diedAt: null,
+    tenantId: null,
+    personality: null,
     ...overrides,
   };
 }

@@ -1,7 +1,7 @@
 /**
  * OpenTelemetry Instrumentation Setup
  *
- * This module initializes OpenTelemetry tracing for the AgentsCity server.
+ * This module initializes OpenTelemetry tracing for the SimAgents server.
  * It MUST be imported before any other modules to ensure proper instrumentation.
  *
  * Features:
@@ -59,7 +59,7 @@ function getConfig(): TelemetryConfig {
   const isDev = env === 'development';
 
   return {
-    serviceName: process.env.OTEL_SERVICE_NAME || 'agentscity-server',
+    serviceName: process.env.OTEL_SERVICE_NAME || 'simagents-server',
     serviceVersion: process.env.npm_package_version || '0.1.0',
     environment: env,
     enabled: process.env.OTEL_ENABLED !== 'false',
@@ -184,7 +184,7 @@ export function initTelemetry(): void {
 // Tracer Access
 // =============================================================================
 
-const TRACER_NAME = 'agentscity';
+const TRACER_NAME = 'simagents';
 
 /**
  * Get the tracer instance for creating custom spans

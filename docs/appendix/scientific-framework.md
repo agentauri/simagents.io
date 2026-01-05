@@ -1,6 +1,6 @@
 # Scientific Validation Framework - Appendix
 
-> Detailed methodology for validating emergent behavior claims in Agents City
+> Detailed methodology for validating emergent behavior claims in Sim Agents
 
 ## Table of Contents
 
@@ -154,7 +154,7 @@ assumption_a9:
 
 ### 2.2 Gap Analysis
 
-| Known Result | Agents City Challenge |
+| Known Result | Sim Agents Challenge |
 |--------------|----------------------|
 | 25 generative agents | 5000+ concurrent agents |
 | Synthetic memory | Event-sourced memory |
@@ -213,36 +213,132 @@ sugarscape_replication:
     after_ticks: 1000
 ```
 
-### 3.3 Rule-Based Baseline
+### 3.3 Baseline Agent Types
 
-**Purpose**: Compare LLM reasoning vs hardcoded rules
+**Purpose**: Compare LLM reasoning against non-LLM decision-making
 
+The system includes four baseline agent types for scientific comparison:
+
+#### Random Baseline
 ```typescript
-interface RuleBasedAgent {
-  rules = [
-    { condition: 'hungry', action: 'seek_food' },
-    { condition: 'low_money', action: 'seek_work' },
-    { condition: 'has_excess', action: 'trade' },
-  ];
+// Pure random decisions - establishes null hypothesis
+type: 'random'
+behavior: Selects actions uniformly at random
+purpose: Lower bound for any intelligent behavior
+```
 
-  tick(): void {
-    for (const rule of this.rules) {
-      if (this.evaluate(rule.condition)) {
-        this.execute(rule.action);
-        return;
-      }
-    }
-    this.wander();
-  }
+#### Rule-Based Baseline
+```typescript
+// Deterministic priority-based rules
+type: 'rule-based'
+rules: [
+  { condition: 'health < 20', action: 'consume food' },
+  { condition: 'hunger < 30', action: 'seek food' },
+  { condition: 'energy < 20', action: 'sleep' },
+  { condition: 'at resource', action: 'gather' },
+]
+purpose: Compare LLM flexibility vs hardcoded logic
+```
+
+#### Sugarscape Baseline
+```typescript
+// Classic Sugarscape agent behavior (Epstein & Axtell 1996)
+type: 'sugarscape'
+behavior: Greedy resource maximization with vision radius
+purpose: Replicate known emergent behaviors for validation
+```
+
+#### Q-Learning Baseline
+```typescript
+// Reinforcement learning agent
+type: 'qlearning'
+parameters: {
+  learningRate: 0.1,
+  discountFactor: 0.95,
+  explorationRate: 0.1  // decays over time
 }
+purpose: Compare emergent learning vs pre-trained LLM knowledge
+```
+
+**Enabling Baselines**:
+```bash
+INCLUDE_BASELINE_AGENTS=true bun dev:server
+BASELINE_AGENT_COUNT=2  # 1-3 of each type
 ```
 
 **Hypothesis**: LLM agents should exhibit:
-- More varied behavior (higher entropy)
-- Novel strategies not in rule set
-- Emergent cooperation patterns
+- More varied behavior (higher entropy) than rule-based
+- Novel strategies not in hardcoded rule sets
+- Faster adaptation than Q-learning (no training time)
+- More coherent long-term goals than random
 
-### 3.4 A/B Experimental Conditions
+### 3.4 Genesis System (Meta-Generation)
+
+**Purpose**: Use LLM "mothers" to generate diverse child agent personalities, reducing experimenter bias in personality design.
+
+#### Overview
+
+The Genesis System allows parent LLMs to create child agents with novel personalities:
+
+```typescript
+interface GenesisConfig {
+  enabled: boolean;
+  childrenPerMother: number;      // Agents generated per parent LLM
+  mothers: LLMType[];             // Which LLMs act as parents
+  mode: 'single' | 'evolutionary';
+  diversityThreshold: number;     // Minimum personality uniqueness (0-1)
+  requiredArchetypes: string[];   // Ensure coverage (e.g., 'cooperative', 'aggressive')
+  temperature: number;            // Creativity in generation (0.7-1.0 recommended)
+}
+```
+
+#### Modes
+
+**Single Mode**: Each mother generates children independently
+- Faster execution
+- Good for initial experiments
+- May produce similar personalities within a mother's "style"
+
+**Evolutionary Mode**: Multi-generation refinement
+```typescript
+interface EvolutionConfig {
+  generations: number;            // Number of evolution cycles
+  populationSize: number;         // Children per generation
+  selectionPressure: number;      // Top % surviving to next generation
+  mutationRate: number;           // Personality variation rate
+  fitnessMetrics: string[];       // What makes an agent "successful"
+}
+```
+
+#### Scientific Value
+
+1. **Reduces Experimenter Bias**: Personalities emerge from LLM creativity, not researcher preconceptions
+2. **Diversity Guarantee**: `diversityThreshold` ensures unique agents
+3. **Archetype Coverage**: `requiredArchetypes` ensures scientific comparison groups
+4. **Reproducibility**: Genesis results are cached with seed for exact replication
+
+#### Usage
+
+```bash
+# Run experiment with Genesis-generated agents
+bun run:ensemble --genesis --mothers claude,gemini --children 3 --ticks 1000
+
+# Evolutionary mode
+bun run:ensemble --genesis --mode evolutionary --generations 5
+```
+
+#### Metrics
+
+```typescript
+interface GenesisMetrics {
+  personalityDiversity: number;   // Measured uniqueness
+  archetypeCoverage: number;      // % of required archetypes present
+  lineageSurvivalRate: number;    // Which mother's children survive best
+  traitHeritability: number;      // Do traits persist across generations
+}
+```
+
+### 3.5 A/B Experimental Conditions
 
 > **Purpose**: Compare emergence under different initial conditions to isolate the effect of design choices and validate scientific claims.
 

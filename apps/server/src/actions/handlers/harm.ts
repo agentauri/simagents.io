@@ -24,6 +24,13 @@ import { random } from '../../utils/random';
 
 type HarmIntensity = 'light' | 'moderate' | 'severe';
 
+// Hunger cost per harm intensity (fighting is exhausting)
+const HUNGER_COST: Record<HarmIntensity, number> = {
+  light: 2,
+  moderate: 3,
+  severe: 5,
+};
+
 export async function handleHarm(
   intent: ActionIntent<HarmParams>,
   agent: Agent
@@ -79,8 +86,10 @@ export async function handleHarm(
     (100 / Math.max(targetAgent.health, 1));
   const succeeded = random() < Math.min(successRate, 0.95);
 
-  // Energy is consumed regardless of success
+  // Energy and hunger consumed regardless of success
+  const hungerCost = HUNGER_COST[intensity as HarmIntensity];
   const newAttackerEnergy = Math.max(0, agent.energy - energyCost);
+  const newAttackerHunger = Math.max(0, agent.hunger - hungerCost);
 
   // Find witnesses (other agents within visibility radius)
   const witnesses = await findWitnesses(
@@ -178,7 +187,7 @@ export async function handleHarm(
 
     return {
       success: true,
-      changes: { energy: newAttackerEnergy },
+      changes: { energy: newAttackerEnergy, hunger: newAttackerHunger },
       events: [
         {
           id: uuid(),
@@ -195,6 +204,8 @@ export async function handleHarm(
             newVictimHealth: newTargetHealth,
             witnessIds: witnesses.map((w) => w.id),
             position: { x: agent.x, y: agent.y },
+            energyCost,
+            hungerCost,
           },
         },
         ...(targetDied
@@ -252,7 +263,7 @@ export async function handleHarm(
 
     return {
       success: false,
-      changes: { energy: newAttackerEnergy },
+      changes: { energy: newAttackerEnergy, hunger: newAttackerHunger },
       error: 'Attack failed',
       events: [
         {
@@ -266,6 +277,8 @@ export async function handleHarm(
             victimId: targetAgentId,
             intensity,
             position: { x: agent.x, y: agent.y },
+            energyCost,
+            hungerCost,
           },
         },
       ],

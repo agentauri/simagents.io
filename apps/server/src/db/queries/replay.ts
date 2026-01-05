@@ -354,7 +354,7 @@ export async function getTickSummaries(
 
   const rows = Array.isArray(result) ? result : (result as any).rows || [];
 
-  return rows.map((row) => ({
+  return rows.map((row: Record<string, unknown>) => ({
     tick: Number(row.tick),
     eventCount: Number(row.event_count),
     eventTypes: typeof row.event_types === 'string'

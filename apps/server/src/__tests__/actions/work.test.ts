@@ -45,6 +45,8 @@ function createMockAgent(overrides: Partial<Agent> = {}): Agent {
     createdAt: new Date(),
     updatedAt: new Date(),
     diedAt: null,
+    tenantId: null,
+    personality: null,
     ...overrides,
   };
 }
@@ -67,6 +69,9 @@ function createMockShelter(overrides: Partial<Shelter> = {}): Shelter {
     x: 50,
     y: 50,
     canSleep: true,
+    createdAt: new Date(),
+    tenantId: null,
+    ownerAgentId: null,
     ...overrides,
   };
 }

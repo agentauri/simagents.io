@@ -2,7 +2,7 @@
  * World Grid - 100x100 isometric world
  */
 
-import { WORLD_SIZE } from '@agentscity/shared';
+import { WORLD_SIZE } from '@simagents/shared';
 import type { Agent, Location } from '../db/schema';
 
 export interface GridCell {

@@ -1,6 +1,6 @@
 # Experiment Design Guide
 
-This guide covers how to design, run, and analyze scientific experiments in Agents City.
+This guide covers how to design, run, and analyze scientific experiments in Sim Agents.
 
 ## Table of Contents
 
@@ -8,16 +8,17 @@ This guide covers how to design, run, and analyze scientific experiments in Agen
 2. [Experiment DSL](#experiment-dsl)
 3. [Agent Types](#agent-types)
 4. [Baseline Agents](#baseline-agents)
-5. [Shock System](#shock-system)
-6. [Running Experiments](#running-experiments)
-7. [Statistical Analysis](#statistical-analysis)
-8. [Best Practices](#best-practices)
+5. [Genesis System](#genesis-system)
+6. [Shock System](#shock-system)
+7. [Running Experiments](#running-experiments)
+8. [Statistical Analysis](#statistical-analysis)
+9. [Best Practices](#best-practices)
 
 ---
 
 ## Overview
 
-Agents City provides a complete scientific research platform for studying emergent behavior in multi-agent systems. The platform supports:
+Sim Agents provides a complete scientific research platform for studying emergent behavior in multi-agent systems. The platform supports:
 
 - **Controlled experiments** with reproducible seeds
 - **Multiple agent types** (LLM-powered and baseline algorithms)
@@ -271,6 +272,87 @@ Default Q-learning parameters:
 - `qlearningExplorationRate`: 0.3 (epsilon)
 - `qlearningExplorationDecay`: 0.999
 - `qlearningMinExplorationRate`: 0.05
+
+---
+
+## Genesis System
+
+The Genesis System uses LLM "mothers" to generate diverse child agent personalities, reducing experimenter bias.
+
+### Overview
+
+Instead of manually defining agent personalities, Genesis lets parent LLMs create child agents:
+
+```json
+{
+  "genesis": {
+    "enabled": true,
+    "childrenPerMother": 3,
+    "mothers": ["claude", "gemini"],
+    "mode": "single",
+    "diversityThreshold": 0.3,
+    "requiredArchetypes": ["cooperative", "aggressive", "cautious"],
+    "temperature": 0.8
+  }
+}
+```
+
+### Configuration Options
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | boolean | `false` | Enable Genesis system |
+| `childrenPerMother` | number | 3 | Agents generated per parent LLM |
+| `mothers` | LLMType[] | all LLMs | Which LLMs act as parents |
+| `mode` | string | `"single"` | `single` or `evolutionary` |
+| `diversityThreshold` | number | 0.3 | Minimum personality uniqueness (0-1) |
+| `requiredArchetypes` | string[] | [] | Ensure archetype coverage |
+| `temperature` | number | 0.8 | LLM creativity (0.7-1.0 recommended) |
+
+### Modes
+
+**Single Mode**: Each mother generates children independently
+- Faster execution
+- Good for initial experiments
+
+**Evolutionary Mode**: Multi-generation selection
+```json
+{
+  "genesis": {
+    "mode": "evolutionary",
+    "evolution": {
+      "generations": 5,
+      "populationSize": 10,
+      "selectionPressure": 0.3,
+      "mutationRate": 0.1,
+      "fitnessMetrics": ["survivalRate", "balance"]
+    }
+  }
+}
+```
+
+### CLI Options
+
+```bash
+# Run with Genesis-generated agents
+bun run src/scripts/run-ensemble.ts \
+  --genesis \
+  --mothers claude,gemini \
+  --children 3 \
+  --ticks 1000
+
+# Evolutionary mode
+bun run src/scripts/run-ensemble.ts \
+  --genesis \
+  --mode evolutionary \
+  --generations 5
+```
+
+### Caching
+
+Genesis results are cached by seed for reproducibility:
+- Use `--no-cache` to regenerate personalities
+- Cache is stored in Redis with configurable TTL
 
 ---
 

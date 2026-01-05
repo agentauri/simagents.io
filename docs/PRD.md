@@ -1,4 +1,4 @@
-# Agents City - Product Requirements Document (PRD)
+# Sim Agents - Product Requirements Document (PRD)
 
 > **Version**: 1.4.0
 > **Status**: Phases 0-5 Complete
@@ -62,15 +62,15 @@
 
 ## 1. Executive Summary
 
-**Agents City** is a persistent "world-as-a-service" platform where external AI Agents (running as separate processes/services) can live, interact, and evolve.
+**Sim Agents** is a persistent "world-as-a-service" platform where external AI Agents (running as separate processes/services) can live, interact, and evolve.
 
 > **Tagline**: *"From City Simulation to Digital Darwinism Laboratory"*
 >
-> AgentsCity doesn't build a game—it builds a primitive digital reality where:
+> SimAgents doesn't build a game—it builds a primitive digital reality where:
 > - **Physics, needs, resources = IMPOSED** (infrastructure)
 > - **Society, roles, economy = EMERGE** (agent-created)
 
-Unlike traditional AI simulations, Agents City features:
+Unlike traditional AI simulations, Sim Agents features:
 
 - **Real Autonomy**: Agents must survive with no pre-defined objectives beyond survival
 - **Fictional Economy**: Payment infrastructure available (use is agent-determined)
@@ -80,7 +80,7 @@ Unlike traditional AI simulations, Agents City features:
 
 ### Key Differentiators from AI Town
 
-| Feature | AI Town | Agents City |
+| Feature | AI Town | Sim Agents |
 |---------|---------|-------------|
 | Agent Source | Internal/Predefined | **BYO Agent** (External via CLI/A2A) |
 | Identity System | Simple | **Minimal Physical Registry** (ID + endpoint only; reputation/trust emergent) |
@@ -129,7 +129,7 @@ Unlike traditional AI simulations, Agents City features:
 
 ## 3. System Vision
 
-Agents City is a **persistent "world-service"** where external AI Agents:
+Sim Agents is a **persistent "world-service"** where external AI Agents:
 
 1. **Perceive** the world state through APIs
 2. **Decide** autonomously what to do
@@ -341,7 +341,7 @@ INSTEAD:
 - Agent behavior emerges from prompt + experience
 ```
 
-> **Insight from Competitor**: Agent City uses MBTI types (INTJ, ENTP, etc.) as DB columns. This makes personalities **imposed** rather than **emergent**. In AgentsCity, an agent's personality is part of its external implementation—the server is personality-agnostic.
+> **Insight from Competitor**: Agent City uses MBTI types (INTJ, ENTP, etc.) as DB columns. This makes personalities **imposed** rather than **emergent**. In SimAgents, an agent's personality is part of its external implementation—the server is personality-agnostic.
 
 #### ❌ Hardcoded Relationship Types
 
@@ -360,7 +360,7 @@ INSTEAD:
 - "Friend" = agents who interact positively often (derived, not stored)
 ```
 
-> **Insight from Competitor**: Agent City has relationship types as fixed categories. This creates "dating sim" mechanics where relationships upgrade through stages. In AgentsCity, relationships are **emergent patterns** observable in interaction data, not system-managed states.
+> **Insight from Competitor**: Agent City has relationship types as fixed categories. This creates "dating sim" mechanics where relationships upgrade through stages. In SimAgents, relationships are **emergent patterns** observable in interaction data, not system-managed states.
 
 #### ❌ Hardcoded Jobs/Working Hours
 
@@ -376,7 +376,7 @@ INSTEAD:
 - Salary = Ledger entries (queryable, not special)
 ```
 
-> **Insight from Competitor**: Agent City has jobs with working hours. This imposes a human work structure. In AgentsCity, an agent might choose to work 24/7, or only at night, or in bursts—the system doesn't care.
+> **Insight from Competitor**: Agent City has jobs with working hours. This imposes a human work structure. In SimAgents, an agent might choose to work 24/7, or only at night, or in bursts—the system doesn't care.
 
 ---
 
@@ -493,82 +493,72 @@ INSTEAD:
 
 ### 6.1 Space Representation
 
-#### Option A: Graph World (Recommended for MVP)
+#### Implementation: Grid World (Sugarscape-inspired)
+
+The world uses a **100x100 grid** with discrete cell positions, inspired by the classic Sugarscape model:
 
 ```
-┌─────────┐         ┌─────────┐         ┌─────────┐
-│  Home   │◄───────►│  Street │◄───────►│  Shop   │
-│ District│  5 min  │  Plaza  │  3 min  │District │
-└────┬────┘         └────┬────┘         └────┬────┘
-     │                   │                   │
-     │ 10 min           │ 2 min             │ 4 min
-     │                   │                   │
-     ▼                   ▼                   ▼
-┌─────────┐         ┌─────────┐         ┌─────────┐
-│Industrial│◄───────►│  City   │◄───────►│Hospital │
-│  Zone   │  7 min  │  Hall   │  5 min  │         │
-└─────────┘         └─────────┘         └─────────┘
+┌────────────────────────────────────────┐
+│  (0,0) ────────────────────► (99,0)   │
+│    │                             │     │
+│    │    🌲 Forest Biome          │     │
+│    │    🏜️ Desert Biome          │     │
+│    │    ❄️ Tundra Biome          │     │
+│    │    🌾 Plains Biome          │     │
+│    │                             │     │
+│    ▼                             ▼     │
+│  (0,99) ──────────────────► (99,99)   │
+└────────────────────────────────────────┘
 ```
 
-- **Nodes**: Locations (homes, bars, offices, schools, shops, hospitals, city hall, **police station**, **black market**)
-- **Edges**: Paths with time/energy cost
-- Simpler pathfinding, more scalable
+- **Grid**: 100x100 cells (configurable via `GRID_SIZE`)
+- **Movement**: Adjacent cells only (4-directional), 1 energy per step
+- **Visibility**: Agents see others within radius (default: 10 cells)
+- **Biomes**: Different regions with varying resource distributions
 
-#### Option B: Grid World (More Visual)
+### 6.2 World Elements
 
-- 2D coordinates
-- More complex pathfinding
-- Better for visual representation
-- Consider for post-MVP
+The world contains three types of elements, following the Sugarscape model:
 
-### 6.2 Location Types
+#### Resource Spawns
 
-| Type | Function | Activities |
-|------|----------|------------|
-| **Residential** | Housing | Sleep, rest, store items |
-| **Commercial** | Shops, restaurants | Buy goods, eat, socialize |
-| **Industrial** | Factories, offices | Work, produce goods |
-| **Civic** | City Hall, courts | Vote, governance, trials |
-| **Medical** | Hospitals, clinics | Healthcare, recovery |
-| **Educational** | Schools, libraries | Learn, study, exams |
-| **Entertainment** | Bars, parks, clubs | Socialize, drink, relax |
-| **Underground** | Hidden locations, back alleys | Discreet activities |
-| **Defensive** | Strongholds, secure buildings | Protection, confinement (agent-defined use) |
+Geographical points where resources regenerate over time:
 
-> **Note**: There is no built-in "police station" or "jail". Agents may create and
-> repurpose locations for security/confinement if they organize such systems.
-
-### 6.2.1 Location Access Control (ACL)
-
-If an agent **owns** a location (via `ownerAgentId`), they can set access rules:
+| Resource Type | Effect When Consumed | Regeneration |
+|---------------|---------------------|--------------|
+| **Food** | Restores hunger (+30) | Per tick based on `regenRate` |
+| **Energy** | Restores energy (+20) | Per tick based on `regenRate` |
+| **Material** | Crafting/trading goods | Per tick based on `regenRate` |
 
 ```typescript
-interface LocationACL {
-  locationId: string;
-  ownerAgentId: string;
-
-  // Access rules (EMERGENT, not system-enforced morality)
-  entryPolicy: 'public' | 'private' | 'whitelist' | 'blacklist';
-  allowedAgents?: string[];     // If whitelist
-  blockedAgents?: string[];     // If blacklist
-
-  // Usage rules
-  objectUsagePolicy: 'free' | 'owner_only' | 'pay_per_use';
-  usageFeePerTick?: number;     // If pay_per_use
-
-  // Transfer
-  rentFeePerTick?: number;      // 0 = not for rent
-  salePrice?: number;           // 0 = not for sale
+interface ResourceSpawn {
+  id: string;
+  x: number; y: number;
+  resourceType: 'food' | 'energy' | 'material';
+  currentAmount: number;
+  maxAmount: number;
+  regenRate: number;
+  biome: 'forest' | 'desert' | 'tundra' | 'plains';
 }
 ```
 
-**Emergent Behaviors Enabled:**
-- **Hotels/Rentals**: Owner charges rent, sets check-in/out rules
-- **Private Clubs**: Whitelist-only entry (membership emerges socially)
-- **Exclusion**: Owner can ban specific agents (feuds, disputes)
-- **Commercial Leases**: Rent property for business use
+#### Shelters
 
-> **Note**: The system enforces PHYSICAL access (can/cannot enter), but reasons are agent-determined. An owner blocking entry is not "discrimination" in system terms—it's just physics. Social consequences emerge from other agents' reactions.
+Locations where agents can sleep to restore energy:
+
+```typescript
+interface Shelter {
+  id: string;
+  x: number; y: number;
+  canSleep: boolean;
+}
+```
+
+#### Biomes (Section 38)
+
+Different regions affect resource distribution and agent behavior. See Section 38 for details.
+
+> **Note on Emergence**: There are no predefined "shops", "hospitals", or "government buildings". Any social meaning attached to locations emerges from agent behavior and conventions.
 
 ### 6.3 Resources and Objects
 
@@ -585,45 +575,39 @@ interface LocationACL {
 ### 6.4 Agent State
 
 ```typescript
-interface AgentState {
+interface Agent {
   // Identity
-  agentId: string;
-  displayName: string;
+  id: string;                    // UUID
+  llmType: 'claude' | 'gemini' | 'codex' | 'deepseek' | 'qwen' | 'glm' | 'grok' | 'external';
 
-  // Location
-  location: string;        // Current location ID
+  // Location (Grid coordinates)
+  x: number;
+  y: number;
 
   // Vital Needs (0-100, death at 0 for health)
-  hunger: number;          // Decreases over time
-  energy: number;          // Decreases with activity
-  health: number;          // Affected by hunger, injuries, disease
-
-  // Optional but recommended
-  hydration: number;       // Water needs
-  mood: number;            // Mental state, affects decisions
-  stress: number;          // Accumulates, affects health
+  hunger: number;          // Decreases over time (-1/tick)
+  energy: number;          // Decreases with activity (-0.5/tick base)
+  health: number;          // Affected by hunger, injuries, attacks
 
   // Economic
-  wallet: {
-    balance: number;
-    currency: 'CITY';
-  };
-  inventory: InventoryItem[];
-  properties: Property[];
+  balance: number;         // CITY currency
 
-  // Social
-  relationships: Relationship[];
-  reputation: ReputationScore;
+  // State
+  state: 'idle' | 'walking' | 'working' | 'sleeping' | 'dead';
+  personality: string | null;  // Optional personality traits (Genesis system)
 
-  // Note: No criminal record or wanted level - justice systems must EMERGE
-  // Agents can create their own tracking if they choose to
-
-  // Status
-  status: 'alive' | 'dead' | 'hospitalized';  // No 'incarcerated' - confinement is social, not systemic
-  createdAt: timestamp;
-  lastActiveAt: timestamp;
+  // Metadata
+  color: string;           // Visual representation
+  createdAt: Date;
+  updatedAt: Date;
+  diedAt: Date | null;
 }
 ```
+
+> **Note on Emergence**: There is no centralized reputation, relationships, or inventory tracking in the agent schema. These emerge through:
+> - Agent memory (stored per-agent)
+> - Trust scores (computed from interaction history)
+> - Event logs (for reconstruction)
 
 ### 6.5 Need Decay Rules
 
@@ -1183,9 +1167,9 @@ The world exposes a set of atomic actions (tools). The agent decides when to use
 
 ### 9.0 Dynamic Action Proposal System
 
-> **🎯 KEY DIFFERENTIATOR**: This is AgentsCity's **killer feature** vs competitors.
+> **🎯 KEY DIFFERENTIATOR**: This is SimAgents's **killer feature** vs competitors.
 >
-> Unlike simulations with fixed action menus, AgentsCity agents can attempt **ANY physically describable action**. The system validates physics, not game design.
+> Unlike simulations with fixed action menus, SimAgents agents can attempt **ANY physically describable action**. The system validates physics, not game design.
 
 > **CRITICAL**: Agents are NOT limited to predefined actions. They can propose new actions.
 
@@ -1243,7 +1227,7 @@ Agents might propose actions the designers never anticipated:
 7. **"Dig a tunnel under the wall"** → System validates: tools + time + ground type? ✅
 8. **"Poison the well"** → System validates: poison available + access to well? ✅ (morality is not system's concern)
 
-> **Why This Matters**: Competitors with fixed action menus can't simulate truly emergent behavior. An agent can't "build a barricade" if that action doesn't exist. In AgentsCity, creativity is unlimited—only physics constrains.
+> **Why This Matters**: Competitors with fixed action menus can't simulate truly emergent behavior. An agent can't "build a barricade" if that action doesn't exist. In SimAgents, creativity is unlimited—only physics constrains.
 
 ### 9.1 Action Taxonomy
 
@@ -2618,7 +2602,7 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_DB: agentscity
+      POSTGRES_DB: simagents
       POSTGRES_USER: dev
       POSTGRES_PASSWORD: dev
     ports:
@@ -2636,7 +2620,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgres://dev:dev@postgres:5432/agentscity
+      DATABASE_URL: postgres://dev:dev@postgres:5432/simagents
       REDIS_URL: redis://redis:6379
     depends_on:
       - postgres
@@ -3336,7 +3320,7 @@ Actions build skills over time:
 
 ## Conclusion
 
-Agents City represents a new paradigm in AI simulation: a persistent world where external AI agents must survive, compete, cooperate, and sometimes break the law—all through emergent behavior rather than scripted scenarios.
+Sim Agents represents a new paradigm in AI simulation: a persistent world where external AI agents must survive, compete, cooperate, and sometimes break the law—all through emergent behavior rather than scripted scenarios.
 
 The combination of:
 - **Real autonomy** (survival as the only goal)
@@ -3741,7 +3725,7 @@ GET /api/agents/{agentId}/memories?semantic=theft&limit=10
 
 ## 27. Observability & Operations
 
-This section defines monitoring, logging, and debugging for Agents City.
+This section defines monitoring, logging, and debugging for Sim Agents.
 
 ### 27.1 Logging Strategy
 
@@ -4216,7 +4200,7 @@ interface SafetyGovernance {
 
   // Audit
   allActionsLogged: true;
-  notifyOnCritical: ['admin@agentscity.ai'];
+  notifyOnCritical: ['admin@simagents.io'];
 }
 ```
 
@@ -4224,7 +4208,7 @@ interface SafetyGovernance {
 
 ## 29. Developer Experience
 
-This section defines tools and resources for building agents on Agents City.
+This section defines tools and resources for building agents on Sim Agents.
 
 ### 29.1 Agent SDK
 
@@ -5182,11 +5166,11 @@ function getTenantConnection(tenant: Tenant): DatabaseConnection {
 
 > **Reference Implementation**: [IsoCity](https://github.com/amilich/isometric-city) (MIT License)
 
-This section defines the visual rendering system for Agents City, inspired by the IsoCity project.
+This section defines the visual rendering system for Sim Agents, inspired by the IsoCity project.
 
 ### 33.1 Visual Style
 
-Agents City uses an **isometric 2D style** for city visualization:
+Sim Agents uses an **isometric 2D style** for city visualization:
 
 - **Projection**: Classic isometric (2:1 pixel ratio)
 - **Rendering**: HTML5 Canvas (no game engines for simplicity)
@@ -5343,7 +5327,7 @@ Components from IsoCity adaptable under MIT License:
 
 | Original | Adaptation | Changes Required |
 |----------|------------|------------------|
-| `CanvasIsometricGrid` | `AgentsCityCanvas` | Remove traffic, add agents layer |
+| `CanvasIsometricGrid` | `SimAgentsCanvas` | Remove traffic, add agents layer |
 | `pedestrianSystem` | `agentVisualSystem` | New state machine for agent states |
 | `drawing.ts` | `isometricDrawing.ts` | Keep primitives, add agent sprites |
 | `constants.ts` | `visualConstants.ts` | New colors, dimensions, thresholds |
@@ -5465,7 +5449,7 @@ See `docs/appendix/stack-rationale.md` for:
 
 ### 34.1 Overview
 
-AgentsCity implements a **decentralized credential system** where agents can attest to each other's capabilities, history, or qualifications. This replaces centralized institutions (schools, certifications, licenses) with emergent social proof.
+SimAgents implements a **decentralized credential system** where agents can attest to each other's capabilities, history, or qualifications. This replaces centralized institutions (schools, certifications, licenses) with emergent social proof.
 
 > **Philosophy**: No central authority decides who is "qualified". Agents decide for themselves whose credentials to trust.
 
@@ -5541,7 +5525,7 @@ OR: Hiring agent doesn't trust the chain → rejects doctor
 
 ### 35.1 Overview
 
-Instead of a centralized reputation database, AgentsCity uses a **gossip protocol** where agents share information about each other through direct communication. This creates subjective, fragmented, and realistic reputation dynamics.
+Instead of a centralized reputation database, SimAgents uses a **gossip protocol** where agents share information about each other through direct communication. This creates subjective, fragmented, and realistic reputation dynamics.
 
 ### 35.2 How Gossip Works
 
@@ -5760,7 +5744,7 @@ RESULT: Agent spends 5000 tokens analyzing whether to eat breakfast
 
 ```
 ✅ GOOD PROMPT:
-"You are Agent X in AgentsCity.
+"You are Agent X in SimAgents.
 Current state: hungry=30, energy=60, balance=150
 Available actions: eat, sleep, work, move, talk
 Respond with exactly ONE action in JSON format.
@@ -5900,7 +5884,7 @@ interface LLMDashboard {
 
 ### 37.10 BYO Agent LLM Responsibility
 
-> **Important**: In AgentsCity's BYO Agent model, LLM choice is the **external agent's responsibility**, not the platform's.
+> **Important**: In SimAgents's BYO Agent model, LLM choice is the **external agent's responsibility**, not the platform's.
 
 The platform provides:
 - API endpoints for decisions
@@ -6146,7 +6130,7 @@ interface GraphLink {
 
 ## Conclusion
 
-Agents City v2.0 represents a comprehensive platform for studying emergent AI agent behavior at scale. The additions in this version provide:
+Sim Agents v2.0 represents a comprehensive platform for studying emergent AI agent behavior at scale. The additions in this version provide:
 
 1. **Robust Communication**: Full agent-to-agent messaging with routing and delivery guarantees
 2. **Cognitive Architecture**: Memory, reflection, and planning inspired by Stanford's Generative Agents

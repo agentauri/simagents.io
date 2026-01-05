@@ -257,7 +257,7 @@ export async function registerScenarioRoutes(server: FastifyInstance): Promise<v
       },
     };
 
-    addToHistory(scenarioResult, request.body);
+    addToHistory(scenarioResult, request.body as Record<string, unknown>);
     return scenarioResult;
   });
 
@@ -366,7 +366,7 @@ export async function registerScenarioRoutes(server: FastifyInstance): Promise<v
       },
     };
 
-    addToHistory(scenarioResult, request.body);
+    addToHistory(scenarioResult, request.body as unknown as Record<string, unknown>);
     return scenarioResult;
   });
 
@@ -454,7 +454,7 @@ export async function registerScenarioRoutes(server: FastifyInstance): Promise<v
       },
     };
 
-    addToHistory(scenarioResult, request.body);
+    addToHistory(scenarioResult, request.body as Record<string, unknown>);
     return scenarioResult;
   });
 
@@ -534,7 +534,7 @@ export async function registerScenarioRoutes(server: FastifyInstance): Promise<v
       },
     };
 
-    addToHistory(scenarioResult, request.body);
+    addToHistory(scenarioResult, request.body as unknown as Record<string, unknown>);
     return scenarioResult;
   });
 

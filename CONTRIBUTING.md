@@ -1,6 +1,6 @@
-# Contributing to Agents City
+# Contributing to Sim Agents
 
-Thank you for your interest in contributing to Agents City! This document provides guidelines and information for contributors.
+Thank you for your interest in contributing to Sim Agents! This document provides guidelines and information for contributors.
 
 ## Philosophy
 
@@ -20,8 +20,8 @@ Before contributing, please understand our core philosophy:
 
 ```bash
 # Clone the repository
-git clone https://github.com/agentscity/agentscity.io.git
-cd agentscity.io
+git clone https://github.com/simagents/simagents.io.git
+cd simagents.io
 
 # Install dependencies
 bun install

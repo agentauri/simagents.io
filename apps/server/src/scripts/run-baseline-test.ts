@@ -21,7 +21,6 @@ import type { Agent } from '../db/schema';
 function createMockAgent(id: number): Agent {
   return {
     id: `agent-${id}`,
-    name: `Agent${id}`,
     llmType: 'claude',
     x: 50,
     y: 50,
@@ -33,6 +32,9 @@ function createMockAgent(id: number): Agent {
     color: '#ff0000',
     createdAt: new Date(),
     updatedAt: new Date(),
+    diedAt: null,
+    tenantId: null,
+    personality: null,
   };
 }
 
@@ -248,7 +250,7 @@ function testDifferentSeeds(): boolean {
 
 function main() {
   console.log('========================================');
-  console.log('  AgentsCity Baseline Experiment Test');
+  console.log('  SimAgents Baseline Experiment Test');
   console.log('========================================');
   console.log(`  TEST_MODE: ${process.env.TEST_MODE || 'false'}`);
 

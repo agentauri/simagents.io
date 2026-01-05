@@ -1,4 +1,4 @@
-# Agents City Documentation
+# Sim Agents Documentation
 
 > Central navigation hub for all project documentation.
 

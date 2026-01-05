@@ -1,5 +1,5 @@
 /**
- * AgentsCity - Scientific Mode
+ * SimAgents - Scientific Mode
  *
  * Simplified interface for the scientific experiment:
  * - No city editor (resources/shelters are spawned automatically)
@@ -192,7 +192,7 @@ export default function App() {
           </svg>
         </div>
         <div className="hidden sm:block">
-          <h1 className="text-sm font-semibold text-city-text leading-none">Agents City</h1>
+          <h1 className="text-sm font-semibold text-city-text leading-none">Sim Agents</h1>
           <span className="text-[10px] text-city-text-muted">Scientific Mode</span>
         </div>
       </div>
