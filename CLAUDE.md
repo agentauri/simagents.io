@@ -122,7 +122,7 @@ docker-compose up -d
 ```typescript
 {
   id: string;
-  llmType: 'claude' | 'gemini' | 'codex' | 'deepseek' | 'qwen' | 'glm' | 'grok';
+  llmType: 'claude' | 'gemini' | 'codex' | 'deepseek' | 'qwen' | 'glm' | 'grok' | 'external';
   x: number; y: number;
   hunger: number; energy: number; health: number;
   balance: number;
@@ -171,6 +171,8 @@ docker-compose up -d
 | `harm` | Attack another agent | Adjacent to target |
 | `steal` | Steal items from another agent | Adjacent to target |
 | `deceive` | Spread false information | Adjacent to target |
+| `claim` | Claim ownership of a location | At location |
+| `name_location` | Give a name to a location | At location |
 
 ### Advanced Actions (Phase 4)
 | Action | Description | Requirements |
@@ -220,6 +222,17 @@ docker-compose up -d
 | POST | `/api/scenarios/disaster` | Inject natural disaster |
 | POST | `/api/scenarios/rule` | Modify simulation rules |
 | DELETE | `/api/scenarios/:id` | Remove active scenario |
+
+### Experiments API (Phase 5)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/experiments` | List all experiments |
+| POST | `/api/experiments` | Create new experiment |
+| GET | `/api/experiments/:id` | Get experiment details |
+| DELETE | `/api/experiments/:id` | Delete experiment |
+| POST | `/api/experiments/:id/run` | Run experiment |
+| POST | `/api/experiments/:id/stop` | Stop experiment |
+| GET | `/api/experiments/:id/compare` | Compare experiment variants |
 
 ## Key Phase 5 Files
 

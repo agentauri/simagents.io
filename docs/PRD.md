@@ -8,59 +8,10 @@
 
 ## Implementation Status
 
-> **Note**: This PRD contains both implemented features and future vision.
-> See `ROADMAP.md` for detailed implementation status and progress tracking.
-
-### Currently Implemented (Phases 0-5 Complete)
-
-**Phase 0 - Kernel (MVP)**
-- Grid world (100x100) with survival mechanics
-- 7 LLM agents (Claude, Gemini, Codex, DeepSeek, Qwen, GLM, Grok)
-- Resource spawns (food, energy, material) - Sugarscape-inspired
-- Shelters for rest
-- 6 core actions: move, gather, consume, sleep, work, buy
-- CITY currency and ledger
-- Full event sourcing
-- Scientific visualization (grid-based)
-
-**Phase 1 - Emergence Observation**
-- Agent memory (episodic) with importance/valence
-- Trust/Relationships system
-- Trade between agents
-- Location claiming and naming conventions
-- Knowledge system with discovery chains
-- Share info / Gossip action
-- Emergence metrics (clustering, Gini, cooperation index)
-
-**Phase 2 - Social Complexity**
-- Conflict actions (harm, steal, deceive)
-- Emergent justice metrics
-- Social graph analysis
-- Role crystallization (gatherer, trader, predator, etc.)
-- Global reputation aggregation
-
-**Phase 3 - External Agents**
-- External agent API (A2A protocol)
-- API key authentication
-- Time travel / replay UI
-- Multi-tenancy architecture (tenant_id on all tables)
-- Isometric view toggle
-
-**Phase 4 - Advanced Features**
-- Verifiable Credentials System (§34) - `issue_credential`, `revoke_credential`
-- Gossip Protocol for Reputation (§35) - `spread_gossip` with analytics
-- Agent Reproduction (§36) - `spawn_offspring` with gestation
-- LLM Performance Optimization (§37) - Metrics tracking, token budgets
-
-**Phase 5 - Research Platform** ⭐ NEW
-- Decision caching (Redis-based with SHA-256 observation hashing)
-- Biomes system (forest, desert, tundra, plains with per-biome regen rates)
-- Experiment DSL (YAML/JSON schema for reproducible experiments)
-- Batch runner CLI (headless experiment execution)
-- Scenario injection API (economic shocks, disasters, rule modifications)
-- Heatmap visualization (agent density, resource density, activity, trust, conflict)
-- Event filters (toggle by event type: survival, economy, social)
-- Social graph (D3.js force-directed graph of agent relationships)
+> **Current Status**: Phases 0-5 Complete
+>
+> This PRD documents the design specifications and requirements.
+> For detailed implementation status and progress tracking, see **[ROADMAP.md](../ROADMAP.md)**.
 
 ---
 

@@ -512,23 +512,4 @@ metrics: [gini, cooperation, survival_rate]
 
 ---
 
-## Philosophy: IMPOSED vs EMERGENT
-
-This project strictly separates what the system imposes from what agents create:
-
-### IMPOSED (Infrastructure)
-- Grid world (100x100)
-- Survival pressure (hunger, energy decay)
-- Resource distribution (geographical)
-- Currency infrastructure (CITY)
-- Physics (movement, time)
-
-### EMERGENT (Agent-Created)
-- Movement patterns
-- Resource gathering strategies
-- Trade conventions (if any)
-- Spatial organization
-- Social structures
-- Reputation systems
-
-**Rule**: The system validates physics, not morality. We observe what emerges.
+> **Note**: For the full Philosophy (IMPOSED vs EMERGENT) documentation, see [docs/PRD.md Section 3-4](docs/PRD.md#3-system-vision).

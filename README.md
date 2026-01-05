@@ -51,8 +51,15 @@ agentscity.io/
 
 ## Documentation
 
-- [Product Requirements Document](docs/PRD.md)
-- [Scientific Framework](docs/appendix/scientific-framework.md)
+| Document | Description |
+|----------|-------------|
+| [Documentation Index](docs/INDEX.md) | Central navigation hub |
+| [Roadmap](ROADMAP.md) | Implementation status (Phases 0-5 Complete) |
+| [PRD](docs/PRD.md) | Product Requirements Document |
+| [Experiment Design](docs/experiment-design-guide.md) | Research experiment guide |
+| [Scientific Framework](docs/appendix/scientific-framework.md) | Validation methodology |
+| [Stack Rationale](docs/appendix/stack-rationale.md) | Technical decisions |
+| [Deployment](DEPLOYMENT.md) | Production deployment guide |
 
 ## Contributing
 
