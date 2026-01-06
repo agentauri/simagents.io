@@ -195,6 +195,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="Tick Interval"
+                description="Time between cycles. Lower = faster, more LLM calls"
                 value={getValue('simulation', 'tickIntervalMs', 60000)}
                 onChange={(v) => updateSimulation({ tickIntervalMs: v })}
                 min={1000}
@@ -204,7 +205,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="Grid Size"
-                description="Requires restart"
+                description="World dimensions (NxN). Larger = slower interactions. Restart required"
                 value={getValue('simulation', 'gridSize', 100)}
                 onChange={(v) => updateSimulation({ gridSize: v })}
                 min={10}
@@ -213,6 +214,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="Visibility Radius"
+                description="How far agents see (tiles). Larger = more social awareness"
                 value={getValue('simulation', 'visibilityRadius', 10)}
                 onChange={(v) => updateSimulation({ visibilityRadius: v })}
                 min={1}
@@ -221,7 +223,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="boolean"
                 label="Test Mode"
-                description="Use fallback decisions"
+                description="Skip LLM calls, use rule-based fallback. No API costs"
                 value={getValue('simulation', 'testMode', false)}
                 onChange={(v) => updateSimulation({ testMode: v })}
                 isRuntimeModifiable={isRuntimeModifiable('simulation.testMode')}
@@ -233,6 +235,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="Balance"
+                description="Initial currency. Lower forces agents to work immediately"
                 value={getValue('agent', 'startingBalance', 50)}
                 onChange={(v) => updateAgent({ startingBalance: v })}
                 min={0}
@@ -241,6 +244,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="Hunger"
+                description="Initial hunger (0-100). Lower = more starvation pressure"
                 value={getValue('agent', 'startingHunger', 60)}
                 onChange={(v) => updateAgent({ startingHunger: v })}
                 min={0}
@@ -249,6 +253,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="Energy"
+                description="Initial energy (0-100). Affects movement and work capacity"
                 value={getValue('agent', 'startingEnergy', 60)}
                 onChange={(v) => updateAgent({ startingEnergy: v })}
                 min={0}
@@ -257,6 +262,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="Health"
+                description="Initial health (0-100). Decreases from critical needs or combat"
                 value={getValue('agent', 'startingHealth', 100)}
                 onChange={(v) => updateAgent({ startingHealth: v })}
                 min={0}
@@ -269,6 +275,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="Hunger Decay"
+                description="Hunger loss per tick. Walking: 1.5x, sleeping: 0.5x"
                 value={getValue('needs', 'hungerDecay', 1)}
                 onChange={(v) => updateNeeds({ hungerDecay: v })}
                 min={0}
@@ -279,6 +286,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="Energy Decay"
+                description="Energy loss per tick. Sleeping: 0x (no loss)"
                 value={getValue('needs', 'energyDecay', 0.5)}
                 onChange={(v) => updateNeeds({ energyDecay: v })}
                 min={0}
@@ -289,6 +297,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="Low Hunger Threshold"
+                description="Below this: extra energy drain starts"
                 value={getValue('needs', 'lowHungerThreshold', 20)}
                 onChange={(v) => updateNeeds({ lowHungerThreshold: v })}
                 min={0}
@@ -297,6 +306,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="Critical Hunger"
+                description="Below this: health damage after 3-tick grace period"
                 value={getValue('needs', 'criticalHungerThreshold', 10)}
                 onChange={(v) => updateNeeds({ criticalHungerThreshold: v })}
                 min={0}
@@ -305,6 +315,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="Low Energy Threshold"
+                description="Below this: warning events trigger"
                 value={getValue('needs', 'lowEnergyThreshold', 20)}
                 onChange={(v) => updateNeeds({ lowEnergyThreshold: v })}
                 min={0}
@@ -313,6 +324,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="Critical Energy"
+                description="Below this: forced sleep, health damage starts"
                 value={getValue('needs', 'criticalEnergyThreshold', 10)}
                 onChange={(v) => updateNeeds({ criticalEnergyThreshold: v })}
                 min={0}
@@ -325,13 +337,14 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="boolean"
                 label="Enable Personalities"
+                description="Assign traits (aggressive, cooperative, etc.) to agents"
                 value={getValue('experiment', 'enablePersonalities', false)}
                 onChange={(v) => updateExperiment({ enablePersonalities: v })}
               />
               <ConfigInput
                 type="boolean"
                 label="Emergent Prompt"
-                description="Use emergent prompts"
+                description="Sensory-only prompts. Agents discover strategies themselves"
                 value={getValue('experiment', 'useEmergentPrompt', false)}
                 onChange={(v) => updateExperiment({ useEmergentPrompt: v })}
                 isRuntimeModifiable={isRuntimeModifiable('experiment.useEmergentPrompt')}
@@ -339,6 +352,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="select"
                 label="Safety Level"
+                description="LLM safety framing: standard, minimal, or none (research)"
                 value={getValue('experiment', 'safetyLevel', 'standard')}
                 onChange={(v) =>
                   updateExperiment({
@@ -354,12 +368,14 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="boolean"
                 label="Baseline Agents"
+                description="Include non-LLM agents (random, Q-learning) for comparison"
                 value={getValue('experiment', 'includeBaselineAgents', false)}
                 onChange={(v) => updateExperiment({ includeBaselineAgents: v })}
               />
               <ConfigInput
                 type="boolean"
                 label="Normalize Capabilities"
+                description="Equalize model speeds by truncating responses"
                 value={getValue('experiment', 'normalizeCapabilities', false)}
                 onChange={(v) => updateExperiment({ normalizeCapabilities: v })}
               />
@@ -370,6 +386,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="boolean"
                 label="Enabled"
+                description="Cache LLM responses. Same observation = instant response"
                 value={getValue('llmCache', 'enabled', true)}
                 onChange={(v) => updateLLMCache({ enabled: v })}
                 isRuntimeModifiable={isRuntimeModifiable('llmCache.enabled')}
@@ -377,6 +394,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="TTL"
+                description="Cache duration. Longer = fewer calls but less responsive"
                 value={getValue('llmCache', 'ttlSeconds', 300)}
                 onChange={(v) => updateLLMCache({ ttlSeconds: v })}
                 min={0}
@@ -390,6 +408,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="Move Energy Cost"
+                description="Energy spent per tile moved"
                 value={config.actions.move.energyCost}
                 onChange={() => {}}
                 disabled
@@ -398,6 +417,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="Gather Energy Cost"
+                description="Energy spent per resource unit gathered"
                 value={config.actions.gather.energyCostPerUnit}
                 onChange={() => {}}
                 disabled
@@ -406,6 +426,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="Work Pay"
+                description="CITY earned per tick worked (costs 2 energy/tick)"
                 value={config.actions.work.basePayPerTick}
                 onChange={() => {}}
                 disabled
@@ -414,6 +435,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
               <ConfigInput
                 type="number"
                 label="Sleep Energy Restore"
+                description="Energy recovered per tick sleeping"
                 value={config.actions.sleep.energyRestoredPerTick}
                 onChange={() => {}}
                 disabled
