@@ -545,3 +545,101 @@ export function isEmergentPromptEnabled(): boolean {
 export function setEmergentPromptMode(enabled: boolean): void {
   runtimeEmergentPrompt = enabled;
 }
+
+// =============================================================================
+// Runtime Configuration Overrides
+// =============================================================================
+
+/**
+ * Runtime configuration overrides.
+ * These allow modifying config values without restarting the server.
+ * Values here override the corresponding CONFIG values.
+ */
+interface RuntimeConfigOverrides {
+  simulation?: {
+    tickIntervalMs?: number;
+  };
+  agent?: {
+    startingBalance?: number;
+    startingHunger?: number;
+    startingEnergy?: number;
+    startingHealth?: number;
+  };
+  needs?: {
+    hungerDecay?: number;
+    energyDecay?: number;
+    lowHungerThreshold?: number;
+    criticalHungerThreshold?: number;
+    lowEnergyThreshold?: number;
+    criticalEnergyThreshold?: number;
+  };
+  llmCache?: {
+    enabled?: boolean;
+    ttlSeconds?: number;
+  };
+}
+
+let runtimeOverrides: RuntimeConfigOverrides = {};
+
+/**
+ * Get merged configuration (base CONFIG + runtime overrides).
+ * Use this for values that can be modified at runtime.
+ */
+export function getRuntimeConfig(): RuntimeConfigOverrides & typeof CONFIG {
+  return {
+    ...CONFIG,
+    simulation: {
+      ...CONFIG.simulation,
+      testMode: isTestMode(),
+      ...runtimeOverrides.simulation,
+    },
+    agent: {
+      ...CONFIG.agent,
+      ...runtimeOverrides.agent,
+    },
+    needs: {
+      ...CONFIG.needs,
+      ...runtimeOverrides.needs,
+    },
+    llm: {
+      ...CONFIG.llm,
+      cache: {
+        ...CONFIG.llm.cache,
+        ...runtimeOverrides.llmCache,
+      },
+    },
+    experiment: {
+      ...CONFIG.experiment,
+      useEmergentPrompt: isEmergentPromptEnabled(),
+    },
+  };
+}
+
+/**
+ * Set runtime configuration overrides.
+ * Deep merges with existing overrides.
+ */
+export function setRuntimeConfig(updates: RuntimeConfigOverrides): void {
+  runtimeOverrides = {
+    simulation: { ...runtimeOverrides.simulation, ...updates.simulation },
+    agent: { ...runtimeOverrides.agent, ...updates.agent },
+    needs: { ...runtimeOverrides.needs, ...updates.needs },
+    llmCache: { ...runtimeOverrides.llmCache, ...updates.llmCache },
+  };
+}
+
+/**
+ * Reset all runtime configuration overrides to defaults.
+ */
+export function resetRuntimeConfig(): void {
+  runtimeOverrides = {};
+  runtimeTestMode = null;
+  runtimeEmergentPrompt = null;
+}
+
+/**
+ * Get current runtime overrides (for debugging/inspection).
+ */
+export function getRuntimeOverrides(): RuntimeConfigOverrides {
+  return { ...runtimeOverrides };
+}

@@ -30,6 +30,7 @@ import { useReplayStore } from './stores/replay';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { SocialGraphView, SocialGraphButton } from './components/SocialGraph';
 import { MobileAgentList, MobileDecisionLog } from './components/Mobile';
+import { ConfigPanel } from './components/ConfigPanel';
 
 export default function App() {
   const { status, connect, disconnect } = useSSE();
@@ -46,6 +47,8 @@ export default function App() {
 
   // Mobile navigation state
   const [mobileView, setMobileView] = useState<MobileView>('canvas');
+  // Config panel state
+  const [showConfigPanel, setShowConfigPanel] = useState(false);
   const agents = useAgents();
   const events = useEvents();
   const aliveAgents = agents.filter(a => a.health > 0);
@@ -207,6 +210,22 @@ export default function App() {
 
       {/* Right: Controls */}
       <div className="flex items-center gap-2 shrink-0">
+        {/* Config button */}
+        <button
+          onClick={() => setShowConfigPanel(!showConfigPanel)}
+          className={`p-2 rounded-lg border transition-colors ${
+            showConfigPanel
+              ? 'bg-blue-600 border-blue-500 text-white'
+              : 'bg-city-surface border-city-border hover:bg-city-border text-city-text'
+          }`}
+          title="Configuration"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
+
         {/* View Toggle - desktop only */}
         <div className="hidden lg:block">
           <ViewToggle />
@@ -320,6 +339,11 @@ export default function App() {
     <>
       {/* Social Graph Overlay */}
       <SocialGraphView />
+
+      {/* Config Panel */}
+      {showConfigPanel && (
+        <ConfigPanel onClose={() => setShowConfigPanel(false)} />
+      )}
 
       {/* Desktop layout */}
       <div className="hidden md:block h-screen">

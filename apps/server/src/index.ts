@@ -112,6 +112,9 @@ import { registerLLMCacheRoutes } from './routes/llm-cache';
 import { registerExperimentRoutes } from './routes/experiments-api';
 import { registerScenarioRoutes } from './routes/scenarios-api';
 
+// Configuration API routes
+import { registerConfigRoutes } from './routes/config-api';
+
 // =============================================================================
 // Server Setup
 // =============================================================================
@@ -322,6 +325,9 @@ await registerExperimentRoutes(server);
 
 // Register Scenario Injection routes (shock, disaster, abundance, rules)
 await registerScenarioRoutes(server);
+
+// Register Configuration API routes
+await registerConfigRoutes(server);
 
 // =============================================================================
 // Health & Status Routes

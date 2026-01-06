@@ -78,12 +78,22 @@ export function EventFilters() {
           <span className="text-[10px] text-city-text-muted">
             {visibleCount}/{totalCount}
           </span>
-          <button
+          <div
+            role="switch"
+            aria-checked={eventFilterEnabled}
+            tabIndex={0}
             onClick={(e) => {
               e.stopPropagation();
               toggleEventFilter();
             }}
-            className={`w-8 h-4 rounded-full transition-colors ${
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleEventFilter();
+              }
+            }}
+            className={`w-8 h-4 rounded-full transition-colors cursor-pointer ${
               eventFilterEnabled ? 'bg-city-accent' : 'bg-city-border'
             }`}
           >
@@ -92,7 +102,7 @@ export function EventFilters() {
                 eventFilterEnabled ? 'translate-x-4' : 'translate-x-0.5'
               }`}
             />
-          </button>
+          </div>
         </div>
       </button>
 

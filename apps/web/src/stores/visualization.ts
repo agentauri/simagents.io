@@ -8,6 +8,7 @@
  */
 
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 
 // =============================================================================
 // Types
@@ -261,21 +262,27 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
 // =============================================================================
 
 export const useHeatmapSettings = () =>
-  useVisualizationStore((state) => ({
-    metric: state.heatmapMetric,
-    opacity: state.heatmapOpacity,
-    enabled: state.heatmapEnabled,
-  }));
+  useVisualizationStore(
+    useShallow((state) => ({
+      metric: state.heatmapMetric,
+      opacity: state.heatmapOpacity,
+      enabled: state.heatmapEnabled,
+    }))
+  );
 
 export const useEventFilters = () =>
-  useVisualizationStore((state) => ({
-    visibleTypes: state.visibleEventTypes,
-    enabled: state.eventFilterEnabled,
-  }));
+  useVisualizationStore(
+    useShallow((state) => ({
+      visibleTypes: state.visibleEventTypes,
+      enabled: state.eventFilterEnabled,
+    }))
+  );
 
 export const useSocialGraphSettings = () =>
-  useVisualizationStore((state) => ({
-    visible: state.socialGraphVisible,
-    edges: state.socialEdges,
-    edgeTypes: state.socialGraphEdgeTypes,
-  }));
+  useVisualizationStore(
+    useShallow((state) => ({
+      visible: state.socialGraphVisible,
+      edges: state.socialEdges,
+      edgeTypes: state.socialGraphEdgeTypes,
+    }))
+  );
