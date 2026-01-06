@@ -587,8 +587,8 @@ export function ScientificCanvas() {
         height={canvasDimensions.height}
       />
 
-      {/* Heatmap controls - top left */}
-      <div className="absolute top-4 left-4 hidden md:block" style={{ zIndex: 15 }}>
+      {/* Heatmap controls - top left, below legend */}
+      <div className="absolute top-16 left-4 hidden md:block" style={{ zIndex: 15 }}>
         <HeatmapControls />
       </div>
 
