@@ -34,7 +34,8 @@ export type EventTypeFilter =
   | 'steal'
   | 'deceive'
   | 'share_info'
-  | 'death';
+  | 'death'
+  | 'system';
 
 export const ALL_EVENT_TYPES: EventTypeFilter[] = [
   'move',
@@ -49,6 +50,7 @@ export const ALL_EVENT_TYPES: EventTypeFilter[] = [
   'deceive',
   'share_info',
   'death',
+  'system',
 ];
 
 export const EVENT_TYPE_COLORS: Record<EventTypeFilter, string> = {
@@ -64,6 +66,7 @@ export const EVENT_TYPE_COLORS: Record<EventTypeFilter, string> = {
   deceive: '#f97316',   // Orange
   share_info: '#06b6d4', // Cyan
   death: '#1f2937',     // Gray-dark
+  system: '#9ca3af',    // Gray-400 (for system events)
 };
 
 export const EVENT_TYPE_LABELS: Record<EventTypeFilter, string> = {
@@ -79,6 +82,7 @@ export const EVENT_TYPE_LABELS: Record<EventTypeFilter, string> = {
   deceive: 'Deceive',
   share_info: 'Gossip',
   death: 'Death',
+  system: 'System',
 };
 
 // =============================================================================
@@ -106,6 +110,10 @@ export const EVENT_TYPE_MAPPING: Record<string, EventTypeFilter> = {
   agent_deceived: 'deceive',
   agent_share_info: 'share_info',
   agent_died: 'death',
+  // System events
+  needs_updated: 'system',
+  tick_start: 'system',
+  tick_end: 'system',
 };
 
 /**
@@ -179,9 +187,9 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
   heatmapOpacity: 0.5,
   heatmapEnabled: false,
 
-  // Initial state - Event Filters (all visible by default)
+  // Initial state - Event Filters (all visible by default, enabled)
   visibleEventTypes: new Set(ALL_EVENT_TYPES),
-  eventFilterEnabled: false,
+  eventFilterEnabled: true,
 
   // Initial state - Social Graph
   socialGraphVisible: false,

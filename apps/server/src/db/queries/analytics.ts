@@ -1063,9 +1063,9 @@ export async function getJusticeMetrics(): Promise<JusticeMetrics> {
     WITH agent_rep AS (
       SELECT
         known_agent_id,
-        AVG((shared_info->>'reputationClaim'->>'sentiment')::numeric) as avg_sentiment
+        AVG((shared_info->'reputationClaim'->>'sentiment')::numeric) as avg_sentiment
       FROM agent_knowledge
-      WHERE shared_info->>'reputationClaim' IS NOT NULL
+      WHERE shared_info->'reputationClaim' IS NOT NULL
       GROUP BY known_agent_id
     )
     SELECT

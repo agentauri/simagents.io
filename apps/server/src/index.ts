@@ -822,11 +822,12 @@ server.get('/api/analytics/snapshot', {
     response: {
       200: {
         type: 'object',
+        additionalProperties: true,
         properties: {
-          survival: { type: 'object' },
-          economy: { type: 'object' },
-          behavior: { type: 'object' },
-          temporal: { type: 'object' },
+          survival: { type: 'object', additionalProperties: true },
+          economy: { type: 'object', additionalProperties: true },
+          behavior: { type: 'object', additionalProperties: true },
+          temporal: { type: 'object', additionalProperties: true },
         },
       },
     },

@@ -46,6 +46,10 @@ export function EventFilters() {
       label: 'Social',
       types: ['share_info', 'harm', 'steal', 'deceive', 'death'],
     },
+    {
+      label: 'System',
+      types: ['system'],
+    },
   ];
 
   return (
