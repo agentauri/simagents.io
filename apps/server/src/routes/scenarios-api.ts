@@ -142,12 +142,18 @@ const activeRuleOverrides: Map<string, RuleOverride> = new Map();
 /**
  * Get current value for a rule (with override if active)
  */
-export function getRuleValue(rule: string, defaultValue: number): number {
+export async function getRuleValue(rule: string, defaultValue: number): Promise<number> {
   const override = activeRuleOverrides.get(rule);
-  if (override && (override.expiresAtTick === null || override.expiresAtTick > Date.now())) {
-    return override.newValue;
+  if (!override) return defaultValue;
+
+  // Compare against simulation tick, not wall clock time
+  const currentTick = await getCurrentTick();
+  if (override.expiresAtTick !== null && currentTick >= override.expiresAtTick) {
+    activeRuleOverrides.delete(rule);
+    return defaultValue;
   }
-  return defaultValue;
+
+  return override.newValue;
 }
 
 /**
@@ -492,7 +498,7 @@ export async function registerScenarioRoutes(server: FastifyInstance): Promise<v
       harm_damage: 15,
     };
 
-    const originalValue = getRuleValue(rule, defaultValues[rule] ?? 0);
+    const originalValue = await getRuleValue(rule, defaultValues[rule] ?? 0);
     const expiresAtTick = durationTicks > 0 ? tick + durationTicks : null;
 
     // Store override
