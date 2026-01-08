@@ -180,8 +180,9 @@ describe('handleGather', () => {
 
       await handleGather(intent, agent);
 
-      const memoryCall = mockStoreMemory.mock.calls[0][0] as { content: string };
-      expect(memoryCall.content).toContain('Gathered 2x food');
+      expect(mockStoreMemory.mock.calls.length).toBeGreaterThan(0);
+      const memoryCall = (mockStoreMemory.mock.calls as unknown[][])[0]?.[0] as { content: string } | undefined;
+      expect(memoryCall?.content).toContain('Gathered 2x food');
     });
 
     test('emits agent_gathered event', async () => {

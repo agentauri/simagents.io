@@ -24,7 +24,7 @@ const EMPLOYMENT_ID = 'abcdef12-abcd-ef12-3456-7890abcdef12';
 // Mock database calls before importing the module
 const mockGetOldestActiveEmployment = mock(() => Promise.resolve(null as Employment | null));
 const mockUpdateEmploymentStatus = mock(() => Promise.resolve());
-const mockGetAgentById = mock(() => Promise.resolve(null as Agent | null));
+const mockGetAgentById = mock((_id: string) => Promise.resolve(null as Agent | null));
 const mockUpdateAgentBalance = mock(() => Promise.resolve());
 const mockStoreMemory = mock(() => Promise.resolve({ id: 'test-memory' }));
 const mockUpdateRelationshipTrust = mock(() => Promise.resolve());
@@ -145,7 +145,7 @@ describe('handleWork', () => {
 
     // Default setups
     mockGetOldestActiveEmployment.mockImplementation(() => Promise.resolve(createMockEmployment()));
-    mockGetAgentById.mockImplementation((id) => {
+    mockGetAgentById.mockImplementation((id: string) => {
       if (id === EMPLOYER_ID) return Promise.resolve(createMockEmployer());
       if (id === WORKER_ID) return Promise.resolve(createMockAgent());
       return Promise.resolve(null);
@@ -224,7 +224,7 @@ describe('handleWork', () => {
 
     test('terminates if employer cannot pay', async () => {
       // Employer has only 5 CITY, needs 10
-      mockGetAgentById.mockImplementation((id) => {
+      mockGetAgentById.mockImplementation((id: string) => {
         if (id === EMPLOYER_ID) return Promise.resolve(createMockEmployer({ balance: 5 }));
         return Promise.resolve(createMockAgent());
       });

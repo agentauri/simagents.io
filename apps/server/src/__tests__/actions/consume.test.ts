@@ -127,9 +127,10 @@ describe('handleConsume', () => {
       await handleConsume(intent, agent);
 
       expect(mockStoreMemory).toHaveBeenCalledTimes(1);
-      const memoryCall = mockStoreMemory.mock.calls[0][0] as { content: string };
-      expect(memoryCall.content).toContain('Consumed food');
-      expect(memoryCall.content).toContain('hunger +30');
+      expect(mockStoreMemory.mock.calls.length).toBeGreaterThan(0);
+      const memoryCall = (mockStoreMemory.mock.calls as unknown[][])[0]?.[0] as { content: string } | undefined;
+      expect(memoryCall?.content).toContain('Consumed food');
+      expect(memoryCall?.content).toContain('hunger +30');
     });
 
     test('emits agent_consumed event with correct state changes', async () => {
@@ -182,8 +183,9 @@ describe('handleConsume', () => {
 
       await handleConsume(intent, agent);
 
-      const memoryCall = mockStoreMemory.mock.calls[0][0] as { content: string };
-      expect(memoryCall.content).toContain('energy +10');
+      expect(mockStoreMemory.mock.calls.length).toBeGreaterThan(0);
+      const memoryCall = (mockStoreMemory.mock.calls as unknown[][])[0]?.[0] as { content: string } | undefined;
+      expect(memoryCall?.content).toContain('energy +10');
     });
   });
 
@@ -220,8 +222,9 @@ describe('handleConsume', () => {
 
       await handleConsume(intent, agent);
 
-      const memoryCall = mockStoreMemory.mock.calls[0][0] as { content: string };
-      expect(memoryCall.content).toContain('health +30');
+      expect(mockStoreMemory.mock.calls.length).toBeGreaterThan(0);
+      const memoryCall = (mockStoreMemory.mock.calls as unknown[][])[0]?.[0] as { content: string } | undefined;
+      expect(memoryCall?.content).toContain('health +30');
     });
   });
 
@@ -323,8 +326,9 @@ describe('handleConsume', () => {
 
       await handleConsume(intent, agent);
 
-      const memoryCall = mockStoreMemory.mock.calls[0][0] as { content: string };
-      expect(memoryCall.content).toContain('Feeling better');
+      expect(mockStoreMemory.mock.calls.length).toBeGreaterThan(0);
+      const memoryCall = (mockStoreMemory.mock.calls as unknown[][])[0]?.[0] as { content: string } | undefined;
+      expect(memoryCall?.content).toContain('Feeling better');
     });
   });
 

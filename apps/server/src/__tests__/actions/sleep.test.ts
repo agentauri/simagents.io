@@ -123,10 +123,11 @@ describe('handleSleep', () => {
 
       await handleSleep(intent, agent);
 
-      const memoryCall = mockStoreMemory.mock.calls[0][0] as { content: string };
-      expect(memoryCall.content).toContain('Slept for 2 tick(s)');
-      expect(memoryCall.content).toContain('restored 10 energy');
-      expect(memoryCall.content).toContain('Energy now 60');
+      expect(mockStoreMemory.mock.calls.length).toBeGreaterThan(0);
+      const memoryCall = (mockStoreMemory.mock.calls as unknown[][])[0]?.[0] as { content: string } | undefined;
+      expect(memoryCall?.content).toContain('Slept for 2 tick(s)');
+      expect(memoryCall?.content).toContain('restored 10 energy');
+      expect(memoryCall?.content).toContain('Energy now 60');
     });
 
     test('emits agent_sleeping event', async () => {

@@ -269,7 +269,7 @@ describe('Conflict Flow - Deceive Action', () => {
         claim: 'Valid claim content here',
         claimType: claimType as DeceiveParams['claimType'],
       };
-      expect(params.claimType).toBe(claimType);
+      expect(params.claimType).toBe(claimType as DeceiveParams['claimType']);
     });
   });
 });
