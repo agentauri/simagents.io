@@ -45,7 +45,7 @@ jobs:
             node_modules
             apps/*/node_modules
             packages/*/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb', '**/package.json') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock', '**/package.json') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
@@ -109,26 +109,35 @@ jobs:
             node_modules
             apps/*/node_modules
             packages/*/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb', '**/package.json') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock', '**/package.json') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Wait for PostgreSQL
+        run: |
+          until pg_isready -h localhost -p 5432 -U test; do
+            echo "Waiting for postgres..."
+            sleep 2
+          done
+
       - name: Setup test database
         working-directory: apps/server
-        run: bunx drizzle-kit push
+        run: timeout 60 bunx drizzle-kit push
         env:
           DATABASE_URL: postgres://test:test@localhost:5432/simagents_test
 
       - name: Run server tests
         working-directory: apps/server
-        run: bun test
+        run: bun test --timeout 30000
+        timeout-minutes: 10
         env:
           DATABASE_URL: postgres://test:test@localhost:5432/simagents_test
           REDIS_URL: redis://localhost:6379
           NODE_ENV: test
+          TEST_MODE: "true"
 
   # ============================================================================
   # Job 3: Build Server
@@ -156,7 +165,7 @@ jobs:
             node_modules
             apps/*/node_modules
             packages/*/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb', '**/package.json') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock', '**/package.json') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
@@ -205,7 +214,7 @@ jobs:
             node_modules
             apps/*/node_modules
             packages/*/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb', '**/package.json') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock', '**/package.json') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
