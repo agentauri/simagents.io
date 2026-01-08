@@ -37,8 +37,10 @@ function createFallbackDecision(observation: AgentObservation): AgentDecision {
 }
 
 // BullMQ requires maxRetriesPerRequest: null for blocking operations
+// Cast to 'any' for BullMQ type compatibility (ioredis types don't perfectly align)
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-const redis = new Redis(redisUrl, {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const redis: any = new Redis(redisUrl, {
   maxRetriesPerRequest: null,
 });
 

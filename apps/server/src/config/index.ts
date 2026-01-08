@@ -630,6 +630,9 @@ interface RuntimeConfigOverrides {
     currencyDecayInterval?: number;
     currencyDecayThreshold?: number;
   };
+  experiment?: {
+    enablePersonalities?: boolean;
+  };
 }
 
 let runtimeOverrides: RuntimeConfigOverrides = {};

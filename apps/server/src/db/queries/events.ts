@@ -18,30 +18,29 @@ export async function appendEvent(event: Omit<NewEvent, 'version'>): Promise<Eve
     // This prevents race conditions that could occur with a separate SELECT + INSERT
     const result = await db.execute(sql`
       INSERT INTO events (
-        id, event_type, tick, agent_id, payload, timestamp, version
+        event_type, tick, agent_id, payload, version
       )
       SELECT
-        gen_random_uuid(),
         ${event.eventType},
         ${event.tick},
         ${event.agentId ?? null},
         ${JSON.stringify(event.payload ?? {})},
-        ${event.timestamp ?? Date.now()},
         COALESCE((SELECT MAX(version) FROM events), 0) + 1
       RETURNING *
-    `);
+    `) as unknown as { rows: Record<string, unknown>[] };
 
     // Convert raw result to Event type
     if (result.rows && result.rows.length > 0) {
-      const row = result.rows[0] as Record<string, unknown>;
+      const row = result.rows[0];
       return {
-        id: row.id as string,
+        id: Number(row.id),
+        tenantId: row.tenant_id as string | null,
         eventType: row.event_type as string,
-        tick: row.tick as number,
+        tick: Number(row.tick),
         agentId: row.agent_id as string | null,
         payload: row.payload as Record<string, unknown>,
-        timestamp: Number(row.timestamp),
-        version: row.version as number,
+        version: Number(row.version),
+        createdAt: new Date(row.created_at as string),
       };
     }
     return null;

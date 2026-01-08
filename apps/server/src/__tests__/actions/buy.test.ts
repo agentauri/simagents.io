@@ -15,7 +15,7 @@ import type { ActionIntent, BuyParams } from '../../actions/types';
 
 // Mock database calls before importing the module
 const mockAddToInventory = mock(() => Promise.resolve());
-const mockGetSheltersAtPosition = mock(() => Promise.resolve([]));
+const mockGetSheltersAtPosition = mock(() => Promise.resolve([] as Shelter[]));
 const mockStoreMemory = mock(() => Promise.resolve({ id: 'test-memory' }));
 
 mock.module('../../db/queries/inventory', () => ({

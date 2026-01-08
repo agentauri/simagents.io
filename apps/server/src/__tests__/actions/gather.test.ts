@@ -15,7 +15,7 @@ import type { ActionIntent } from '../../actions/types';
 import type { GatherParams } from '../../actions/handlers/gather';
 
 // Mock database calls before importing the module
-const mockGetResourceSpawnsAtPosition = mock(() => Promise.resolve([]));
+const mockGetResourceSpawnsAtPosition = mock(() => Promise.resolve([] as ResourceSpawn[]));
 const mockHarvestResource = mock(() => Promise.resolve(0));
 const mockAddToInventory = mock(() => Promise.resolve());
 const mockStoreMemory = mock(() => Promise.resolve({ id: 'test-memory' }));

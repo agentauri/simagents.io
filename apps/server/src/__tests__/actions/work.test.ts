@@ -22,9 +22,9 @@ const EMPLOYER_ID = '87654321-4321-4321-4321-ba0987654321';
 const EMPLOYMENT_ID = 'abcdef12-abcd-ef12-3456-7890abcdef12';
 
 // Mock database calls before importing the module
-const mockGetOldestActiveEmployment = mock(() => Promise.resolve(null));
+const mockGetOldestActiveEmployment = mock(() => Promise.resolve(null as Employment | null));
 const mockUpdateEmploymentStatus = mock(() => Promise.resolve());
-const mockGetAgentById = mock(() => Promise.resolve(null));
+const mockGetAgentById = mock(() => Promise.resolve(null as Agent | null));
 const mockUpdateAgentBalance = mock(() => Promise.resolve());
 const mockStoreMemory = mock(() => Promise.resolve({ id: 'test-memory' }));
 const mockUpdateRelationshipTrust = mock(() => Promise.resolve());

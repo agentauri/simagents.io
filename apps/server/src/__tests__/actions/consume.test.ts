@@ -9,11 +9,11 @@
  */
 
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
-import type { Agent } from '../../db/schema';
+import type { Agent, InventoryItem } from '../../db/schema';
 import type { ActionIntent, ConsumeParams } from '../../actions/types';
 
 // Mock database calls before importing the module
-const mockGetInventoryItem = mock(() => Promise.resolve(null));
+const mockGetInventoryItem = mock(() => Promise.resolve(null as InventoryItem | null));
 const mockRemoveFromInventory = mock(() => Promise.resolve());
 const mockStoreMemory = mock(() => Promise.resolve({ id: 'test-memory' }));
 

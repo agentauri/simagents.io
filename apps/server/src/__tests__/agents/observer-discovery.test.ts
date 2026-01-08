@@ -2,10 +2,10 @@ import { describe, expect, test, mock, beforeEach, beforeAll } from 'bun:test';
 import type { Agent, ResourceSpawn, Shelter } from '../../db/schema';
 
 // Mock Redis BEFORE importing anything that uses it
-const mockRedisKeys = mock(() => Promise.resolve([]));
+const mockRedisKeys = mock(() => Promise.resolve([] as string[]));
 const mockRedisDel = mock(() => Promise.resolve(0));
 const mockRedisSetex = mock(() => Promise.resolve('OK'));
-const mockRedisMget = mock(() => Promise.resolve([]));
+const mockRedisMget = mock(() => Promise.resolve([] as (string | null)[]));
 
 const mockRedis = {
   keys: mockRedisKeys,
@@ -19,16 +19,16 @@ mock.module('../../cache', () => ({
   checkRedisConnection: () => Promise.resolve(true),
 }));
 
-// Mock DB queries
-const mockGetRecentEvents = mock(() => Promise.resolve([]));
-const mockGetAgentInventory = mock(() => Promise.resolve([]));
-const mockGetRecentMemories = mock(() => Promise.resolve([]));
-const mockGetAgentRelationships = mock(() => Promise.resolve([]));
-const mockGetKnownAgentsForObserver = mock(() => Promise.resolve([]));
-const mockGetNearbyClaims = mock(() => Promise.resolve([]));
-const mockGetNearbyNamedLocations = mock(() => Promise.resolve([]));
-const mockGetLocationNamesForObserver = mock(() => Promise.resolve([]));
-const mockGetRecentSignals = mock(() => Promise.resolve([]));
+// Mock DB queries - use explicit types to avoid 'never[]' inference
+const mockGetRecentEvents = mock(() => Promise.resolve([] as unknown[]));
+const mockGetAgentInventory = mock(() => Promise.resolve([] as unknown[]));
+const mockGetRecentMemories = mock(() => Promise.resolve([] as unknown[]));
+const mockGetAgentRelationships = mock(() => Promise.resolve([] as unknown[]));
+const mockGetKnownAgentsForObserver = mock(() => Promise.resolve([] as unknown[]));
+const mockGetNearbyClaims = mock(() => Promise.resolve([] as unknown[]));
+const mockGetNearbyNamedLocations = mock(() => Promise.resolve([] as unknown[]));
+const mockGetLocationNamesForObserver = mock(() => Promise.resolve([] as unknown[]));
+const mockGetRecentSignals = mock(() => Promise.resolve([] as unknown[]));
 
 mock.module('../../db/queries/events', () => ({
   getRecentEvents: mockGetRecentEvents,

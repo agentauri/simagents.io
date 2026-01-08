@@ -3,7 +3,7 @@
  */
 
 import type { Agent, Shelter, ResourceSpawn } from '../db/schema';
-import type { ActionType, ActionParams } from '../actions/types';
+import type { ActionType } from '../actions/types';
 import type { PersonalityTrait } from '../agents/personalities';
 
 // =============================================================================

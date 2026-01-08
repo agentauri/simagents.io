@@ -26,6 +26,7 @@ export type ActionType =
   | 'deceive'
   // Phase 2: Social Discovery
   | 'share_info'
+  | 'signal' // Long-range communication
   // Phase 4: Verifiable Credentials (§34)
   | 'issue_credential'
   | 'revoke_credential'
@@ -163,6 +164,13 @@ export interface SpawnOffspringParams {
   mutationIntensity?: number; // 0.0 (no mutations) to 1.0 (heavy mutations)
 }
 
+// Signal Parameters (Long-range communication)
+
+export interface SignalParams {
+  message: string; // The signal message
+  intensity: number; // 1-5, affects range
+}
+
 // Employment System Parameters
 
 export interface OfferJobParams {
@@ -212,6 +220,7 @@ export type ActionParams =
   | StealParams
   | DeceiveParams
   | ShareInfoParams
+  | SignalParams
   // Phase 4
   | IssueCredentialParams
   | RevokeCredentialParams
