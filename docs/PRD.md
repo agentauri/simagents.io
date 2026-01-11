@@ -1,17 +1,20 @@
 # Sim Agents - Product Requirements Document (PRD)
 
-> **Version**: 1.5.0
-> **Status**: Phases 0-5 Complete, Phase 6 In Progress
+> **Version**: 1.6.0
+> **Status**: Phases 0-7 Complete
 > **Last Updated**: January 2026
 
 ---
 
 ## Implementation Status
 
-> **Current Status**: Phases 0-5 Complete, Phase 6 (Employment System) In Progress
+> **Current Status**: All core phases complete (0-7)
 >
-> This PRD documents the design specifications and requirements.
-> For detailed implementation status and progress tracking, see **[ROADMAP.md](../ROADMAP.md)**.
+> - Phases 0-5: Core infrastructure (world, agents, actions, needs, economy)
+> - Phase 6: Employment System (contract-based jobs)
+> - Phase 7: Social Interactions (cooperation bonuses, economic rebalancing)
+>
+> This PRD documents design specifications. For implementation details, see **[ROADMAP.md](../ROADMAP.md)**.
 
 ---
 
@@ -57,7 +60,8 @@
 38. [Biomes System](#38-biomes-system)
 39. [Experiment DSL & Batch Runner](#39-experiment-dsl--batch-runner)
 40. [Advanced Visualization](#40-advanced-visualization)
-41. [Employment System](#41-employment-system) ⭐ NEW
+41. [Employment System](#41-employment-system)
+42. [Social Interactions & Cooperation](#42-social-interactions--cooperation) ⭐ NEW
 
 ---
 
@@ -6405,6 +6409,71 @@ interface Employment {
 
 ---
 
+## 42. Social Interactions & Cooperation
+
+> **Phase 7**: Making cooperation more rewarding than solo survival
+
+### 42.1 Problem Statement
+
+The original system allowed agents to survive indefinitely through solo strategies (`forage` + `public_work`), never needing social interaction. This limited emergent social behavior.
+
+### 42.2 Key Changes
+
+#### Economic Rebalancing
+
+| Parameter | Before | After | Effect |
+|-----------|--------|-------|--------|
+| `forage.baseSuccessRate` | 0.60 | 0.35 | -42% solo food |
+| `forage.energyCost` | 1 | 3 | 3x energy cost |
+| `forage.cooldownTicks` | 3 | 5 | +67% cooldown |
+| `publicWorks.paymentPerTask` | 15 | 8 | -47% income |
+| `publicWorks.ticksPerTask` | 2 | 4 | 2x time |
+| `trade.trustGainOnSuccess` | 5 | 15 | 3x trust |
+| `memory.trustDecayPerTick` | 0.1 | 0.02 | 5x slower decay |
+
+#### Cooperation Bonuses
+
+```typescript
+cooperation: {
+  gather: {
+    efficiencyMultiplierPerAgent: 1.15,  // +15% per agent
+    maxEfficiencyMultiplier: 1.45,        // cap +45%
+  },
+  work: {
+    nearbyWorkerBonus: 0.2,               // +20% with others
+    nearbyWorkerRadius: 3,
+  },
+  solo: {
+    forageSuccessRateModifier: 0.8,       // -20% alone
+    publicWorkPaymentModifier: 0.7,       // -30% alone
+    aloneRadius: 5,
+  },
+}
+```
+
+### 42.3 Employment Visibility Fix
+
+Employment context now exposed in agent observations:
+- `nearbyJobOffers`: Available jobs within visibility radius
+- `activeEmployments`: Current work contracts
+- `myJobOffers`: Job offers created by this agent
+
+### 42.4 Fallback Decision Improvements
+
+Social actions added to fallback logic:
+- Accept jobs when low on funds
+- Work on active employments
+- Trade surplus food with nearby agents
+
+### 42.5 Scientific Value
+
+**Research Questions**:
+1. Do cooperation bonuses increase social interaction rate?
+2. What's the equilibrium between solo and cooperative strategies?
+3. How do trust networks form under the new economics?
+
+---
+
 ## Conclusion
 
 Sim Agents v2.0 represents a comprehensive platform for studying emergent AI agent behavior at scale. The additions in this version provide:
@@ -6423,7 +6492,8 @@ Sim Agents v2.0 represents a comprehensive platform for studying emergent AI age
 12. **Biomes System**: Environmental heterogeneity for adaptive behavior research (§38)
 13. **Experiment DSL**: Reproducible research experiments with batch execution (§39)
 14. **Advanced Visualization**: Heatmaps, filters, and social graph for pattern analysis (§40)
-15. **Employment System**: Contract-based labor market replacing magic currency creation (§41) 🚧 *In Progress*
+15. **Employment System**: Contract-based labor market replacing magic currency creation (§41)
+16. **Social Interactions**: Cooperation incentives making social behavior more rewarding (§42)
 
 > **Core Philosophy Reminder**: *"From City Simulation to Digital Darwinism Laboratory"*
 >
