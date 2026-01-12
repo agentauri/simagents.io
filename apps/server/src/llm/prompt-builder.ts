@@ -397,23 +397,36 @@ export function buildObservationPrompt(
 
   // Nearby resource spawns (new scientific model)
   if (obs.nearbyResourceSpawns && obs.nearbyResourceSpawns.length > 0) {
-    lines.push('', '### Nearby Resource Spawns');
+    lines.push('', '### Nearby Resource Spawns (FREE - no currency needed!)');
     const richThreshold = CONFIG.cooperation.groupGather.richSpawnThreshold;
     const minAgents = CONFIG.cooperation.groupGather.minAgentsForRich;
     const soloMax = CONFIG.cooperation.groupGather.soloMaxFromRich;
 
-    for (const spawn of obs.nearbyResourceSpawns) {
+    // Sort by distance to help agent prioritize
+    const sortedSpawns = [...obs.nearbyResourceSpawns].sort((a, b) => {
+      const distA = Math.abs(obs.self.x - a.x) + Math.abs(obs.self.y - a.y);
+      const distB = Math.abs(obs.self.x - b.x) + Math.abs(obs.self.y - b.y);
+      return distA - distB;
+    });
+
+    for (const spawn of sortedSpawns) {
       const distance = Math.abs(obs.self.x - spawn.x) + Math.abs(obs.self.y - spawn.y);
-      const atSpawn = distance === 0 ? ' YOU ARE HERE' : ` (${distance} tiles away)`;
       const emoji = getResourceEmoji(spawn.resourceType);
 
       // Phase 5: Mark rich spawns that require cooperation
       let richNote = '';
       if (spawn.currentAmount > richThreshold) {
-        richNote = ` [RICH SPAWN: need ${minAgents}+ agents, solo max ${soloMax}]`;
+        richNote = ` [RICH: need ${minAgents}+ agents]`;
       }
 
-      lines.push(`- ${emoji} ${spawn.resourceType} at (${spawn.x}, ${spawn.y}) - ${spawn.currentAmount}/${spawn.maxAmount} available${atSpawn}${richNote}`);
+      // Highlight if depleted vs available
+      if (spawn.currentAmount <= 0) {
+        lines.push(`- ${emoji} ${spawn.resourceType} at (${spawn.x}, ${spawn.y}) - DEPLETED (${distance} tiles)`);
+      } else if (distance === 0) {
+        lines.push(`- ${emoji} **${spawn.resourceType.toUpperCase()} HERE!** ${spawn.currentAmount} available - USE GATHER NOW!${richNote}`);
+      } else {
+        lines.push(`- ${emoji} ${spawn.resourceType} at (${spawn.x}, ${spawn.y}) - ${spawn.currentAmount} FREE! (${distance} tiles, MOVE then GATHER)${richNote}`);
+      }
     }
   }
 
@@ -573,18 +586,32 @@ export function buildObservationPrompt(
     }
   }
 
-  // Suggest gather if hungry and low on money
+  // Suggest gather if hungry and low on money - CRITICAL for survival
   const nearestFoodSpawn = obs.nearbyResourceSpawns?.find((s) => s.resourceType === 'food' && s.currentAmount > 0);
   if (obs.self.hunger < 50 && obs.self.balance < 10 && nearestFoodSpawn) {
     const distance = Math.abs(obs.self.x - nearestFoodSpawn.x) + Math.abs(obs.self.y - nearestFoodSpawn.y);
+    const urgency = obs.self.hunger < 15 ? '🚨 CRITICAL' : '⚠️ IMPORTANT';
+
     if (distance === 0) {
-      lines.push('', '### 💡 RECOMMENDED ACTION');
-      lines.push(`You are AT a food spawn with ${nearestFoodSpawn.currentAmount} food available!`);
-      lines.push('-> Use GATHER to collect FREE food, then CONSUME it!');
+      lines.push('', `### ${urgency}: FOOD AVAILABLE HERE!`);
+      lines.push(`You are standing on a food spawn with ${nearestFoodSpawn.currentAmount} FREE food!`);
+      lines.push('-> Use GATHER action NOW to collect food!');
+      lines.push('-> Then use CONSUME to eat and restore hunger!');
     } else {
-      lines.push('', '### 💡 RECOMMENDED ACTION');
-      lines.push(`You are hungry and have no money. Nearest food spawn is ${distance} tiles away at (${nearestFoodSpawn.x}, ${nearestFoodSpawn.y}).`);
-      lines.push('-> MOVE towards the food spawn, then GATHER free food!');
+      // Calculate direction
+      const dx = nearestFoodSpawn.x - obs.self.x;
+      const dy = nearestFoodSpawn.y - obs.self.y;
+      const direction = dy < 0 ? (dx > 0 ? 'north-east' : dx < 0 ? 'north-west' : 'north')
+                      : dy > 0 ? (dx > 0 ? 'south-east' : dx < 0 ? 'south-west' : 'south')
+                      : dx > 0 ? 'east' : 'west';
+
+      lines.push('', `### ${urgency}: GO GET FREE FOOD!`);
+      lines.push(`Hunger: ${obs.self.hunger.toFixed(0)} | Balance: ${obs.self.balance.toFixed(0)} CITY (cannot afford shelter food at 10 CITY)`);
+      lines.push(`FREE food at (${nearestFoodSpawn.x}, ${nearestFoodSpawn.y}) - ${distance} tiles ${direction}`);
+      lines.push(`-> Step 1: MOVE towards (${nearestFoodSpawn.x}, ${nearestFoodSpawn.y})`);
+      lines.push(`-> Step 2: When you arrive, use GATHER to collect FREE food`);
+      lines.push(`-> Step 3: Use CONSUME to eat`);
+      lines.push('DO NOT go to shelter - you cannot afford food there!');
     }
   }
 
