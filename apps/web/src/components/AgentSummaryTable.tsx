@@ -138,7 +138,7 @@ export function AgentSummaryTable() {
   const events = useEvents();
   const selectAgent = useWorldStore((s) => s.selectAgent);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [showAll, setShowAll] = useState(false);
+  const [showAll, setShowAll] = useState(true);
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
 
   // Use draggable panel hook (replaces manual drag logic)
