@@ -550,6 +550,22 @@ export function buildObservationPrompt(
     forbiddenActions.push('work (you have NO active employment! ACCEPT_JOB first!)');
   }
 
+  // Check if agent is at a resource spawn (gather only works at spawn location)
+  const resourceAtCurrentPosition = obs.nearbyResourceSpawns?.find((spawn) => {
+    const distance = Math.abs(obs.self.x - spawn.x) + Math.abs(obs.self.y - spawn.y);
+    return distance === 0 && spawn.currentAmount > 0;
+  });
+  if (!resourceAtCurrentPosition) {
+    // Find nearest non-depleted resource
+    const nearestResource = obs.nearbyResourceSpawns?.find((s) => s.currentAmount > 0);
+    if (nearestResource) {
+      const dist = Math.abs(obs.self.x - nearestResource.x) + Math.abs(obs.self.y - nearestResource.y);
+      forbiddenActions.push(`gather (NO resources here! Nearest ${nearestResource.resourceType} is ${dist} tiles away at (${nearestResource.x}, ${nearestResource.y}) - MOVE there first!)`);
+    } else {
+      forbiddenActions.push('gather (NO resources at your position! MOVE to a resource spawn first!)');
+    }
+  }
+
   if (forbiddenActions.length > 0) {
     lines.push('', '### ⛔ FORBIDDEN ACTIONS (will fail if you try!)');
     for (const action of forbiddenActions) {
