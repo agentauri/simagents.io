@@ -770,6 +770,48 @@ interface RuntimeConfigOverrides {
   experiment?: {
     enablePersonalities?: boolean;
   };
+  // Phase 4-6: Cooperation config (runtime modifiable for tuning)
+  cooperation?: {
+    enabled?: boolean;
+    gather?: {
+      efficiencyMultiplierPerAgent?: number;
+      maxEfficiencyMultiplier?: number;
+      cooperationRadius?: number;
+    };
+    groupGather?: {
+      enabled?: boolean;
+      richSpawnThreshold?: number;
+      minAgentsForRich?: number;
+      soloMaxFromRich?: number;
+      groupBonus?: number;
+    };
+    forage?: {
+      nearbyAgentBonus?: number;
+      maxCooperationBonus?: number;
+      cooperationRadius?: number;
+    };
+    buy?: {
+      trustPriceModifier?: number;
+      minTrustDiscount?: number;
+      maxTrustPenalty?: number;
+    };
+    solo?: {
+      gatherEfficiencyModifier?: number;
+    };
+  };
+  // Spoilage config
+  spoilage?: {
+    enabled?: boolean;
+    rates?: {
+      food?: number;
+      water?: number;
+      medicine?: number;
+      battery?: number;
+      material?: number;
+      tool?: number;
+    };
+    removalThreshold?: number;
+  };
 }
 
 let runtimeOverrides: RuntimeConfigOverrides = {};
@@ -828,6 +870,39 @@ export function getRuntimeConfig(): RuntimeConfigOverrides & typeof CONFIG {
       ...CONFIG.economy,
       ...runtimeOverrides.economy,
     },
+    cooperation: {
+      ...CONFIG.cooperation,
+      enabled: runtimeOverrides.cooperation?.enabled ?? CONFIG.cooperation.enabled,
+      gather: {
+        ...CONFIG.cooperation.gather,
+        ...runtimeOverrides.cooperation?.gather,
+      },
+      groupGather: {
+        ...CONFIG.cooperation.groupGather,
+        ...runtimeOverrides.cooperation?.groupGather,
+      },
+      forage: {
+        ...CONFIG.cooperation.forage,
+        ...runtimeOverrides.cooperation?.forage,
+      },
+      buy: {
+        ...CONFIG.cooperation.buy,
+        ...runtimeOverrides.cooperation?.buy,
+      },
+      solo: {
+        ...CONFIG.cooperation.solo,
+        ...runtimeOverrides.cooperation?.solo,
+      },
+    },
+    spoilage: {
+      ...CONFIG.spoilage,
+      enabled: runtimeOverrides.spoilage?.enabled ?? CONFIG.spoilage.enabled,
+      rates: {
+        ...CONFIG.spoilage.rates,
+        ...runtimeOverrides.spoilage?.rates,
+      },
+      removalThreshold: runtimeOverrides.spoilage?.removalThreshold ?? CONFIG.spoilage.removalThreshold,
+    },
   };
 }
 
@@ -848,6 +923,21 @@ export function setRuntimeConfig(updates: RuntimeConfigOverrides): void {
       sleep: { ...runtimeOverrides.actions?.sleep, ...updates.actions.sleep },
     } : runtimeOverrides.actions,
     economy: { ...runtimeOverrides.economy, ...updates.economy },
+    // Phase 4-6: Cooperation config
+    cooperation: updates.cooperation ? {
+      enabled: updates.cooperation.enabled ?? runtimeOverrides.cooperation?.enabled,
+      gather: { ...runtimeOverrides.cooperation?.gather, ...updates.cooperation.gather },
+      groupGather: { ...runtimeOverrides.cooperation?.groupGather, ...updates.cooperation.groupGather },
+      forage: { ...runtimeOverrides.cooperation?.forage, ...updates.cooperation.forage },
+      buy: { ...runtimeOverrides.cooperation?.buy, ...updates.cooperation.buy },
+      solo: { ...runtimeOverrides.cooperation?.solo, ...updates.cooperation.solo },
+    } : runtimeOverrides.cooperation,
+    // Spoilage config
+    spoilage: updates.spoilage ? {
+      enabled: updates.spoilage.enabled ?? runtimeOverrides.spoilage?.enabled,
+      rates: { ...runtimeOverrides.spoilage?.rates, ...updates.spoilage.rates },
+      removalThreshold: updates.spoilage.removalThreshold ?? runtimeOverrides.spoilage?.removalThreshold,
+    } : runtimeOverrides.spoilage,
   };
 }
 

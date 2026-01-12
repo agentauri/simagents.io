@@ -19,6 +19,7 @@ import {
   setRuntimeConfig,
   resetRuntimeConfig,
 } from '../config';
+import { setLLMCacheEnabled, setLLMCacheTTL } from '../cache/llm-cache';
 import {
   getPersonalityWeights,
   setPersonalityWeights,
@@ -79,6 +80,46 @@ interface ConfigResponse {
     currencyDecayInterval: number;
     currencyDecayThreshold: number;
   };
+  cooperation: {
+    enabled: boolean;
+    gather: {
+      efficiencyMultiplierPerAgent: number;
+      maxEfficiencyMultiplier: number;
+      cooperationRadius: number;
+    };
+    groupGather: {
+      enabled: boolean;
+      richSpawnThreshold: number;
+      minAgentsForRich: number;
+      soloMaxFromRich: number;
+      groupBonus: number;
+    };
+    forage: {
+      nearbyAgentBonus: number;
+      maxCooperationBonus: number;
+      cooperationRadius: number;
+    };
+    buy: {
+      trustPriceModifier: number;
+      minTrustDiscount: number;
+      maxTrustPenalty: number;
+    };
+    solo: {
+      gatherEfficiencyModifier: number;
+    };
+  };
+  spoilage: {
+    enabled: boolean;
+    rates: {
+      food: number;
+      water: number;
+      medicine: number;
+      battery: number;
+      material: number;
+      tool: number;
+    };
+    removalThreshold: number;
+  };
 }
 
 interface ConfigUpdateRequest {
@@ -94,6 +135,8 @@ interface ConfigUpdateRequest {
     sleep?: Partial<ConfigResponse['actions']['sleep']>;
   };
   economy?: Partial<ConfigResponse['economy']>;
+  cooperation?: Partial<ConfigResponse['cooperation']>;
+  spoilage?: Partial<ConfigResponse['spoilage']>;
 }
 
 // Genesis configuration types
@@ -196,6 +239,46 @@ function buildConfigResponse(): ConfigResponse {
       currencyDecayInterval: runtime.economy.currencyDecayInterval,
       currencyDecayThreshold: runtime.economy.currencyDecayThreshold,
     },
+    cooperation: {
+      enabled: runtime.cooperation.enabled,
+      gather: {
+        efficiencyMultiplierPerAgent: runtime.cooperation.gather.efficiencyMultiplierPerAgent,
+        maxEfficiencyMultiplier: runtime.cooperation.gather.maxEfficiencyMultiplier,
+        cooperationRadius: runtime.cooperation.gather.cooperationRadius,
+      },
+      groupGather: {
+        enabled: runtime.cooperation.groupGather.enabled,
+        richSpawnThreshold: runtime.cooperation.groupGather.richSpawnThreshold,
+        minAgentsForRich: runtime.cooperation.groupGather.minAgentsForRich,
+        soloMaxFromRich: runtime.cooperation.groupGather.soloMaxFromRich,
+        groupBonus: runtime.cooperation.groupGather.groupBonus,
+      },
+      forage: {
+        nearbyAgentBonus: runtime.cooperation.forage.nearbyAgentBonus,
+        maxCooperationBonus: runtime.cooperation.forage.maxCooperationBonus,
+        cooperationRadius: runtime.cooperation.forage.cooperationRadius,
+      },
+      buy: {
+        trustPriceModifier: runtime.cooperation.buy.trustPriceModifier,
+        minTrustDiscount: runtime.cooperation.buy.minTrustDiscount,
+        maxTrustPenalty: runtime.cooperation.buy.maxTrustPenalty,
+      },
+      solo: {
+        gatherEfficiencyModifier: runtime.cooperation.solo.gatherEfficiencyModifier,
+      },
+    },
+    spoilage: {
+      enabled: runtime.spoilage.enabled,
+      rates: {
+        food: runtime.spoilage.rates.food ?? CONFIG.spoilage.rates.food,
+        water: runtime.spoilage.rates.water ?? CONFIG.spoilage.rates.water,
+        medicine: runtime.spoilage.rates.medicine ?? CONFIG.spoilage.rates.medicine,
+        battery: runtime.spoilage.rates.battery ?? CONFIG.spoilage.rates.battery,
+        material: runtime.spoilage.rates.material ?? CONFIG.spoilage.rates.material,
+        tool: runtime.spoilage.rates.tool ?? CONFIG.spoilage.rates.tool,
+      },
+      removalThreshold: runtime.spoilage.removalThreshold,
+    },
   };
 }
 
@@ -260,6 +343,46 @@ function buildDefaultsResponse(): ConfigResponse {
       currencyDecayInterval: CONFIG.economy.currencyDecayInterval,
       currencyDecayThreshold: CONFIG.economy.currencyDecayThreshold,
     },
+    cooperation: {
+      enabled: CONFIG.cooperation.enabled,
+      gather: {
+        efficiencyMultiplierPerAgent: CONFIG.cooperation.gather.efficiencyMultiplierPerAgent,
+        maxEfficiencyMultiplier: CONFIG.cooperation.gather.maxEfficiencyMultiplier,
+        cooperationRadius: CONFIG.cooperation.gather.cooperationRadius,
+      },
+      groupGather: {
+        enabled: CONFIG.cooperation.groupGather.enabled,
+        richSpawnThreshold: CONFIG.cooperation.groupGather.richSpawnThreshold,
+        minAgentsForRich: CONFIG.cooperation.groupGather.minAgentsForRich,
+        soloMaxFromRich: CONFIG.cooperation.groupGather.soloMaxFromRich,
+        groupBonus: CONFIG.cooperation.groupGather.groupBonus,
+      },
+      forage: {
+        nearbyAgentBonus: CONFIG.cooperation.forage.nearbyAgentBonus,
+        maxCooperationBonus: CONFIG.cooperation.forage.maxCooperationBonus,
+        cooperationRadius: CONFIG.cooperation.forage.cooperationRadius,
+      },
+      buy: {
+        trustPriceModifier: CONFIG.cooperation.buy.trustPriceModifier,
+        minTrustDiscount: CONFIG.cooperation.buy.minTrustDiscount,
+        maxTrustPenalty: CONFIG.cooperation.buy.maxTrustPenalty,
+      },
+      solo: {
+        gatherEfficiencyModifier: CONFIG.cooperation.solo.gatherEfficiencyModifier,
+      },
+    },
+    spoilage: {
+      enabled: CONFIG.spoilage.enabled,
+      rates: {
+        food: CONFIG.spoilage.rates.food,
+        water: CONFIG.spoilage.rates.water,
+        medicine: CONFIG.spoilage.rates.medicine,
+        battery: CONFIG.spoilage.rates.battery,
+        material: CONFIG.spoilage.rates.material,
+        tool: CONFIG.spoilage.rates.tool,
+      },
+      removalThreshold: CONFIG.spoilage.removalThreshold,
+    },
   };
 }
 
@@ -291,12 +414,37 @@ export async function registerConfigRoutes(server: FastifyInstance): Promise<voi
         'simulation.testMode',
         'experiment.useEmergentPrompt',
         'llmCache.enabled',
+        'llmCache.ttlSeconds',
         'actions.move.energyCost',
         'actions.move.hungerCost',
         'actions.move.consecutivePenalty',
         'economy.currencyDecayRate',
         'economy.currencyDecayInterval',
         'economy.currencyDecayThreshold',
+        // Phase 4-6: Cooperation settings (runtime modifiable for tuning)
+        'cooperation.enabled',
+        'cooperation.gather.efficiencyMultiplierPerAgent',
+        'cooperation.gather.maxEfficiencyMultiplier',
+        'cooperation.groupGather.enabled',
+        'cooperation.groupGather.richSpawnThreshold',
+        'cooperation.groupGather.minAgentsForRich',
+        'cooperation.groupGather.soloMaxFromRich',
+        'cooperation.groupGather.groupBonus',
+        'cooperation.forage.nearbyAgentBonus',
+        'cooperation.forage.maxCooperationBonus',
+        'cooperation.buy.trustPriceModifier',
+        'cooperation.buy.minTrustDiscount',
+        'cooperation.buy.maxTrustPenalty',
+        'cooperation.solo.gatherEfficiencyModifier',
+        // Spoilage settings
+        'spoilage.enabled',
+        'spoilage.rates.food',
+        'spoilage.rates.water',
+        'spoilage.rates.medicine',
+        'spoilage.rates.battery',
+        'spoilage.rates.material',
+        'spoilage.rates.tool',
+        'spoilage.removalThreshold',
       ],
     };
   });
@@ -473,17 +621,20 @@ export async function registerConfigRoutes(server: FastifyInstance): Promise<voi
     }
 
     if (updates.llmCache && Object.keys(updates.llmCache).length > 0) {
-      // LLM cache enabled is runtime modifiable
+      // LLM cache enabled is runtime modifiable - actually update the cache module
       if (updates.llmCache.enabled !== undefined) {
+        setLLMCacheEnabled(updates.llmCache.enabled);
         runtimeUpdates.llmCache = { enabled: updates.llmCache.enabled };
         appliedImmediately.push('llmCache.enabled');
       }
+      // TTL is also runtime modifiable now
       if (updates.llmCache.ttlSeconds !== undefined) {
+        setLLMCacheTTL(updates.llmCache.ttlSeconds);
         runtimeUpdates.llmCache = {
           ...runtimeUpdates.llmCache,
           ttlSeconds: updates.llmCache.ttlSeconds,
         };
-        requiresRestart.push('llmCache.ttlSeconds');
+        appliedImmediately.push('llmCache.ttlSeconds');
       }
     }
 
@@ -522,6 +673,64 @@ export async function registerConfigRoutes(server: FastifyInstance): Promise<voi
       Object.keys(updates.economy).forEach((key) => {
         appliedImmediately.push(`economy.${key}`);
       });
+    }
+
+    // Handle cooperation updates (runtime modifiable for tuning)
+    if (updates.cooperation) {
+      runtimeUpdates.cooperation = {};
+      if (updates.cooperation.enabled !== undefined) {
+        runtimeUpdates.cooperation.enabled = updates.cooperation.enabled;
+        appliedImmediately.push('cooperation.enabled');
+      }
+      if (updates.cooperation.gather) {
+        runtimeUpdates.cooperation.gather = updates.cooperation.gather;
+        Object.keys(updates.cooperation.gather).forEach((key) => {
+          appliedImmediately.push(`cooperation.gather.${key}`);
+        });
+      }
+      if (updates.cooperation.groupGather) {
+        runtimeUpdates.cooperation.groupGather = updates.cooperation.groupGather;
+        Object.keys(updates.cooperation.groupGather).forEach((key) => {
+          appliedImmediately.push(`cooperation.groupGather.${key}`);
+        });
+      }
+      if (updates.cooperation.forage) {
+        runtimeUpdates.cooperation.forage = updates.cooperation.forage;
+        Object.keys(updates.cooperation.forage).forEach((key) => {
+          appliedImmediately.push(`cooperation.forage.${key}`);
+        });
+      }
+      if (updates.cooperation.buy) {
+        runtimeUpdates.cooperation.buy = updates.cooperation.buy;
+        Object.keys(updates.cooperation.buy).forEach((key) => {
+          appliedImmediately.push(`cooperation.buy.${key}`);
+        });
+      }
+      if (updates.cooperation.solo) {
+        runtimeUpdates.cooperation.solo = updates.cooperation.solo;
+        Object.keys(updates.cooperation.solo).forEach((key) => {
+          appliedImmediately.push(`cooperation.solo.${key}`);
+        });
+      }
+    }
+
+    // Handle spoilage updates (runtime modifiable)
+    if (updates.spoilage) {
+      runtimeUpdates.spoilage = {};
+      if (updates.spoilage.enabled !== undefined) {
+        runtimeUpdates.spoilage.enabled = updates.spoilage.enabled;
+        appliedImmediately.push('spoilage.enabled');
+      }
+      if (updates.spoilage.rates) {
+        runtimeUpdates.spoilage.rates = updates.spoilage.rates;
+        Object.keys(updates.spoilage.rates).forEach((key) => {
+          appliedImmediately.push(`spoilage.rates.${key}`);
+        });
+      }
+      if (updates.spoilage.removalThreshold !== undefined) {
+        runtimeUpdates.spoilage.removalThreshold = updates.spoilage.removalThreshold;
+        appliedImmediately.push('spoilage.removalThreshold');
+      }
     }
 
     if (Object.keys(runtimeUpdates).length > 0) {

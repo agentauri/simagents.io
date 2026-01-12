@@ -9,7 +9,7 @@
  * - Reset to defaults
  */
 
-import { useConfigStore, type PersonalityTrait } from '../../stores/config';
+import { useConfigStore, useConfig, usePendingChanges, type PersonalityTrait } from '../../stores/config';
 
 // Personality trait metadata
 const PERSONALITY_INFO: Record<PersonalityTrait, { label: string; color: string; description: string }> = {
@@ -50,7 +50,6 @@ const TRAIT_ORDER: PersonalityTrait[] = ['neutral', 'cooperative', 'aggressive',
 export function PersonalityConfig() {
   const {
     personalityConfig,
-    setPersonalityConfig,
     setPersonalityWeight,
     savePersonalityConfig,
     resetPersonalityWeights,
@@ -58,7 +57,15 @@ export function PersonalityConfig() {
     isLoading,
   } = useConfigStore();
 
-  const { enabled, weights } = personalityConfig;
+  // Use server config + pending changes for enabled state
+  const config = useConfig();
+  const pendingChanges = usePendingChanges();
+  // Check pending changes first, then fall back to server config
+  const enabled = pendingChanges?.experiment?.enablePersonalities
+    ?? config?.experiment?.enablePersonalities
+    ?? false;
+
+  const { weights } = personalityConfig;
 
   // Calculate actual agent count based on deployment mode
   const agentCount = genesisConfig.enabled
@@ -72,31 +79,19 @@ export function PersonalityConfig() {
 
   return (
     <div className="py-3 px-4 space-y-4">
-      {/* Enable/Disable Toggle */}
+      {/* Status indicator - toggle is in Experiment Toggles section */}
       <div className="flex items-center justify-between">
         <div>
-          <span className="text-sm font-medium text-gray-200">Enable Personalities</span>
-          <p className="text-xs text-gray-500">Assign traits to agents affecting their behavior</p>
+          <span className="text-sm font-medium text-gray-200">Personality Weights</span>
+          <p className="text-xs text-gray-500">
+            {enabled
+              ? 'Configure trait distribution for agents'
+              : 'Enable in "Experiment Toggles" section above'}
+          </p>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          onClick={() => setPersonalityConfig({ enabled: !enabled })}
-          disabled={isLoading}
-          className={`
-            w-11 h-6 rounded-full relative transition-colors duration-200
-            ${enabled ? 'bg-blue-500' : 'bg-gray-600'}
-            ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-          `}
-        >
-          <span
-            className={`
-              absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-transform duration-200 shadow-sm
-              ${enabled ? 'translate-x-5' : 'translate-x-0'}
-            `}
-          />
-        </button>
+        <span className={`px-2 py-0.5 text-xs rounded ${enabled ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-300'}`}>
+          {enabled ? 'Enabled' : 'Disabled'}
+        </span>
       </div>
 
       {/* Weights Configuration (only when enabled) */}
@@ -193,7 +188,7 @@ export function PersonalityConfig() {
       <div className="text-xs text-gray-500 pt-2 border-t border-gray-700">
         {enabled
           ? 'Personality changes require simulation restart'
-          : 'Enable personalities to diversify agent behavior'}
+          : 'Toggle "Enable Personalities" in Experiment Toggles to configure weights'}
       </div>
     </div>
   );

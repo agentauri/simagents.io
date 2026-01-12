@@ -65,6 +65,50 @@ export interface EconomyConfig {
   currencyDecayThreshold: number;
 }
 
+// Phase 4-6: Cooperation Config (emergent cooperation incentives)
+export interface CooperationConfig {
+  enabled: boolean;
+  gather: {
+    efficiencyMultiplierPerAgent: number;
+    maxEfficiencyMultiplier: number;
+    cooperationRadius: number;
+  };
+  groupGather: {
+    enabled: boolean;
+    richSpawnThreshold: number;
+    minAgentsForRich: number;
+    soloMaxFromRich: number;
+    groupBonus: number;
+  };
+  forage: {
+    nearbyAgentBonus: number;
+    maxCooperationBonus: number;
+    cooperationRadius: number;
+  };
+  buy: {
+    trustPriceModifier: number;
+    minTrustDiscount: number;
+    maxTrustPenalty: number;
+  };
+  solo: {
+    gatherEfficiencyModifier: number;
+  };
+}
+
+// Phase 6: Spoilage Config (item decay over time)
+export interface SpoilageConfig {
+  enabled: boolean;
+  rates: {
+    food: number;
+    water: number;
+    medicine: number;
+    battery: number;
+    material: number;
+    tool: number;
+  };
+  removalThreshold: number;
+}
+
 export type LLMType = 'claude' | 'codex' | 'gemini' | 'deepseek' | 'qwen' | 'glm' | 'grok';
 
 export interface GenesisConfig {
@@ -92,6 +136,8 @@ export interface ConfigResponse {
   llmCache: LLMCacheConfig;
   actions: ActionsConfig;
   economy: EconomyConfig;
+  cooperation: CooperationConfig;
+  spoilage: SpoilageConfig;
 }
 
 // Section-specific update types
@@ -102,6 +148,8 @@ type ExperimentUpdate = Partial<ExperimentConfig>;
 type LLMCacheUpdate = Partial<LLMCacheConfig>;
 type ActionsUpdate = Partial<ActionsConfig>;
 type EconomyUpdate = Partial<EconomyConfig>;
+type CooperationUpdate = Partial<CooperationConfig>;
+type SpoilageUpdate = Partial<SpoilageConfig>;
 
 export interface ConfigState {
   // State
@@ -126,6 +174,8 @@ export interface ConfigState {
   updateLLMCache: (updates: LLMCacheUpdate) => void;
   updateActions: (updates: ActionsUpdate) => void;
   updateEconomy: (updates: EconomyUpdate) => void;
+  updateCooperation: (updates: CooperationUpdate) => void;
+  updateSpoilage: (updates: SpoilageUpdate) => void;
   setGenesisConfig: (updates: Partial<GenesisConfig>) => void;
   fetchGenesisConfig: () => Promise<void>;
   saveGenesisConfig: () => Promise<void>;
@@ -387,6 +437,8 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
   updateLLMCache: (updates: LLMCacheUpdate) => get()._updateSection('llmCache', updates),
   updateActions: (updates: ActionsUpdate) => get()._updateSection('actions', updates),
   updateEconomy: (updates: EconomyUpdate) => get()._updateSection('economy', updates),
+  updateCooperation: (updates: CooperationUpdate) => get()._updateSection('cooperation', updates),
+  updateSpoilage: (updates: SpoilageUpdate) => get()._updateSection('spoilage', updates),
 
   // Genesis configuration
   setGenesisConfig: (updates: Partial<GenesisConfig>) => {
