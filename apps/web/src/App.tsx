@@ -19,6 +19,7 @@ import { ScientificCanvas } from './components/Canvas/ScientificCanvas';
 import { ScientificIsometricCanvas } from './components/Canvas/ScientificIsometricCanvas';
 import { EventFeed } from './components/EventFeed';
 import { AgentProfile } from './components/AgentProfile';
+import { ResourceProfile } from './components/ResourceProfile';
 import { WorldStats } from './components/WorldStats';
 import { AgentSummaryTable } from './components/AgentSummaryTable';
 import { DecisionLog } from './components/DecisionLog';
@@ -40,6 +41,7 @@ import { isAuthRequired } from './utils/env';
 export default function App() {
   const { status, connect, disconnect } = useSSE();
   const selectedAgentId = useWorldStore((s) => s.selectedAgentId);
+  const selectedResourceId = useWorldStore((s) => s.selectedResourceId);
   const { resetWorld, setWorldState, setEvents, updateWorldState } = useWorldStore();
   const { setMode, setPaused } = useEditorStore();
   const mode = useAppMode();
@@ -192,12 +194,12 @@ export default function App() {
     });
   }, []);
 
-  // Switch to profile view when agent is selected (mobile)
+  // Switch to profile view when agent or resource is selected (mobile)
   useEffect(() => {
-    if (selectedAgentId && window.innerWidth < 768) {
+    if ((selectedAgentId || selectedResourceId) && window.innerWidth < 768) {
       setMobileView('profile');
     }
-  }, [selectedAgentId]);
+  }, [selectedAgentId, selectedResourceId]);
 
   // Render the appropriate canvas based on view mode
   const renderCanvas = () => {
@@ -383,10 +385,14 @@ export default function App() {
               <ErrorBoundary sectionName="Agent Profile" onError={handleError} compact>
                 <AgentProfile agentId={selectedAgentId} />
               </ErrorBoundary>
+            ) : selectedResourceId ? (
+              <ErrorBoundary sectionName="Resource Profile" onError={handleError} compact>
+                <ResourceProfile />
+              </ErrorBoundary>
             ) : (
               <div className="p-4 text-city-text-muted text-sm text-center">
-                <p>No agent selected</p>
-                <p className="mt-2 text-xs">Tap an agent on the map to view details</p>
+                <p>No agent or resource selected</p>
+                <p className="mt-2 text-xs">Tap an agent or resource on the map to view details</p>
               </div>
             )}
           </div>
@@ -456,9 +462,13 @@ export default function App() {
               <ErrorBoundary sectionName="Agent Profile" onError={handleError} compact>
                 <AgentProfile agentId={selectedAgentId} />
               </ErrorBoundary>
+            ) : selectedResourceId ? (
+              <ErrorBoundary sectionName="Resource Profile" onError={handleError} compact>
+                <ResourceProfile />
+              </ErrorBoundary>
             ) : (
               <div className="p-4 text-gray-400 text-sm">
-                Click an agent on the grid to view details
+                Click an agent or resource on the grid to view details
               </div>
             )
           }
