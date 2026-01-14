@@ -160,3 +160,12 @@ Set `ADMIN_API_KEY` env var in production. Default is insecure for development o
 - `docs/PRD.md` - Product Requirements Document
 - `docs/experiment-design-guide.md` - Research experiment guide
 - `ROADMAP.md` - Implementation progress
+
+## Language Conventions
+
+All project artifacts must be in **English**:
+
+- **Code**: Variable names, function names, class names, comments, JSDoc/TSDoc
+- **Commits**: Use [Conventional Commits](https://www.conventionalcommits.org/) format (e.g., `feat:`, `fix:`, `docs:`)
+- **Pull Requests**: English title and description
+- **Documentation**: All markdown files, README, inline docs
