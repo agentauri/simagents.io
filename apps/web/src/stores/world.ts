@@ -88,6 +88,7 @@ interface WorldState {
   // UI state
   selectedAgentId: string | null;
   selectedLocationId: string | null;
+  selectedResourceId: string | null;
   cameraX: number;
   cameraY: number;
   zoom: number;
@@ -103,6 +104,7 @@ interface WorldState {
   addBubble: (bubble: AgentBubble) => void;
   selectAgent: (id: string | null) => void;
   selectLocation: (id: string | null) => void;
+  selectResource: (id: string | null) => void;
   setCamera: (x: number, y: number) => void;
   setZoom: (zoom: number) => void;
   // Editor integration
@@ -126,6 +128,7 @@ export const useWorldStore = create<WorldState>((set) => ({
   bubbles: [],
   selectedAgentId: null,
   selectedLocationId: null,
+  selectedResourceId: null,
   cameraX: 0,
   cameraY: 0,
   zoom: 1,
@@ -182,12 +185,20 @@ export const useWorldStore = create<WorldState>((set) => ({
       return { bubbles: [...filteredBubbles, bubble] };
     }),
 
-  selectAgent: (id) => set({ selectedAgentId: id, selectedLocationId: null }),
+  selectAgent: (id) => set({ selectedAgentId: id, selectedLocationId: null, selectedResourceId: null }),
 
   selectLocation: (id) =>
     set((state) => ({
       selectedLocationId: state.selectedLocationId === id ? null : id,
-      selectedAgentId: null, // Deselect agent when selecting location
+      selectedAgentId: null,
+      selectedResourceId: null,
+    })),
+
+  selectResource: (id) =>
+    set((state) => ({
+      selectedResourceId: state.selectedResourceId === id ? null : id,
+      selectedAgentId: null,
+      selectedLocationId: null,
     })),
 
   setCamera: (x, y) => set({ cameraX: x, cameraY: y }),
@@ -212,6 +223,7 @@ export const useWorldStore = create<WorldState>((set) => ({
       bubbles: [],
       selectedAgentId: null,
       selectedLocationId: null,
+      selectedResourceId: null,
     }),
 }));
 
@@ -233,6 +245,13 @@ export const useSelectedLocation = () =>
   useWorldStore((state) =>
     state.selectedLocationId
       ? state.locations.find((l) => l.id === state.selectedLocationId)
+      : null
+  );
+
+export const useSelectedResource = () =>
+  useWorldStore((state) =>
+    state.selectedResourceId
+      ? state.resourceSpawns.find((r) => r.id === state.selectedResourceId)
       : null
   );
 

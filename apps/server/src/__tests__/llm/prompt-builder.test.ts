@@ -312,7 +312,7 @@ describe('buildObservationPrompt', () => {
       const prompt = buildObservationPrompt(obs);
       // When at spawn location, shows "HERE!" indicator with available amount
       expect(prompt).toContain('**FOOD HERE!**');
-      expect(prompt).toContain('USE GATHER NOW');
+      expect(prompt).toContain('USE GATHER NOW!');
     });
   });
 

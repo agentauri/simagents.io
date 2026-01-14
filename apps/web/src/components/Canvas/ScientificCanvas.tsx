@@ -81,7 +81,9 @@ export function ScientificCanvas() {
   const shelters = useShelters();
   const tick = useWorldStore((s) => s.tick);
   const selectedAgentId = useWorldStore((s) => s.selectedAgentId);
+  const selectedResourceId = useWorldStore((s) => s.selectedResourceId);
   const selectAgent = useWorldStore((s) => s.selectAgent);
+  const selectResource = useWorldStore((s) => s.selectResource);
 
   // Memoize agent grouping by position (O(n) instead of O(n²) per frame)
   const agentsByPosition = useMemo(() => {
@@ -202,6 +204,18 @@ export function ScientificCanvas() {
         TILE_SIZE - 2,
         TILE_SIZE - 2
       );
+
+      // Selection ring for selected resource
+      if (spawn.id === selectedResourceId) {
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(
+          spawn.x * TILE_SIZE - 1,
+          spawn.y * TILE_SIZE - 1,
+          TILE_SIZE + 2,
+          TILE_SIZE + 2
+        );
+      }
     }
 
     // Draw agents with offset for overlapping ones (uses memoized agentsByPosition)
@@ -347,7 +361,7 @@ export function ScientificCanvas() {
       });
     }
 
-  }, [agents, agentsByPosition, resourceSpawns, shelters, tick, selectedAgentId, camera, zoom, canvasSize]);
+  }, [agents, agentsByPosition, resourceSpawns, shelters, tick, selectedAgentId, selectedResourceId, camera, zoom, canvasSize]);
 
   // Handle resize - use layoutEffect to set size before paint
   useLayoutEffect(() => {
@@ -507,11 +521,11 @@ export function ScientificCanvas() {
     return { x: worldX, y: worldY };
   }, [camera, zoom]);
 
-  // Handle click to select agent
+  // Handle click to select agent or resource
   const handleClick = useCallback((e: React.MouseEvent) => {
     const { x: worldX, y: worldY } = screenToWorld(e.clientX, e.clientY);
 
-    // Check if any agent was clicked
+    // Check if any agent was clicked (agents have priority)
     for (const agent of agents) {
       const centerX = agent.x * TILE_SIZE + TILE_SIZE / 2;
       const centerY = agent.y * TILE_SIZE + TILE_SIZE / 2;
@@ -523,11 +537,25 @@ export function ScientificCanvas() {
       }
     }
 
-    // Clicked empty space - deselect
-    selectAgent(null);
-  }, [agents, screenToWorld, selectedAgentId, selectAgent]);
+    // Check if any resource was clicked
+    for (const spawn of resourceSpawns) {
+      const spawnLeft = spawn.x * TILE_SIZE;
+      const spawnTop = spawn.y * TILE_SIZE;
+      const spawnRight = spawnLeft + TILE_SIZE;
+      const spawnBottom = spawnTop + TILE_SIZE;
 
-  // Handle tap to select agent (touch)
+      if (worldX >= spawnLeft && worldX < spawnRight && worldY >= spawnTop && worldY < spawnBottom) {
+        selectResource(spawn.id === selectedResourceId ? null : spawn.id);
+        return;
+      }
+    }
+
+    // Clicked empty space - deselect all
+    selectAgent(null);
+    selectResource(null);
+  }, [agents, resourceSpawns, screenToWorld, selectedAgentId, selectedResourceId, selectAgent, selectResource]);
+
+  // Handle tap to select agent or resource (touch)
   const handleTap = useCallback((e: React.TouchEvent) => {
     // Only handle single tap (not part of a gesture)
     if (e.changedTouches.length !== 1) return;
@@ -535,7 +563,7 @@ export function ScientificCanvas() {
     const touch = e.changedTouches[0];
     const { x: worldX, y: worldY } = screenToWorld(touch.clientX, touch.clientY);
 
-    // Check if any agent was tapped
+    // Check if any agent was tapped (agents have priority)
     for (const agent of agents) {
       const centerX = agent.x * TILE_SIZE + TILE_SIZE / 2;
       const centerY = agent.y * TILE_SIZE + TILE_SIZE / 2;
@@ -548,9 +576,26 @@ export function ScientificCanvas() {
       }
     }
 
-    // Tapped empty space - deselect
+    // Check if any resource was tapped
+    for (const spawn of resourceSpawns) {
+      const spawnLeft = spawn.x * TILE_SIZE;
+      const spawnTop = spawn.y * TILE_SIZE;
+      const spawnRight = spawnLeft + TILE_SIZE;
+      const spawnBottom = spawnTop + TILE_SIZE;
+
+      // Slightly larger hit area for touch
+      const padding = 5;
+      if (worldX >= spawnLeft - padding && worldX < spawnRight + padding &&
+          worldY >= spawnTop - padding && worldY < spawnBottom + padding) {
+        selectResource(spawn.id === selectedResourceId ? null : spawn.id);
+        return;
+      }
+    }
+
+    // Tapped empty space - deselect all
     selectAgent(null);
-  }, [agents, screenToWorld, selectedAgentId, selectAgent]);
+    selectResource(null);
+  }, [agents, resourceSpawns, screenToWorld, selectedAgentId, selectedResourceId, selectAgent, selectResource]);
 
   // Track if touch moved (to distinguish tap from drag)
   const touchMovedRef = useRef(false);
