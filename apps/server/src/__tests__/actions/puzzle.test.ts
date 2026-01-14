@@ -10,7 +10,7 @@
  * - submit_solution: Submit puzzle solution
  */
 
-import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
+import { describe, expect, test, mock, beforeEach, afterEach, afterAll } from 'bun:test';
 import { v4 as uuid } from 'uuid';
 import { createHash } from 'crypto';
 import { db } from '../../db';
@@ -23,20 +23,60 @@ import {
   puzzleTeams,
   puzzleAttempts,
 } from '../../db/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, sql } from 'drizzle-orm';
+import type { Agent } from '../../db/schema';
+import { CONFIG } from '../../config';
+
+// Override any mocks from other test files with real implementations
+// This is necessary because trade-flow.test.ts mocks db/queries/agents
+mock.module('../../db/queries/agents', () => ({
+  getAgentById: async (id: string) => {
+    const result = await db.select().from(agents).where(eq(agents.id, id)).limit(1);
+    return result[0];
+  },
+  getAllAgents: async () => db.select().from(agents),
+  getAliveAgents: async () => db.select().from(agents).where(sql`${agents.state} != 'dead'`),
+  getAgentsAtPosition: async (x: number, y: number) =>
+    db.select().from(agents).where(and(eq(agents.x, x), eq(agents.y, y))),
+  createAgent: async (agent: unknown) => {
+    const result = await db.insert(agents).values(agent as typeof agents.$inferInsert).returning();
+    return result[0];
+  },
+  updateAgent: async (id: string, updates: unknown) => {
+    const result = await db.update(agents).set(updates as Partial<Agent>).where(eq(agents.id, id)).returning();
+    return result[0];
+  },
+  updateAgentNeeds: async (id: string, hunger: number, energy: number, health: number) => {
+    const result = await db.update(agents).set({ hunger, energy, health }).where(eq(agents.id, id)).returning();
+    return result[0];
+  },
+  updateAgentPosition: async (id: string, x: number, y: number) => {
+    const result = await db.update(agents).set({ x, y }).where(eq(agents.id, id)).returning();
+    return result[0];
+  },
+  updateAgentBalance: async (id: string, balance: number) => {
+    const result = await db.update(agents).set({ balance }).where(eq(agents.id, id)).returning();
+    return result[0];
+  },
+  killAgent: async (id: string) => {
+    const result = await db.update(agents).set({ state: 'dead', diedAt: new Date() }).where(eq(agents.id, id)).returning();
+    return result[0];
+  },
+  deleteAllAgents: async () => db.delete(agents),
+}));
+
+// Import handlers AFTER re-mocking with real implementations
 import { handleJoinPuzzle } from '../../actions/handlers/join-puzzle';
 import { handleLeavePuzzle } from '../../actions/handlers/leave-puzzle';
 import { handleShareFragment } from '../../actions/handlers/share-fragment';
 import { handleFormTeam } from '../../actions/handlers/form-team';
 import { handleJoinTeam } from '../../actions/handlers/join-team';
 import { handleSubmitSolution } from '../../actions/handlers/submit-solution';
-import type { Agent } from '../../db/schema';
-// ActionIntent type not needed since createIntent returns any for flexibility
-import { CONFIG } from '../../config';
 
-// Note: These tests use real database operations. When running the full test suite,
-// they may fail due to mock bleeding from other test files that mock db/queries/*.
-// Run in isolation for reliable results: bun test src/__tests__/actions/puzzle.test.ts
+// Cleanup mocks after all tests complete
+afterAll(() => {
+  mock.restore();
+});
 
 // Track created test data for cleanup
 const createdAgentIds: string[] = [];
