@@ -36,7 +36,7 @@ User-facing documentation organized by audience:
 
 ### Design & Architecture
 
-- **[PRD.md](PRD.md)** - Product Requirements Document (v1.5.0)
+- **[PRD.md](PRD.md)** - Product Requirements Document (v1.6.0)
   - Vision and philosophy (Sections 1-4)
   - System architecture (Section 5)
   - World model (Section 6)
@@ -46,6 +46,9 @@ User-facing documentation organized by audience:
   - Governance (Section 11)
   - Advanced features (Sections 34-40)
   - Employment System (Section 41)
+  - Social Interactions & Cooperation (Section 42)
+  - Cooperative Puzzle Game (Section 43)
+  - User Authentication (Section 44)
 
 ### Technical Reference
 
@@ -69,14 +72,6 @@ User-facing documentation organized by audience:
   - Reproducibility requirements
   - A/B testing framework
 
-## Operations
-
-- **[DEPLOYMENT](../DEPLOYMENT.md)** - Production deployment guide
-  - Fly.io setup
-  - PostgreSQL and Redis provisioning
-  - GitHub Actions CI/CD
-  - Scaling and monitoring
-
 ## Development Context
 
 - **[CLAUDE.md](../CLAUDE.md)** - For AI coding assistants
@@ -86,7 +81,7 @@ User-facing documentation organized by audience:
   - API endpoints
 
 - **[ROADMAP](../ROADMAP.md)** - Implementation progress
-  - All phases complete (0-6)
+  - All phases complete (0-8)
   - Technical debt tracking
 
 ---
@@ -121,4 +116,4 @@ README.md           ─── Quick start, links to docs
 
 ---
 
-*Last updated: January 11, 2026*
+*Last updated: January 16, 2026*

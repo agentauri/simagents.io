@@ -118,7 +118,7 @@ Secure authentication system for web platform:
 - Bun + TypeScript, Fastify HTTP, PostgreSQL + Drizzle ORM
 - Redis (cache, pub/sub, scents), BullMQ (job queue)
 - SSE real-time updates, Docker Compose
-- 654 tests passing, CI/CD via GitHub Actions
+- 727 tests passing, CI/CD via GitHub Actions
 
 ### API
 - REST API with OpenAPI/Swagger documentation

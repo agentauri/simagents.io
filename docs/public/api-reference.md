@@ -574,6 +574,90 @@ Logout and clear session.
 
 ---
 
+## Puzzles API
+
+Endpoints for viewing and managing cooperative puzzle games.
+
+### GET /api/puzzles
+List all puzzle games with optional status filter.
+
+**Query params**: `status` (all|active|completed|expired), `limit`, `offset`
+
+### GET /api/puzzles/:id
+Get detailed information about a specific puzzle game including participants, teams, and fragments.
+
+### GET /api/puzzles/:id/results
+Get results of a completed puzzle game including winner and prize distribution.
+
+### GET /api/puzzles/:id/fragments
+Get all fragments for a puzzle game.
+
+### GET /api/puzzles/:id/teams
+Get all teams for a puzzle game.
+
+### GET /api/puzzles/stats
+Get overall puzzle game statistics (total, active, completed, expired games).
+
+---
+
+## Experiments API
+
+Scientific experiment management endpoints.
+
+### GET /api/experiments/definitions
+Get definitions for all available experiment types.
+
+### GET /api/experiments/status
+Get current experiment execution status.
+
+### POST /api/experiments/seed/:type
+Seed a scientific baseline experiment.
+
+**Headers**: `X-Admin-Key: your-admin-key`
+
+**Types**: `random-walk`, `rule-based`, `llm-comparison`, `all`
+
+### POST /api/experiments/:id/start
+Start an experiment - runs the next pending variant.
+
+**Headers**: `X-Admin-Key: your-admin-key`
+
+### GET /api/experiments/:id/results
+Get detailed comparison results for an experiment.
+
+### POST /api/experiments/:id/export
+Export experiment results.
+
+**Query params**: `format` (json|csv|latex)
+
+### GET /api/experiments/:id/snapshots
+Get all metric snapshots for experiment variants.
+
+### GET /api/experiments/:id/novelty
+Detect and analyze novel/unusual behaviors in an experiment.
+
+---
+
+## Admin APIs
+
+These endpoints require `X-Admin-Key` header.
+
+### Config API
+- `GET /api/config` - Get current configuration
+- `POST /api/config` - Update runtime configuration
+
+### LLM Keys API
+- `GET /api/llm-keys` - List configured LLM API keys
+- `POST /api/llm-keys` - Add LLM API key
+- `DELETE /api/llm-keys/:provider` - Remove LLM API key
+
+### Tenants API
+- `GET /api/tenants` - List tenants
+- `POST /api/tenants` - Create tenant
+- `DELETE /api/tenants/:id` - Delete tenant
+
+---
+
 ## OpenAPI/Swagger
 
 Interactive API documentation available at:
