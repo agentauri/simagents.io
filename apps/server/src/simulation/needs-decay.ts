@@ -43,6 +43,22 @@ export function resetCriticalTicks(agentId?: string): void {
 }
 
 /**
+ * Clean up orphaned entries from criticalTicksMap.
+ * Called periodically to prevent memory leaks from agents that were
+ * removed without going through killAgent (e.g., direct DB deletion).
+ */
+export async function cleanupOrphanedCriticalTicks(aliveAgentIds: Set<string>): Promise<number> {
+  let removed = 0;
+  for (const agentId of criticalTicksMap.keys()) {
+    if (!aliveAgentIds.has(agentId)) {
+      criticalTicksMap.delete(agentId);
+      removed++;
+    }
+  }
+  return removed;
+}
+
+/**
  * Set critical ticks for testing grace period behavior.
  * @internal - exported for testing only
  */

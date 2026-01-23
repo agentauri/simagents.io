@@ -88,16 +88,8 @@ export async function handleTrade(
     };
   }
 
-  // Check initiator has the offering items
-  const initiatorItem = await getInventoryItem(agent.id, offeringItemType);
-  if (!initiatorItem || initiatorItem.quantity < offeringQuantity) {
-    return {
-      success: false,
-      error: `Not enough ${offeringItemType} to offer (have: ${initiatorItem?.quantity ?? 0}, need: ${offeringQuantity})`,
-    };
-  }
-
   // Phase 6: Calculate trade bonuses based on trust and loyalty
+  // Fetch relationships before transaction for bonus calculation
   const relationships = await getAgentRelationships(agent.id);
   const relationship = relationships.find(r => r.otherAgentId === targetAgentId);
   const trustLevel = relationship?.trustScore ?? 0;
@@ -112,29 +104,6 @@ export async function handleTrade(
   // Total quantity bonus for received items
   const quantityBonusMultiplier = 1 + trustBonus + loyaltyBonus;
 
-  // Check target has the requested items
-  const targetItem = await getInventoryItem(targetAgentId, requestingItemType);
-  if (!targetItem || targetItem.quantity < requestingQuantity) {
-    // Trade rejected - target doesn't have items
-    // Store memory and update trust (slight negative for failed attempt)
-    await storeMemory({
-      agentId: agent.id,
-      type: 'interaction',
-      content: `Attempted to trade ${offeringQuantity}x ${offeringItemType} for ${requestingQuantity}x ${requestingItemType} with another agent, but they didn't have enough items.`,
-      importance: 3,
-      emotionalValence: -0.2,
-      involvedAgentIds: [targetAgentId],
-      x: agent.x,
-      y: agent.y,
-      tick: intent.tick,
-    });
-
-    return {
-      success: false,
-      error: `Target agent doesn't have enough ${requestingItemType} (have: ${targetItem?.quantity ?? 0}, need: ${requestingQuantity})`,
-    };
-  }
-
   // Phase 6: Calculate actual received quantity with trust/loyalty bonus
   const bonusQuantityReceived = Math.floor(requestingQuantity * quantityBonusMultiplier);
   const bonusNote = quantityBonusMultiplier > 1
@@ -142,8 +111,45 @@ export async function handleTrade(
     : '';
 
   // Execute trade atomically using a database transaction
+  // ALL inventory checks are done INSIDE the transaction to prevent TOCTOU race conditions
+  let tradeError: string | null = null;
+
   try {
     await db.transaction(async (tx) => {
+      // Check initiator's inventory within the transaction
+      const [initiatorItem] = await tx
+        .select()
+        .from(inventory)
+        .where(
+          and(
+            eq(inventory.agentId, agent.id),
+            eq(inventory.itemType, offeringItemType)
+          )
+        );
+
+      const initiatorHas = initiatorItem?.quantity ?? 0;
+      if (initiatorHas < offeringQuantity) {
+        tradeError = `Not enough ${offeringItemType} to offer (have: ${initiatorHas}, need: ${offeringQuantity})`;
+        throw new Error(tradeError);
+      }
+
+      // Check target's inventory within the transaction
+      const [targetItem] = await tx
+        .select()
+        .from(inventory)
+        .where(
+          and(
+            eq(inventory.agentId, targetAgentId),
+            eq(inventory.itemType, requestingItemType)
+          )
+        );
+
+      const targetHas = targetItem?.quantity ?? 0;
+      if (targetHas < requestingQuantity) {
+        tradeError = `Target agent doesn't have enough ${requestingItemType} (have: ${targetHas}, need: ${requestingQuantity})`;
+        throw new Error(tradeError);
+      }
+
       // Lock and update initiator's inventory (remove offered items)
       const initiatorUpdate = await tx
         .update(inventory)
@@ -158,7 +164,8 @@ export async function handleTrade(
         .returning();
 
       if (initiatorUpdate.length === 0) {
-        throw new Error('Failed to remove offering items - insufficient quantity');
+        tradeError = 'Failed to remove offering items - concurrent modification detected';
+        throw new Error(tradeError);
       }
 
       // Clean up zero-quantity items
@@ -180,7 +187,8 @@ export async function handleTrade(
         .returning();
 
       if (targetUpdate.length === 0) {
-        throw new Error('Failed to remove target items - insufficient quantity');
+        tradeError = 'Failed to remove target items - concurrent modification detected';
+        throw new Error(tradeError);
       }
 
       // Clean up zero-quantity items
@@ -217,9 +225,26 @@ export async function handleTrade(
         });
     });
   } catch (error) {
+    const errorMessage = tradeError || (error instanceof Error ? error.message : 'Trade transaction failed');
+
+    // If target didn't have items, store memory about failed attempt
+    if (errorMessage.includes("Target agent doesn't have enough")) {
+      await storeMemory({
+        agentId: agent.id,
+        type: 'interaction',
+        content: `Attempted to trade ${offeringQuantity}x ${offeringItemType} for ${requestingQuantity}x ${requestingItemType} with another agent, but they didn't have enough items.`,
+        importance: 3,
+        emotionalValence: -0.2,
+        involvedAgentIds: [targetAgentId],
+        x: agent.x,
+        y: agent.y,
+        tick: intent.tick,
+      });
+    }
+
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Trade transaction failed',
+      error: errorMessage,
     };
   }
 

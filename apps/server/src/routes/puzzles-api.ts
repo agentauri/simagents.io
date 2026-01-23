@@ -18,8 +18,43 @@ import {
 } from '../db/queries/puzzles';
 import { getAgentById } from '../db/queries/agents';
 import { db } from '../db';
-import { puzzleGames } from '../db/schema';
-import { eq, or, desc } from 'drizzle-orm';
+import { puzzleGames, puzzleParticipants, agents } from '../db/schema';
+import { eq, or, desc, inArray, sql, count } from 'drizzle-orm';
+
+/**
+ * Batch fetch agents by IDs to avoid N+1 queries
+ */
+async function batchGetAgents(agentIds: string[]): Promise<Map<string, { id: string; llmType: string; color: string | null }>> {
+  if (agentIds.length === 0) return new Map();
+
+  const uniqueIds = [...new Set(agentIds)];
+  const results = await db
+    .select({ id: agents.id, llmType: agents.llmType, color: agents.color })
+    .from(agents)
+    .where(inArray(agents.id, uniqueIds));
+
+  return new Map(results.map(a => [a.id, a]));
+}
+
+/**
+ * Get participant counts for multiple games in a single query
+ */
+async function batchGetParticipantCounts(gameIds: string[]): Promise<Map<string, number>> {
+  if (gameIds.length === 0) return new Map();
+
+  const results = await db
+    .select({
+      gameId: puzzleParticipants.gameId,
+      count: count(),
+    })
+    .from(puzzleParticipants)
+    .where(
+      sql`${puzzleParticipants.gameId} IN ${gameIds} AND ${puzzleParticipants.status} = 'active'`
+    )
+    .groupBy(puzzleParticipants.gameId);
+
+  return new Map(results.map(r => [r.gameId, r.count]));
+}
 
 export async function registerPuzzlesRoutes(server: FastifyInstance): Promise<void> {
   // =============================================================================
@@ -90,28 +125,26 @@ export async function registerPuzzlesRoutes(server: FastifyInstance): Promise<vo
         .offset(offset);
     }
 
-    // Get participant counts for each game
-    const puzzlesWithCounts = await Promise.all(
-      games.map(async (game) => {
-        const participants = await getActiveParticipantsForGame(game.id);
-        return {
-          id: game.id,
-          gameType: game.gameType,
-          status: game.status,
-          prizePool: game.prizePool,
-          entryStake: game.entryStake,
-          startsAtTick: game.startsAtTick,
-          endsAtTick: game.endsAtTick,
-          participantCount: participants.length,
-          fragmentCount: game.fragmentCount,
-          winnerId: game.winnerId,
-        };
-      })
-    );
+    // Get participant counts for all games in a single batch query
+    const gameIds = games.map(g => g.id);
+    const participantCounts = await batchGetParticipantCounts(gameIds);
 
-    // Get total count for pagination
-    const allGames = await db.select().from(puzzleGames);
-    const total = allGames.length;
+    const puzzlesWithCounts = games.map((game) => ({
+      id: game.id,
+      gameType: game.gameType,
+      status: game.status,
+      prizePool: game.prizePool,
+      entryStake: game.entryStake,
+      startsAtTick: game.startsAtTick,
+      endsAtTick: game.endsAtTick,
+      participantCount: participantCounts.get(game.id) || 0,
+      fragmentCount: game.fragmentCount,
+      winnerId: game.winnerId,
+    }));
+
+    // Get total count for pagination using COUNT query instead of fetching all
+    const [{ totalCount }] = await db.select({ totalCount: count() }).from(puzzleGames);
+    const total = totalCount;
 
     return { puzzles: puzzlesWithCounts, total };
   });
@@ -134,7 +167,7 @@ export async function registerPuzzlesRoutes(server: FastifyInstance): Promise<vo
         200: {
           type: 'object',
           properties: {
-            puzzle: { type: 'object' },
+            puzzle: { type: 'object', additionalProperties: true },
             participants: { type: 'array' },
             teams: { type: 'array' },
             fragments: { type: 'array' },
@@ -162,64 +195,74 @@ export async function registerPuzzlesRoutes(server: FastifyInstance): Promise<vo
       getFragmentsForGame(id),
     ]);
 
-    // Enrich participants with agent names
-    const enrichedParticipants = await Promise.all(
-      participants.map(async (p) => {
-        const agent = await getAgentById(p.agentId);
-        return {
-          ...p,
-          agentName: agent?.llmType || 'Unknown',
-          agentColor: agent?.color || '#888',
-        };
-      })
-    );
+    // Collect all agent IDs for batch fetch
+    const allAgentIds: string[] = [
+      ...participants.map(p => p.agentId),
+      ...fragments.filter(f => f.ownerId).map(f => f.ownerId as string),
+      ...fragments.filter(f => f.originalOwnerId).map(f => f.originalOwnerId as string),
+      ...teams.filter(t => t.leaderId).map(t => t.leaderId as string),
+    ];
+
+    // Fetch team members and add their agent IDs
+    const teamMembersMap = new Map<string, Awaited<ReturnType<typeof getTeamMembers>>>();
+    for (const team of teams) {
+      const members = await getTeamMembers(team.id);
+      teamMembersMap.set(team.id, members);
+      allAgentIds.push(...members.map(m => m.agentId));
+    }
+
+    // Batch fetch all agents
+    const agentsMap = await batchGetAgents(allAgentIds);
+
+    // Enrich participants with agent info
+    const enrichedParticipants = participants.map((p) => {
+      const agent = agentsMap.get(p.agentId);
+      return {
+        ...p,
+        agentName: agent?.llmType || 'Unknown',
+        agentColor: agent?.color || '#888',
+      };
+    });
 
     // Enrich teams with member info
-    const enrichedTeams = await Promise.all(
-      teams.map(async (team) => {
-        const members = await getTeamMembers(team.id);
-        const enrichedMembers = await Promise.all(
-          members.map(async (m) => {
-            const agent = await getAgentById(m.agentId);
-            return {
-              agentId: m.agentId,
-              agentName: agent?.llmType || 'Unknown',
-              agentColor: agent?.color || '#888888',
-              contributionScore: m.contributionScore,
-              fragmentsShared: m.fragmentsShared ?? 0,
-            };
-          })
-        );
-        // Get leader info
-        const leader = team.leaderId ? await getAgentById(team.leaderId) : null;
+    const enrichedTeams = teams.map((team) => {
+      const members = teamMembersMap.get(team.id) || [];
+      const enrichedMembers = members.map((m) => {
+        const agent = agentsMap.get(m.agentId);
         return {
-          id: team.id,
-          name: team.name || `Team ${team.id.slice(0, 8)}`,
-          status: team.status,
-          totalStake: team.totalStake ?? 0,
-          leader: leader ? { id: leader.id, name: leader.llmType } : null,
-          members: enrichedMembers,
-          memberCount: enrichedMembers.length,
+          agentId: m.agentId,
+          agentName: agent?.llmType || 'Unknown',
+          agentColor: agent?.color || '#888888',
+          contributionScore: m.contributionScore,
+          fragmentsShared: m.fragmentsShared ?? 0,
         };
-      })
-    );
+      });
+      const leader = team.leaderId ? agentsMap.get(team.leaderId) : null;
+      return {
+        id: team.id,
+        name: team.name || `Team ${team.id.slice(0, 8)}`,
+        status: team.status,
+        totalStake: team.totalStake ?? 0,
+        leader: leader ? { id: leader.id, name: leader.llmType } : null,
+        members: enrichedMembers,
+        memberCount: enrichedMembers.length,
+      };
+    });
 
     // Enrich fragments with owner info
-    const enrichedFragments = await Promise.all(
-      fragments.map(async (f) => {
-        const owner = f.ownerId ? await getAgentById(f.ownerId) : null;
-        const originalOwner = f.originalOwnerId ? await getAgentById(f.originalOwnerId) : null;
-        return {
-          id: f.id,
-          fragmentIndex: f.fragmentIndex,
-          content: f.content,
-          owner: owner ? { id: owner.id, name: owner.llmType, color: owner.color } : null,
-          originalOwner: originalOwner ? { id: originalOwner.id, name: originalOwner.llmType } : null,
-          sharedWith: f.sharedWith || [],
-          sharedCount: ((f.sharedWith as string[]) || []).length,
-        };
-      })
-    );
+    const enrichedFragments = fragments.map((f) => {
+      const owner = f.ownerId ? agentsMap.get(f.ownerId) : null;
+      const originalOwner = f.originalOwnerId ? agentsMap.get(f.originalOwnerId) : null;
+      return {
+        id: f.id,
+        fragmentIndex: f.fragmentIndex,
+        content: f.content,
+        owner: owner ? { id: owner.id, name: owner.llmType, color: owner.color } : null,
+        originalOwner: originalOwner ? { id: originalOwner.id, name: originalOwner.llmType } : null,
+        sharedWith: f.sharedWith || [],
+        sharedCount: ((f.sharedWith as string[]) || []).length,
+      };
+    });
 
     return {
       puzzle: {
@@ -232,7 +275,7 @@ export async function registerPuzzlesRoutes(server: FastifyInstance): Promise<vo
         endsAtTick: puzzle.endsAtTick,
         fragmentCount: puzzle.fragmentCount,
         winnerId: puzzle.winnerId,
-        solution: puzzle.status === 'completed' ? puzzle.solution : null, // Only reveal if completed
+        solution: puzzle.status === 'completed' ? puzzle.solution : null,
       },
       participants: enrichedParticipants,
       teams: enrichedTeams,
@@ -280,31 +323,37 @@ export async function registerPuzzlesRoutes(server: FastifyInstance): Promise<vo
       return reply.code(404).send({ error: 'Puzzle not found' });
     }
 
-    const [attempts, participants] = await Promise.all([
+    const [attempts, participants, winningAttempt] = await Promise.all([
       getAttemptsForGame(id),
       getActiveParticipantsForGame(id),
+      puzzle.winnerId ? getWinningAttempt(id) : Promise.resolve(undefined),
     ]);
 
+    // Collect all agent IDs and batch fetch
+    const allAgentIds = [
+      ...attempts.map(a => a.submitterId),
+      ...participants.map(p => p.agentId),
+      ...(puzzle.winnerId ? [puzzle.winnerId] : []),
+    ];
+    const agentsMap = await batchGetAgents(allAgentIds);
+
     // Enrich attempts with agent names
-    const enrichedAttempts = await Promise.all(
-      attempts.map(async (a) => {
-        const agent = await getAgentById(a.submitterId);
-        return {
-          id: a.id,
-          submitterId: a.submitterId,
-          submitterName: agent?.llmType || 'Unknown',
-          attemptedSolution: a.attemptedSolution,
-          isCorrect: a.isCorrect,
-          submittedAtTick: a.submittedAtTick,
-        };
-      })
-    );
+    const enrichedAttempts = attempts.map((a) => {
+      const agent = agentsMap.get(a.submitterId);
+      return {
+        id: a.id,
+        submitterId: a.submitterId,
+        submitterName: agent?.llmType || 'Unknown',
+        attemptedSolution: a.attemptedSolution,
+        isCorrect: a.isCorrect,
+        submittedAtTick: a.submittedAtTick,
+      };
+    });
 
     // Get winner info if exists
     let winner = null;
     if (puzzle.winnerId) {
-      const winnerAgent = await getAgentById(puzzle.winnerId);
-      const winningAttempt = await getWinningAttempt(id);
+      const winnerAgent = agentsMap.get(puzzle.winnerId);
       winner = {
         agentId: puzzle.winnerId,
         agentName: winnerAgent?.llmType || 'Unknown',
@@ -315,27 +364,25 @@ export async function registerPuzzlesRoutes(server: FastifyInstance): Promise<vo
 
     // Calculate prize distribution based on contribution scores
     const totalContribution = participants.reduce((sum, p) => sum + (p.contributionScore || 0), 0);
-    const prizeDistribution = await Promise.all(
-      participants.map(async (p) => {
-        const agent = await getAgentById(p.agentId);
-        const share = totalContribution > 0
-          ? (p.contributionScore || 0) / totalContribution
-          : 1 / participants.length;
-        const prize = puzzle.status === 'completed' && puzzle.winnerId
-          ? puzzle.prizePool * share
-          : 0;
+    const prizeDistribution = participants.map((p) => {
+      const agent = agentsMap.get(p.agentId);
+      const share = totalContribution > 0
+        ? (p.contributionScore || 0) / totalContribution
+        : 1 / participants.length;
+      const prize = puzzle.status === 'completed' && puzzle.winnerId
+        ? puzzle.prizePool * share
+        : 0;
 
-        return {
-          agentId: p.agentId,
-          agentName: agent?.llmType || 'Unknown',
-          contributionScore: p.contributionScore || 0,
-          fragmentsShared: p.fragmentsShared,
-          attemptsMade: p.attemptsMade,
-          prizeAmount: Math.round(prize * 100) / 100,
-          isWinner: p.agentId === puzzle.winnerId,
-        };
-      })
-    );
+      return {
+        agentId: p.agentId,
+        agentName: agent?.llmType || 'Unknown',
+        contributionScore: p.contributionScore || 0,
+        fragmentsShared: p.fragmentsShared,
+        attemptsMade: p.attemptsMade,
+        prizeAmount: Math.round(prize * 100) / 100,
+        isWinner: p.agentId === puzzle.winnerId,
+      };
+    });
 
     return {
       puzzle: {
@@ -390,33 +437,37 @@ export async function registerPuzzlesRoutes(server: FastifyInstance): Promise<vo
 
     const fragments = await getFragmentsForGame(id);
 
-    const enrichedFragments = await Promise.all(
-      fragments.map(async (f) => {
-        const owner = f.ownerId ? await getAgentById(f.ownerId) : null;
-        const originalOwner = f.originalOwnerId ? await getAgentById(f.originalOwnerId) : null;
+    // Collect all agent IDs for batch fetch
+    const allAgentIds: string[] = [];
+    for (const f of fragments) {
+      if (f.ownerId) allAgentIds.push(f.ownerId);
+      if (f.originalOwnerId) allAgentIds.push(f.originalOwnerId);
+      const sharedWithIds = (f.sharedWith as string[]) || [];
+      allAgentIds.push(...sharedWithIds);
+    }
+    const agentsMap = await batchGetAgents(allAgentIds);
 
-        // Get names of agents it was shared with
-        const sharedWithIds = (f.sharedWith as string[]) || [];
-        const sharedWithAgents = await Promise.all(
-          sharedWithIds.map(async (agentId) => {
-            const agent = await getAgentById(agentId);
-            return {
-              agentId,
-              agentName: agent?.llmType || 'Unknown',
-            };
-          })
-        );
-
+    const enrichedFragments = fragments.map((f) => {
+      const owner = f.ownerId ? agentsMap.get(f.ownerId) : null;
+      const originalOwner = f.originalOwnerId ? agentsMap.get(f.originalOwnerId) : null;
+      const sharedWithIds = (f.sharedWith as string[]) || [];
+      const sharedWithAgents = sharedWithIds.map((agentId) => {
+        const agent = agentsMap.get(agentId);
         return {
-          id: f.id,
-          fragmentIndex: f.fragmentIndex,
-          content: puzzle.status === 'completed' ? f.content : '[HIDDEN]', // Hide content for active puzzles
-          owner: owner ? { id: owner.id, name: owner.llmType, color: owner.color } : null,
-          originalOwner: originalOwner ? { id: originalOwner.id, name: originalOwner.llmType } : null,
-          sharedWith: sharedWithAgents,
+          agentId,
+          agentName: agent?.llmType || 'Unknown',
         };
-      })
-    );
+      });
+
+      return {
+        id: f.id,
+        fragmentIndex: f.fragmentIndex,
+        content: puzzle.status === 'completed' ? f.content : '[HIDDEN]',
+        owner: owner ? { id: owner.id, name: owner.llmType, color: owner.color } : null,
+        originalOwner: originalOwner ? { id: originalOwner.id, name: originalOwner.llmType } : null,
+        sharedWith: sharedWithAgents,
+      };
+    });
 
     return { fragments: enrichedFragments };
   });
@@ -460,35 +511,44 @@ export async function registerPuzzlesRoutes(server: FastifyInstance): Promise<vo
 
     const teams = await getTeamsForGame(id);
 
-    const enrichedTeams = await Promise.all(
-      teams.map(async (team) => {
-        const members = await getTeamMembers(team.id);
-        const leader = team.leaderId ? await getAgentById(team.leaderId) : null;
+    // Fetch all team members first
+    const teamMembersMap = new Map<string, Awaited<ReturnType<typeof getTeamMembers>>>();
+    const allAgentIds: string[] = [];
+    for (const team of teams) {
+      const members = await getTeamMembers(team.id);
+      teamMembersMap.set(team.id, members);
+      allAgentIds.push(...members.map(m => m.agentId));
+      if (team.leaderId) allAgentIds.push(team.leaderId);
+    }
 
-        const enrichedMembers = await Promise.all(
-          members.map(async (m) => {
-            const agent = await getAgentById(m.agentId);
-            return {
-              agentId: m.agentId,
-              agentName: agent?.llmType || 'Unknown',
-              agentColor: agent?.color || '#888',
-              contributionScore: m.contributionScore,
-              fragmentsShared: m.fragmentsShared,
-            };
-          })
-        );
+    // Batch fetch all agents
+    const agentsMap = await batchGetAgents(allAgentIds);
 
+    const enrichedTeams = teams.map((team) => {
+      const members = teamMembersMap.get(team.id) || [];
+      const leader = team.leaderId ? agentsMap.get(team.leaderId) : null;
+
+      const enrichedMembers = members.map((m) => {
+        const agent = agentsMap.get(m.agentId);
         return {
-          id: team.id,
-          name: team.name,
-          status: team.status,
-          totalStake: team.totalStake,
-          leader: leader ? { id: leader.id, name: leader.llmType } : null,
-          members: enrichedMembers,
-          memberCount: members.length,
+          agentId: m.agentId,
+          agentName: agent?.llmType || 'Unknown',
+          agentColor: agent?.color || '#888',
+          contributionScore: m.contributionScore,
+          fragmentsShared: m.fragmentsShared,
         };
-      })
-    );
+      });
+
+      return {
+        id: team.id,
+        name: team.name,
+        status: team.status,
+        totalStake: team.totalStake,
+        leader: leader ? { id: leader.id, name: leader.llmType } : null,
+        members: enrichedMembers,
+        memberCount: members.length,
+      };
+    });
 
     return { teams: enrichedTeams };
   });
@@ -515,31 +575,30 @@ export async function registerPuzzlesRoutes(server: FastifyInstance): Promise<vo
       },
     },
   }, async () => {
-    const allGames = await db.select().from(puzzleGames);
+    // Use aggregation queries instead of loading all games into memory
+    const [stats] = await db.select({
+      totalGames: count(),
+      activeGames: sql<number>`COUNT(*) FILTER (WHERE ${puzzleGames.status} IN ('open', 'active'))`,
+      completedGames: sql<number>`COUNT(*) FILTER (WHERE ${puzzleGames.status} = 'completed')`,
+      expiredGames: sql<number>`COUNT(*) FILTER (WHERE ${puzzleGames.status} = 'expired')`,
+      totalPrizeDistributed: sql<number>`COALESCE(SUM(${puzzleGames.prizePool}) FILTER (WHERE ${puzzleGames.status} = 'completed'), 0)`,
+    }).from(puzzleGames);
 
-    const activeGames = allGames.filter(g => g.status === 'open' || g.status === 'active');
-    const completedGames = allGames.filter(g => g.status === 'completed');
-    const expiredGames = allGames.filter(g => g.status === 'expired');
+    // Get total participants count in a single query
+    const [participantStats] = await db.select({
+      totalParticipants: count(),
+    }).from(puzzleParticipants).where(eq(puzzleParticipants.status, 'active'));
 
-    // Calculate total prize distributed (from completed games)
-    const totalPrizeDistributed = completedGames.reduce((sum, g) => sum + (g.prizePool || 0), 0);
-
-    // Calculate average participants
-    let totalParticipants = 0;
-    for (const game of allGames) {
-      const participants = await getActiveParticipantsForGame(game.id);
-      totalParticipants += participants.length;
-    }
-    const averageParticipants = allGames.length > 0
-      ? Math.round((totalParticipants / allGames.length) * 100) / 100
+    const averageParticipants = stats.totalGames > 0
+      ? Math.round((participantStats.totalParticipants / stats.totalGames) * 100) / 100
       : 0;
 
     return {
-      totalGames: allGames.length,
-      activeGames: activeGames.length,
-      completedGames: completedGames.length,
-      expiredGames: expiredGames.length,
-      totalPrizeDistributed: Math.round(totalPrizeDistributed * 100) / 100,
+      totalGames: stats.totalGames,
+      activeGames: stats.activeGames,
+      completedGames: stats.completedGames,
+      expiredGames: stats.expiredGames,
+      totalPrizeDistributed: Math.round(stats.totalPrizeDistributed * 100) / 100,
       averageParticipants,
     };
   });

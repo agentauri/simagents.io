@@ -28,19 +28,11 @@ import {
   type PuzzleAttempt,
   type NewPuzzleAttempt,
 } from '../schema';
+import { isValidUUID } from '../../utils/validators';
 
 // =============================================================================
 // PUZZLE GAMES
 // =============================================================================
-
-/**
- * Validate UUID format (v4)
- */
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function isValidUuid(value: string): boolean {
-  return UUID_REGEX.test(value);
-}
 
 /**
  * Build tenant filter condition for puzzle queries.
@@ -53,8 +45,7 @@ function isValidUuid(value: string): boolean {
 function buildTenantCondition(tenantId: string | null | undefined): ReturnType<typeof sql> | null {
   if (tenantId === undefined) return null;
   if (tenantId === null) return sql`${puzzleGames.tenantId} IS NULL`;
-  // Validate UUID format - if invalid, treat as null to avoid PostgreSQL errors
-  if (!isValidUuid(tenantId)) {
+  if (!isValidUUID(tenantId)) {
     console.warn(`[Puzzles] Invalid tenant UUID "${tenantId}", treating as null`);
     return sql`${puzzleGames.tenantId} IS NULL`;
   }
@@ -329,27 +320,25 @@ export async function clearFragmentOwner(fragmentId: string): Promise<void> {
 }
 
 /**
- * Mark fragment as shared with another agent
+ * Mark fragment as shared with another agent.
+ * Uses atomic PostgreSQL JSONB operation to prevent race conditions.
  */
 export async function markFragmentShared(
   fragmentId: string,
   sharedWithAgentId: string
 ): Promise<void> {
-  // Get current sharedWith array
-  const [fragment] = await db
-    .select()
-    .from(puzzleFragments)
-    .where(eq(puzzleFragments.id, fragmentId));
-
-  if (!fragment) return;
-
-  const currentShared = (fragment.sharedWith as string[]) || [];
-  if (!currentShared.includes(sharedWithAgentId)) {
-    await db
-      .update(puzzleFragments)
-      .set({ sharedWith: [...currentShared, sharedWithAgentId] })
-      .where(eq(puzzleFragments.id, fragmentId));
-  }
+  // Use atomic PostgreSQL JSONB operation to append to array if not already present
+  // This prevents race conditions where two concurrent calls could overwrite each other
+  // The @> operator checks if the JSONB array contains the value
+  await db.execute(sql`
+    UPDATE puzzle_fragments
+    SET shared_with = CASE
+      WHEN shared_with @> ${JSON.stringify([sharedWithAgentId])}::jsonb
+      THEN shared_with
+      ELSE shared_with || ${JSON.stringify([sharedWithAgentId])}::jsonb
+    END
+    WHERE id = ${fragmentId}
+  `);
 }
 
 /**
@@ -670,4 +659,15 @@ export async function calculateContributionScores(gameId: string): Promise<void>
 
     await updateContributionScore(participant.id, score);
   }
+}
+
+/**
+ * Clear all puzzle data (for world reset)
+ */
+export async function clearAllPuzzles(): Promise<void> {
+  await db.delete(puzzleAttempts);
+  await db.delete(puzzleParticipants);
+  await db.delete(puzzleFragments);
+  await db.delete(puzzleTeams);
+  await db.delete(puzzleGames);
 }

@@ -4,6 +4,7 @@
 
 import { eq, and, sql } from 'drizzle-orm';
 import { db, agents, type Agent, type NewAgent } from '../index';
+import { isValidUUID } from '../../utils/validators';
 
 export async function getAllAgents(): Promise<Agent[]> {
   return db.select().from(agents);
@@ -14,8 +15,12 @@ export async function getAliveAgents(): Promise<Agent[]> {
 }
 
 export async function getAgentById(id: string): Promise<Agent | undefined> {
-  const result = await db.select().from(agents).where(eq(agents.id, id)).limit(1);
-  return result[0];
+  if (!isValidUUID(id)) {
+    console.warn(`[Agents] Invalid agent UUID "${id}", returning undefined`);
+    return undefined;
+  }
+  const [agent] = await db.select().from(agents).where(eq(agents.id, id)).limit(1);
+  return agent;
 }
 
 export async function getAgentsAtPosition(x: number, y: number): Promise<Agent[]> {
@@ -30,12 +35,16 @@ export async function createAgent(agent: NewAgent): Promise<Agent> {
 }
 
 export async function updateAgent(id: string, updates: Partial<Agent>): Promise<Agent | undefined> {
-  const result = await db
+  if (!isValidUUID(id)) {
+    console.warn(`[Agents] Invalid agent UUID "${id}" in updateAgent, returning undefined`);
+    return undefined;
+  }
+  const [agent] = await db
     .update(agents)
     .set({ ...updates, updatedAt: new Date() })
     .where(eq(agents.id, id))
     .returning();
-  return result[0];
+  return agent;
 }
 
 export async function updateAgentNeeds(

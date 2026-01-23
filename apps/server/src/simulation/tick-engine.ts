@@ -25,12 +25,12 @@ import { getAliveAgents, updateAgent } from '../db/queries/agents';
 import { appendEvent } from '../db/queries/events';
 import { publishEvent, type WorldEvent } from '../cache/pubsub';
 import { setCachedTick, setCachedWorldState, setCachedAgents } from '../cache/projections';
-import { applyNeedsDecay, applyCurrencyDecay, applyItemSpoilage, type DecayResult } from './needs-decay';
+import { applyNeedsDecay, applyCurrencyDecay, applyItemSpoilage, cleanupOrphanedCriticalTicks } from './needs-decay';
 import { processAgentsTick } from '../agents/orchestrator';
 import { captureVariantSnapshot, updateVariantStatus, updateExperimentStatus, getNextPendingVariant } from '../db/queries/experiments';
 import { updateAllAgentRoles } from '../db/queries/roles';
 import { getGestatingStates, completeReproduction, createLineage, getLineage } from '../db/queries/reproduction';
-import { createAgent } from '../db/queries/agents';
+import { createAgent, getAgentById } from '../db/queries/agents';
 import { CONFIG } from '../config';
 import type { Agent, NewAgent } from '../db/schema';
 import { random, randomBelow, randomChoice, resetRNG } from '../utils/random';
@@ -82,6 +82,7 @@ export interface ExperimentContext {
 class TickEngine {
   private intervalId: Timer | null = null;
   private isRunning = false;
+  private isProcessingTick = false; // Guard against overlapping ticks
   private tickInterval: number;
   private actionHandlers: Map<string, ActionHandler> = new Map();
   private experimentContext: ExperimentContext | null = null;
@@ -127,9 +128,20 @@ class TickEngine {
     // Run first tick immediately
     await this.processTick();
 
-    // Schedule subsequent ticks
-    this.intervalId = setInterval(() => {
-      this.processTick().catch(console.error);
+    // Schedule subsequent ticks with overlap protection
+    this.intervalId = setInterval(async () => {
+      if (this.isProcessingTick) {
+        logger.warn('Previous tick still processing, skipping this interval');
+        return;
+      }
+      this.isProcessingTick = true;
+      try {
+        await this.processTick();
+      } catch (error) {
+        logger.error('Error in tick processing', error);
+      } finally {
+        this.isProcessingTick = false;
+      }
     }, this.tickInterval);
   }
 
@@ -254,12 +266,9 @@ class TickEngine {
     }
 
     // Phase 5: DECAY - Apply needs decay
-    const decayResults: DecayResult[] = [];
     for (const agent of agents) {
       const result = await applyNeedsDecay(agent, tick);
-      decayResults.push(result);
 
-      // Check for death
       if (result.died) {
         deaths.push(agent.id);
         const deathEvent: WorldEvent = {
@@ -283,10 +292,12 @@ class TickEngine {
       }
     }
 
+    // Create set for efficient dead agent lookup in subsequent phases
+    const deadAgentIds = new Set(deaths);
+
     // Phase 5b: CURRENCY DECAY - Apply currency decay to discourage hoarding
     for (const agent of agents) {
-      // Skip dead agents (already handled in needs decay)
-      if (deaths.includes(agent.id)) continue;
+      if (deadAgentIds.has(agent.id)) continue;
 
       const currencyResult = await applyCurrencyDecay(agent, tick);
       if (currencyResult.applied && currencyResult.event) {
@@ -297,12 +308,21 @@ class TickEngine {
 
     // Phase 5c: ITEM SPOILAGE - Apply item decay to create urgency
     for (const agent of agents) {
-      if (deaths.includes(agent.id)) continue;
+      if (deadAgentIds.has(agent.id)) continue;
 
       const spoilageResult = await applyItemSpoilage(agent, tick);
       for (const event of spoilageResult.events) {
         allEvents.push(event);
         await publishEvent(event);
+      }
+    }
+
+    // Phase 5d: MEMORY CLEANUP - Periodically clean up orphaned critical ticks map entries
+    if (tick % 100 === 0) {
+      const aliveAgentIds = new Set(agents.filter(a => !deadAgentIds.has(a.id)).map(a => a.id));
+      const removed = await cleanupOrphanedCriticalTicks(aliveAgentIds);
+      if (removed > 0) {
+        logger.info(`Cleaned up ${removed} orphaned critical ticks entries`);
       }
     }
 
@@ -315,8 +335,14 @@ class TickEngine {
           eventType: event.type,
           payload: event.payload,
         });
-      } catch {
+      } catch (error) {
         // DB errors shouldn't crash the tick engine - events were already published via SSE
+        // But we should log them for debugging
+        logger.warn('Failed to persist event to database', {
+          eventType: event.type,
+          tick: event.tick,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -495,10 +521,10 @@ class TickEngine {
     tick: number
   ): Promise<{ id: string; generation: number; x: number; y: number } | null> {
     try {
-      // Get parent info
-      const parentAgent = (await getAliveAgents()).find(a => a.id === reproductionState.parentAgentId);
-      if (!parentAgent) {
-        console.warn(`[TickEngine] Parent agent ${reproductionState.parentAgentId} not found for offspring`);
+      // Get parent info - use direct lookup instead of fetching all agents
+      const parentAgent = await getAgentById(reproductionState.parentAgentId);
+      if (!parentAgent || parentAgent.state === 'dead') {
+        logger.warn(`Parent agent ${reproductionState.parentAgentId} not found or dead for offspring`);
         return null;
       }
 
