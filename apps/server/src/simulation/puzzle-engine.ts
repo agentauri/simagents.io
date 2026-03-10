@@ -24,8 +24,9 @@ import {
   getFragmentsForGame,
 } from '../db/queries/puzzles';
 import { getAliveAgents } from '../db/queries/agents';
-import { CONFIG } from '../config';
+import { CONFIG, getRuntimeConfig } from '../config';
 import type { PuzzleGame, NewPuzzleGame, NewPuzzleFragment } from '../db/schema';
+import { random, randomBelow } from '../utils/random';
 
 // =============================================================================
 // Puzzle Types and Generators
@@ -49,8 +50,8 @@ interface GeneratedPuzzle {
  * Generate a coordinates puzzle (find x,y from hints)
  */
 function generateCoordinatesPuzzle(): GeneratedPuzzle {
-  const targetX = Math.floor(Math.random() * CONFIG.simulation.gridSize);
-  const targetY = Math.floor(Math.random() * CONFIG.simulation.gridSize);
+  const targetX = randomBelow(CONFIG.simulation.gridSize);
+  const targetY = randomBelow(CONFIG.simulation.gridSize);
   const solution = `${targetX},${targetY}`;
 
   const fragments = [
@@ -74,7 +75,7 @@ function generateCoordinatesPuzzle(): GeneratedPuzzle {
     solutionHash: createHash('sha256').update(solution.toLowerCase()).digest('hex'),
     fragments,
     entryStake: CONFIG.puzzle.defaultEntryStake,
-    prizePool: 10, // Base prize from system
+    prizePool: 100, // High prize to incentivize cooperation
   };
 }
 
@@ -83,12 +84,12 @@ function generateCoordinatesPuzzle(): GeneratedPuzzle {
  */
 function generatePasswordPuzzle(): GeneratedPuzzle {
   const words = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'theta', 'omega'];
-  const wordCount = 3 + Math.floor(Math.random() * 2); // 3-4 words
+  const wordCount = 3 + randomBelow(2); // 3-4 words
   const selectedWords = [];
   const usedIndices = new Set<number>();
 
   while (selectedWords.length < wordCount) {
-    const idx = Math.floor(Math.random() * words.length);
+    const idx = randomBelow(words.length);
     if (!usedIndices.has(idx)) {
       usedIndices.add(idx);
       selectedWords.push(words[idx]);
@@ -114,7 +115,7 @@ function generatePasswordPuzzle(): GeneratedPuzzle {
     solutionHash: createHash('sha256').update(solution.toLowerCase()).digest('hex'),
     fragments,
     entryStake: CONFIG.puzzle.defaultEntryStake * 1.5,
-    prizePool: 20,
+    prizePool: 150, // High prize to incentivize cooperation
   };
 }
 
@@ -123,7 +124,7 @@ function generatePasswordPuzzle(): GeneratedPuzzle {
  */
 function generateLogicPuzzle(): GeneratedPuzzle {
   // Simple number logic puzzle: find a number that satisfies all constraints
-  const targetNumber = 10 + Math.floor(Math.random() * 90); // 10-99
+  const targetNumber = 10 + randomBelow(90); // 10-99
   const solution = targetNumber.toString();
 
   const fragments = [
@@ -155,7 +156,7 @@ function generateLogicPuzzle(): GeneratedPuzzle {
     solutionHash: createHash('sha256').update(solution.toLowerCase()).digest('hex'),
     fragments,
     entryStake: CONFIG.puzzle.defaultEntryStake * 2,
-    prizePool: 30,
+    prizePool: 200, // High prize to incentivize cooperation
   };
 }
 
@@ -163,9 +164,10 @@ function generateLogicPuzzle(): GeneratedPuzzle {
  * Generate a random puzzle based on type
  */
 function generatePuzzle(type?: PuzzleType): GeneratedPuzzle {
+  const puzzleRoll = random();
   const puzzleType = type || (
-    Math.random() < 0.4 ? 'coordinates' :
-    Math.random() < 0.7 ? 'password' : 'logic'
+    puzzleRoll < 0.4 ? 'coordinates' :
+    puzzleRoll < 0.7 ? 'password' : 'logic'
   );
 
   switch (puzzleType) {
@@ -289,7 +291,9 @@ export async function processPuzzleEngineTick(
   activatedGames: string[];
   newGames: string[];
 }> {
-  if (!CONFIG.puzzle.enabled) {
+  const runtimeConfig = getRuntimeConfig();
+
+  if (!runtimeConfig.puzzle.enabled) {
     return { expiredCount: 0, activatedGames: [], newGames: [] };
   }
 
@@ -316,7 +320,7 @@ export async function processPuzzleEngineTick(
     const aliveAgents = await getAliveAgents();
     if (aliveAgents.length >= 3) {
       // Create a new puzzle with 10% chance per tick (avg 1 per 10 ticks)
-      if (Math.random() < 0.1) {
+      if (random() < 0.1) {
         const newGame = await createNewPuzzleGame(tenantId, tick);
         newGames.push(newGame.id);
       }
@@ -332,12 +336,12 @@ export async function processPuzzleEngineTick(
  * Returns null if agent is not in any puzzle
  */
 export function getAllowedPuzzleActions(): readonly string[] {
-  return CONFIG.puzzle.focusLock.allowedActions;
+  return getRuntimeConfig().puzzle.focusLock.allowedActions;
 }
 
 /**
  * Get needs decay reduction for agents in puzzles
  */
 export function getPuzzleNeedsDecayReduction(): number {
-  return CONFIG.puzzle.focusLock.needsDecayReduction;
+  return getRuntimeConfig().puzzle.focusLock.needsDecayReduction;
 }

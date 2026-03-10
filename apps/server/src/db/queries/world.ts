@@ -18,6 +18,7 @@ import {
   type ResourceSpawn,
   type NewResourceSpawn,
 } from '../index';
+import { clearAllPuzzles } from './puzzles';
 
 const WORLD_STATE_ID = 1;
 
@@ -187,6 +188,8 @@ export async function resetTickCounter(): Promise<void> {
  */
 export async function resetWorldData(): Promise<void> {
   // Delete in order to respect foreign key constraints
+  // Clear puzzles first (references agents)
+  await clearAllPuzzles();
   await db.delete(inventory);
   await db.delete(events);
   await db.delete(ledger);

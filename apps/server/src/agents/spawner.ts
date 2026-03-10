@@ -26,6 +26,7 @@ import {
   deleteAllResourceSpawns,
 } from '../db/queries/world';
 import { addToInventory, deleteAllInventory } from '../db/queries/inventory';
+import { clearAllPuzzles } from '../db/queries/puzzles';
 import type { NewAgent, NewShelter, NewResourceSpawn } from '../db/schema';
 import type { LLMType } from '../llm/types';
 import { CONFIG } from '../config';
@@ -523,13 +524,14 @@ export function getBaselineAgentConfigs(): AgentConfig[] {
 export async function clearWorld(): Promise<void> {
   console.log('[Spawner] Clearing world...');
 
-  // Delete in order: inventory -> agents -> shelters -> resources
+  // Delete in order: puzzles -> inventory -> agents -> shelters -> resources
+  await clearAllPuzzles();
   await deleteAllInventory();
   await deleteAllAgents();
   await deleteAllShelters();
   await deleteAllResourceSpawns();
 
-  console.log('[Spawner] World cleared');
+  console.log('[Spawner] World cleared (including puzzles)');
 }
 
 /**

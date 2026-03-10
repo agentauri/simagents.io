@@ -19,7 +19,7 @@ import { updateRelationshipTrust, storeMemory } from '../../db/queries/memories'
 import { checkIsRetaliation, recordRetaliationChain } from '../../db/queries/roles';
 import { getDistance } from '../../world/grid';
 import { findWitnesses } from '../utils/witnesses';
-import { CONFIG } from '../../config';
+import { getRuntimeConfig } from '../../config';
 import { random } from '../../utils/random';
 
 type HarmIntensity = 'light' | 'moderate' | 'severe';
@@ -36,6 +36,7 @@ export async function handleHarm(
   agent: Agent
 ): Promise<ActionResult> {
   const { targetAgentId, intensity } = intent.params;
+  const config = getRuntimeConfig().actions.harm;
 
   // Validate intensity
   if (!['light', 'moderate', 'severe'].includes(intensity)) {
@@ -62,15 +63,15 @@ export async function handleHarm(
     { x: agent.x, y: agent.y },
     { x: targetAgent.x, y: targetAgent.y }
   );
-  if (distance > CONFIG.actions.harm.maxDistance) {
+  if (distance > config.maxDistance) {
     return {
       success: false,
-      error: `Target too far (distance: ${distance}, max: ${CONFIG.actions.harm.maxDistance})`,
+      error: `Target too far (distance: ${distance}, max: ${config.maxDistance})`,
     };
   }
 
   // Check energy cost
-  const energyCost = CONFIG.actions.harm.energyCost[intensity as HarmIntensity];
+  const energyCost = config.energyCost[intensity as HarmIntensity];
   if (agent.energy < energyCost) {
     return {
       success: false,
@@ -81,7 +82,7 @@ export async function handleHarm(
   // Calculate success probability
   // Base rate modified by attacker energy vs target health ratio
   const successRate =
-    CONFIG.actions.harm.baseSuccessRate *
+    config.baseSuccessRate *
     (agent.energy / 100) *
     (100 / Math.max(targetAgent.health, 1));
   const succeeded = random() < Math.min(successRate, 0.95);
@@ -95,12 +96,12 @@ export async function handleHarm(
   const witnesses = await findWitnesses(
     agent.id,
     targetAgentId,
-    { x: agent.x, y: agent.y },
-    CONFIG.actions.harm.witnessRadius
-  );
+      { x: agent.x, y: agent.y },
+      config.witnessRadius
+    );
 
   if (succeeded) {
-    const damage = CONFIG.actions.harm.damage[intensity as HarmIntensity];
+    const damage = config.damage[intensity as HarmIntensity];
     const newTargetHealth = Math.max(0, targetAgent.health - damage);
     const targetDied = newTargetHealth <= 0;
 
@@ -131,7 +132,7 @@ export async function handleHarm(
     await updateRelationshipTrust(
       targetAgentId,
       agent.id,
-      CONFIG.actions.harm.trustImpactVictim,
+      config.trustImpactVictim,
       intent.tick,
       `Attacked me with ${intensity} intensity`
     );
@@ -167,7 +168,7 @@ export async function handleHarm(
       await updateRelationshipTrust(
         witness.id,
         agent.id,
-        CONFIG.actions.harm.trustImpactWitness,
+        config.trustImpactWitness,
         intent.tick,
         `Witnessed attack on another agent`
       );
@@ -244,7 +245,7 @@ export async function handleHarm(
     await updateRelationshipTrust(
       targetAgentId,
       agent.id,
-      Math.floor(CONFIG.actions.harm.trustImpactVictim / 2), // Half impact for failed attempt
+      Math.floor(config.trustImpactVictim / 2), // Half impact for failed attempt
       intent.tick,
       `Attempted to attack me`
     );
