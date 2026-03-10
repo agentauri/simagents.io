@@ -10,8 +10,14 @@ import Redis from 'ioredis';
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
 // Separate connections for pub and sub (Redis requirement)
-const publisher = new Redis(redisUrl);
-const subscriber = new Redis(redisUrl);
+const publisher = new Redis(redisUrl, {
+  lazyConnect: true,
+  maxRetriesPerRequest: 3,
+});
+const subscriber = new Redis(redisUrl, {
+  lazyConnect: true,
+  maxRetriesPerRequest: 3,
+});
 
 // =============================================================================
 // Channel Names (Tenant-Scoped)
@@ -56,6 +62,14 @@ type TenantLifecycleHandler = (event: TenantLifecycleEvent) => void;
 
 const tenantHandlers: Map<string, Set<TenantEventHandler>> = new Map();
 const lifecycleHandlers: Set<TenantLifecycleHandler> = new Set();
+
+publisher.on('error', (error) => {
+  console.error('[TenantPubSub] Publisher connection error:', error);
+});
+
+subscriber.on('error', (error) => {
+  console.error('[TenantPubSub] Subscriber connection error:', error);
+});
 
 // Initialize subscriber message handler
 subscriber.on('message', (channel: string, message: string) => {
@@ -256,8 +270,18 @@ export async function unsubscribeFromTenant(tenantId: string): Promise<void> {
 export async function closeTenantPubSub(): Promise<void> {
   tenantHandlers.clear();
   lifecycleHandlers.clear();
-  await publisher.quit();
-  await subscriber.quit();
+
+  if (publisher.status !== 'wait' && publisher.status !== 'end') {
+    await publisher.quit().catch(() => publisher.disconnect());
+  } else {
+    publisher.disconnect();
+  }
+
+  if (subscriber.status !== 'wait' && subscriber.status !== 'end') {
+    await subscriber.quit().catch(() => subscriber.disconnect());
+  } else {
+    subscriber.disconnect();
+  }
 }
 
 // =============================================================================

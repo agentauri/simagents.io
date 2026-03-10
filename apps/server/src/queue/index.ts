@@ -46,7 +46,12 @@ function createFallbackDecision(observation: AgentObservation): AgentDecision {
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const redis: any = new Redis(redisUrl, {
+  lazyConnect: true,
   maxRetriesPerRequest: null,
+});
+
+redis.on('error', (error: unknown) => {
+  console.error('[Queue] Redis connection error:', error);
 });
 
 // =============================================================================
@@ -91,13 +96,35 @@ const queueOptions = {
 // Queue Instance
 // =============================================================================
 
-export const decisionQueue = new Queue<DecisionJobData, DecisionJobResult>(
-  QUEUE_NAME,
-  queueOptions
-);
+let decisionQueue: Queue<DecisionJobData, DecisionJobResult> | null = null;
+let queueEvents: QueueEvents | null = null;
 
-// Queue events for tracking job completion
-const queueEvents = new QueueEvents(QUEUE_NAME, { connection: redis });
+function getDecisionQueue(): Queue<DecisionJobData, DecisionJobResult> {
+  if (!decisionQueue) {
+    decisionQueue = new Queue<DecisionJobData, DecisionJobResult>(
+      QUEUE_NAME,
+      queueOptions
+    );
+
+    decisionQueue.on('error', (error) => {
+      console.error('[Queue] Decision queue error:', error);
+    });
+  }
+
+  return decisionQueue;
+}
+
+function getQueueEvents(): QueueEvents {
+  if (!queueEvents) {
+    queueEvents = new QueueEvents(QUEUE_NAME, { connection: redis });
+
+    queueEvents.on('error', (error) => {
+      console.error('[Queue] Queue events error:', error);
+    });
+  }
+
+  return queueEvents;
+}
 
 // =============================================================================
 // Worker
@@ -107,6 +134,8 @@ let worker: Worker<DecisionJobData, DecisionJobResult> | null = null;
 
 export function startWorker(): void {
   if (worker) return;
+
+  getDecisionQueue();
 
   worker = new Worker<DecisionJobData, DecisionJobResult>(
     QUEUE_NAME,
@@ -225,8 +254,24 @@ export function startWorker(): void {
 }
 
 export function stopWorker(): Promise<void> {
-  if (!worker) return Promise.resolve();
-  return worker.close();
+  const cleanup: Promise<unknown>[] = [];
+
+  if (worker) {
+    cleanup.push(worker.close());
+    worker = null;
+  }
+
+  if (queueEvents) {
+    cleanup.push(queueEvents.close());
+    queueEvents = null;
+  }
+
+  if (decisionQueue) {
+    cleanup.push(decisionQueue.close());
+    decisionQueue = null;
+  }
+
+  return Promise.all(cleanup).then(() => undefined);
 }
 
 // =============================================================================
@@ -237,7 +282,7 @@ export function stopWorker(): Promise<void> {
  * Add decision job to queue
  */
 export async function queueDecision(data: DecisionJobData): Promise<Job<DecisionJobData, DecisionJobResult>> {
-  return decisionQueue.add(`decision-${data.agentId}-${data.tick}`, data, {
+  return getDecisionQueue().add(`decision-${data.agentId}-${data.tick}`, data, {
     priority: getPriority(data.observation),
   });
 }
@@ -257,11 +302,13 @@ export async function waitForDecisions(
   jobs: Job<DecisionJobData, DecisionJobResult>[],
   timeoutMs = 30000
 ): Promise<DecisionJobResult[]> {
+  const events = getQueueEvents();
+
   // Create a promise for each job that resolves when done or on timeout
   const jobPromises = jobs.map(async (job) => {
     try {
       const result = await Promise.race([
-        job.waitUntilFinished(queueEvents),
+        job.waitUntilFinished(events),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
       ]);
 
@@ -325,11 +372,12 @@ export async function getQueueStats(): Promise<{
   completed: number;
   failed: number;
 }> {
+  const queue = getDecisionQueue();
   const [waiting, active, completed, failed] = await Promise.all([
-    decisionQueue.getWaitingCount(),
-    decisionQueue.getActiveCount(),
-    decisionQueue.getCompletedCount(),
-    decisionQueue.getFailedCount(),
+    queue.getWaitingCount(),
+    queue.getActiveCount(),
+    queue.getCompletedCount(),
+    queue.getFailedCount(),
   ]);
 
   return { waiting, active, completed, failed };

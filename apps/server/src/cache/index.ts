@@ -7,6 +7,7 @@ import Redis from 'ioredis';
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
 export const redis = new Redis(redisUrl, {
+  lazyConnect: true,
   maxRetriesPerRequest: 3,
   retryStrategy: (times) => {
     if (times > 3) return null;
@@ -22,16 +23,44 @@ redis.on('connect', () => {
   console.log('Redis connected');
 });
 
-export async function checkRedisConnection(): Promise<boolean> {
+export async function checkRedisConnection(
+  { logFailure = true }: { logFailure?: boolean } = {}
+): Promise<boolean> {
+  const probe = new Redis(redisUrl, {
+    lazyConnect: true,
+    maxRetriesPerRequest: 1,
+    retryStrategy: () => null,
+  });
+
+  probe.on('error', (error) => {
+    if (logFailure) {
+      console.error('Redis connection failed:', error);
+    }
+  });
+
   try {
-    await redis.ping();
+    await probe.connect();
+    await probe.ping();
+    await probe.quit();
     return true;
   } catch (error) {
-    console.error('Redis connection failed:', error);
+    probe.disconnect();
+    if (logFailure && !(error instanceof Error && error.message.includes('Failed to connect'))) {
+      console.error('Redis connection failed:', error);
+    }
     return false;
   }
 }
 
 export async function closeRedisConnection(): Promise<void> {
-  await redis.quit();
+  if (redis.status === 'wait' || redis.status === 'end') {
+    redis.disconnect();
+    return;
+  }
+
+  try {
+    await redis.quit();
+  } catch {
+    redis.disconnect();
+  }
 }
