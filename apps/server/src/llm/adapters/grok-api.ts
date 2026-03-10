@@ -10,11 +10,11 @@ import { getEffectiveKey, isKeyDisabled } from '../key-manager';
 export class GrokAPIAdapter extends BaseLLMAdapter {
   readonly type: LLMType = 'grok';
   readonly method: LLMMethod = 'api';
-  readonly name = 'Grok (API)';
+  readonly name = 'Grok 4.1 Fast (API)';
 
   // xAI API (OpenAI-compatible)
   private readonly endpoint = 'https://api.x.ai/v1/chat/completions';
-  private readonly model = 'grok-2';
+  private readonly model = 'grok-4-1-fast-reasoning';
   private readonly timeout: number;
 
   constructor(timeout = 30000) {
@@ -50,8 +50,8 @@ export class GrokAPIAdapter extends BaseLLMAdapter {
         body: JSON.stringify({
           model: this.model,
           messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
-          max_tokens: 500,
+          temperature: this.getDecisionTemperature(),
+          max_tokens: this.getDecisionMaxTokens(),
         }),
         signal: controller.signal,
       });

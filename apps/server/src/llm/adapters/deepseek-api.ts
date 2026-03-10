@@ -10,10 +10,10 @@ import { getEffectiveKey, isKeyDisabled } from '../key-manager';
 export class DeepSeekAPIAdapter extends BaseLLMAdapter {
   readonly type: LLMType = 'deepseek';
   readonly method: LLMMethod = 'api';
-  readonly name = 'DeepSeek (API)';
+  readonly name = 'DeepSeek Reasoner (API)';
 
   private readonly endpoint = 'https://api.deepseek.com/v1/chat/completions';
-  private readonly model = 'deepseek-chat';
+  private readonly model = 'deepseek-reasoner';
   private readonly timeout: number;
 
   constructor(timeout = 30000) {
@@ -49,8 +49,8 @@ export class DeepSeekAPIAdapter extends BaseLLMAdapter {
         body: JSON.stringify({
           model: this.model,
           messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
-          max_tokens: 500,
+          temperature: this.getDecisionTemperature(),
+          max_tokens: this.getDecisionMaxTokens(),
         }),
         signal: controller.signal,
       });

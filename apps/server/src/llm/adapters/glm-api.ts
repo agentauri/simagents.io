@@ -5,18 +5,19 @@
  */
 
 import type { LLMAdapter, LLMType, LLMMethod, AgentObservation, AgentDecision } from '../types';
-import { buildFullPrompt } from '../prompt-builder';
+import { buildFinalPromptWithMemories } from '../prompt-builder';
 import { parseResponse, getFallbackDecision } from '../response-parser';
 import { getEffectiveKey, isKeyDisabled } from '../key-manager';
+import { getRuntimeConfig } from '../../config';
 
 export class GLMAPIAdapter implements LLMAdapter {
   readonly type: LLMType = 'glm';
   readonly method: LLMMethod = 'api';
-  readonly name = 'GLM (API)';
+  readonly name = 'GLM-5 (API)';
 
   // Zhipu AI API
   private readonly endpoint = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-  private readonly model = 'glm-4.7';
+  private readonly model = 'glm-5';
   private readonly timeout: number;
 
   // Chinese system message to enforce JSON output
@@ -82,7 +83,12 @@ export class GLMAPIAdapter implements LLMAdapter {
       }
 
       // Build prompt
-      const userPrompt = buildFullPrompt(observation);
+      const runtimeConfig = getRuntimeConfig();
+      const userPrompt = await buildFinalPromptWithMemories(
+        observation.self.id,
+        observation,
+        observation.self.personality ?? null
+      );
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -100,8 +106,8 @@ export class GLMAPIAdapter implements LLMAdapter {
               { role: 'system', content: this.systemMessage },
               { role: 'user', content: userPrompt }
             ],
-            temperature: 0.3, // Lower temperature for more consistent JSON
-            max_tokens: 1000, // GLM-4.7 uses tokens for reasoning, need more
+            temperature: runtimeConfig.experiment.llmDecisionTemperature ?? 0,
+            max_tokens: runtimeConfig.experiment.llmDecisionMaxTokens ?? 512,
           }),
           signal: controller.signal,
         });

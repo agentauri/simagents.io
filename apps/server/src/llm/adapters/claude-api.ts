@@ -8,12 +8,12 @@ import { BaseLLMAdapter, type LLMCallResult, type RawPromptOptions, type RawProm
 import type { LLMType, LLMMethod } from '../types';
 import { getEffectiveKey, isKeyDisabled } from '../key-manager';
 
-const MODEL_NAME = 'claude-3-5-haiku-20241022';
+const MODEL_NAME = 'claude-opus-4-6';
 
 export class ClaudeAPIAdapter extends BaseLLMAdapter {
   readonly type: LLMType = 'claude';
   readonly method: LLMMethod = 'api';
-  readonly name = 'Claude Haiku (API)';
+  readonly name = 'Claude Opus 4.6 (API)';
 
   private client: Anthropic | null = null;
   private readonly timeout: number;
@@ -50,7 +50,8 @@ export class ClaudeAPIAdapter extends BaseLLMAdapter {
 
     const response = await client.messages.create({
       model: MODEL_NAME,
-      max_tokens: 500,
+      max_tokens: this.getDecisionMaxTokens(),
+      temperature: this.getDecisionTemperature(),
       messages: [{ role: 'user', content: prompt }],
     });
 

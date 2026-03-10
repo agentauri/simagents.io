@@ -11,7 +11,7 @@ import { getEffectiveKey, isKeyDisabled } from '../key-manager';
 export class GeminiAPIAdapter extends BaseLLMAdapter {
   readonly type: LLMType = 'gemini';
   readonly method: LLMMethod = 'api';
-  readonly name = 'Gemini (API)';
+  readonly name = 'Gemini 3.1 Pro (API)';
 
   private client: GoogleGenerativeAI | null = null;
   private currentApiKey?: string;
@@ -39,7 +39,13 @@ export class GeminiAPIAdapter extends BaseLLMAdapter {
 
   protected async callLLM(prompt: string): Promise<string> {
     const client = this.getClient();
-    const model = client.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = client.getGenerativeModel({
+      model: 'gemini-3.1-pro-preview',
+      generationConfig: {
+        maxOutputTokens: this.getDecisionMaxTokens(),
+        temperature: this.getDecisionTemperature(),
+      },
+    });
 
     const result = await model.generateContent(prompt);
     return result.response.text();
@@ -55,7 +61,7 @@ export class GeminiAPIAdapter extends BaseLLMAdapter {
   ): Promise<RawPromptResult> {
     const client = this.getClient();
     const model = client.getGenerativeModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-3.1-pro-preview',
       generationConfig: {
         maxOutputTokens: options?.maxTokens ?? 4096,
         temperature: options?.temperature ?? 0.8,

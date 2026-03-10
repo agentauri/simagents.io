@@ -41,13 +41,13 @@ export const MODEL_CAPABILITIES: Record<LLMType, ModelCapabilities> = {
   claude: {
     maxTokens: 4096,
     avgLatencyMs: 800,
-    contextWindow: 100000,
+    contextWindow: 200000,
     charsPerToken: 4,
   },
   gemini: {
     maxTokens: 4096,
     avgLatencyMs: 500,
-    contextWindow: 32000,
+    contextWindow: 1048576,
     charsPerToken: 4,
   },
   codex: {
@@ -59,25 +59,25 @@ export const MODEL_CAPABILITIES: Record<LLMType, ModelCapabilities> = {
   deepseek: {
     maxTokens: 4096,
     avgLatencyMs: 600,
-    contextWindow: 64000,
+    contextWindow: 128000,
     charsPerToken: 4,
   },
   qwen: {
     maxTokens: 4096,
     avgLatencyMs: 700,
-    contextWindow: 32000,
+    contextWindow: 131072,
     charsPerToken: 4,
   },
   glm: {
     maxTokens: 4096,
     avgLatencyMs: 900,
-    contextWindow: 32000,
+    contextWindow: 128000,
     charsPerToken: 4,
   },
   grok: {
     maxTokens: 4096,
     avgLatencyMs: 1000,
-    contextWindow: 8000,
+    contextWindow: 2000000,
     charsPerToken: 4,
   },
   external: {

@@ -10,11 +10,11 @@ import { getEffectiveKey, isKeyDisabled } from '../key-manager';
 export class QwenAPIAdapter extends BaseLLMAdapter {
   readonly type: LLMType = 'qwen';
   readonly method: LLMMethod = 'api';
-  readonly name = 'Qwen (API)';
+  readonly name = 'Qwen 3.5 Plus (API)';
 
   // DashScope API (Alibaba Cloud) - International endpoint
   private readonly endpoint = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions';
-  private readonly model = 'qwen-flash';
+  private readonly model = 'qwen3.5-plus';
   private readonly timeout: number;
 
   constructor(timeout = 30000) {
@@ -50,8 +50,8 @@ export class QwenAPIAdapter extends BaseLLMAdapter {
         body: JSON.stringify({
           model: this.model,
           messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
-          max_tokens: 500,
+          temperature: this.getDecisionTemperature(),
+          max_tokens: this.getDecisionMaxTokens(),
         }),
         signal: controller.signal,
       });

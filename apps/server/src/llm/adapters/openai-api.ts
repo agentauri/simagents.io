@@ -11,7 +11,7 @@ import { getEffectiveKey, isKeyDisabled } from '../key-manager';
 export class OpenAIAPIAdapter extends BaseLLMAdapter {
   readonly type: LLMType = 'codex';
   readonly method: LLMMethod = 'api';
-  readonly name = 'GPT-4o Mini (API)';
+  readonly name = 'GPT-5.4 (API)';
 
   private client: OpenAI | null = null;
   private readonly timeout: number;
@@ -42,8 +42,9 @@ export class OpenAIAPIAdapter extends BaseLLMAdapter {
     const client = this.getClient();
 
     const response = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
-      max_tokens: 500,
+      model: 'gpt-5.4',
+      max_tokens: this.getDecisionMaxTokens(),
+      temperature: this.getDecisionTemperature(),
       messages: [{ role: 'user', content: prompt }],
     });
 
@@ -61,7 +62,7 @@ export class OpenAIAPIAdapter extends BaseLLMAdapter {
     const client = this.getClient();
 
     const response = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5.4',
       max_tokens: options?.maxTokens ?? 4096,
       temperature: options?.temperature ?? 0.8,
       messages: [{ role: 'user', content: prompt }],
