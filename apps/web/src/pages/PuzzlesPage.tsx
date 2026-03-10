@@ -9,6 +9,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useEditorStore } from '../stores/editor';
+import { useWorldStore } from '../stores/world';
 import {
   usePuzzlesStore,
   usePuzzles,
@@ -25,6 +26,7 @@ type TabId = 'active' | 'history' | 'stats';
 
 export function PuzzlesPage() {
   const setMode = useEditorStore((s) => s.setMode);
+  const agents = useWorldStore((s) => s.agents);
   const [activeTab, setActiveTab] = useState<TabId>('active');
 
   const allPuzzles = usePuzzles();
@@ -72,7 +74,8 @@ export function PuzzlesPage() {
   }, [activeTab]);
 
   const handleBackToCity = () => {
-    setMode('simulation');
+    // Go back to 'editor' (ready state) if no agents, otherwise 'simulation'
+    setMode(agents.length > 0 ? 'simulation' : 'editor');
   };
 
   const handleSelectPuzzle = async (puzzleId: string) => {

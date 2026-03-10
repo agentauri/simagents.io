@@ -13,6 +13,7 @@
 
 import { useState } from 'react';
 import { useEditorStore } from '../stores/editor';
+import { useWorldStore } from '../stores/world';
 import { PromptGallery } from '../components/PromptGallery';
 import { PromptInspector } from '../components/PromptInspector';
 
@@ -20,10 +21,11 @@ type TabId = 'gallery' | 'inspector';
 
 export function PromptsPage() {
   const setMode = useEditorStore((s) => s.setMode);
+  const agents = useWorldStore((s) => s.agents);
   const [activeTab, setActiveTab] = useState<TabId>('gallery');
 
   const handleBackToCity = () => {
-    setMode('simulation');
+    setMode(agents.length > 0 ? 'simulation' : 'editor');
   };
 
   return (

@@ -4,6 +4,7 @@
 
 import { useEffect } from 'react';
 import { useEditorStore } from '../stores/editor';
+import { useWorldStore } from '../stores/world';
 import { useFetchSnapshot } from '../stores/analytics';
 import { SurvivalPanel } from '../components/Analytics/panels/SurvivalPanel';
 import { EconomyPanel } from '../components/Analytics/panels/EconomyPanel';
@@ -12,6 +13,7 @@ import { TemporalPanel } from '../components/Analytics/panels/TemporalPanel';
 
 export function AnalyticsPage() {
   const setMode = useEditorStore((s) => s.setMode);
+  const agents = useWorldStore((s) => s.agents);
   const fetchSnapshot = useFetchSnapshot();
 
   // Auto-refresh data every 30 seconds
@@ -28,7 +30,7 @@ export function AnalyticsPage() {
   }, [fetchSnapshot]);
 
   const handleBackToCity = () => {
-    setMode('simulation');
+    setMode(agents.length > 0 ? 'simulation' : 'editor');
   };
 
   return (
