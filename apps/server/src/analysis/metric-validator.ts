@@ -28,6 +28,7 @@ import {
   statisticalPower,
 } from './experiment-analysis';
 import type { Agent, NewAgent } from '../db/schema';
+import { randomBelow } from '../utils/random';
 
 // =============================================================================
 // Types
@@ -864,7 +865,7 @@ export function permutationTest(
     // Shuffle combined array
     const shuffled = [...combined];
     for (let j = shuffled.length - 1; j > 0; j--) {
-      const k = Math.floor(Math.random() * (j + 1));
+      const k = randomBelow(j + 1);
       [shuffled[j], shuffled[k]] = [shuffled[k], shuffled[j]];
     }
 

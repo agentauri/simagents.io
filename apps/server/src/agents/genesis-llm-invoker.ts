@@ -19,6 +19,7 @@ import { QwenAPIAdapter } from '../llm/adapters/qwen-api';
 import { GLMAPIAdapter } from '../llm/adapters/glm-api';
 import { GrokAPIAdapter } from '../llm/adapters/grok-api';
 import { CONFIG } from '../config';
+import { random } from '../utils/random';
 
 import type { RawPromptOptions, RawPromptResult } from '../llm/adapters/base';
 
@@ -157,7 +158,8 @@ export function createMockInvoker(
   return {
     async invoke(llmType, prompt, temperature) {
       // Simulate some latency
-      await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 100));
+      const latencyMs = 50 + random() * 100;
+      await new Promise(resolve => setTimeout(resolve, latencyMs));
 
       const response = responseGenerator(llmType, prompt);
 
@@ -165,7 +167,7 @@ export function createMockInvoker(
         response,
         promptTokens: estimateTokens(prompt),
         responseTokens: estimateTokens(response),
-        latencyMs: 50 + Math.random() * 100,
+        latencyMs,
       };
     },
   };

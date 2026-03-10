@@ -16,6 +16,7 @@ import { addToInventory } from '../../db/queries/inventory';
 import { storeMemory } from '../../db/queries/memories';
 import { getAliveAgents } from '../../db/queries/agents';
 import { CONFIG } from '../../config';
+import { random } from '../../utils/random';
 
 /**
  * Check if agent is alone (no other agents within solo radius)
@@ -126,7 +127,7 @@ export async function handleForage(
   }
 
   // Calculate success (random based on success rate)
-  const successRoll = Math.random();
+  const successRoll = random();
   const isSuccess = successRoll < effectiveSuccessRate;
 
   // Apply energy cost regardless of success

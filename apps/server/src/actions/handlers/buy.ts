@@ -14,6 +14,7 @@ import { addToInventory } from '../../db/queries/inventory';
 import { getSheltersAtPosition } from '../../db/queries/world';
 import { storeMemory, getAgentRelationships } from '../../db/queries/memories';
 import { CONFIG } from '../../config';
+import { random } from '../../utils/random';
 
 // Item prices (MVP: simple fixed prices)
 const ITEM_PRICES: Record<string, number> = {
@@ -105,7 +106,7 @@ export async function handleBuy(
   }
 
   // Check for transaction failure (simulates market instability)
-  if (Math.random() < shelterFailureRate) {
+  if (random() < shelterFailureRate) {
     // Transaction failed - still costs energy
     const newEnergy = agent.energy - shelterEnergyCost;
 

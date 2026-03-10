@@ -13,6 +13,7 @@
  */
 
 import { CONFIG } from '../config';
+import { random as seededRandomValue } from '../utils/random';
 
 // =============================================================================
 // Types
@@ -173,7 +174,7 @@ function seededRandom(seed: number): () => number {
  * @returns The selected personality trait
  */
 export function selectRandomPersonality(seed?: number): PersonalityTrait {
-  const random = seed !== undefined ? seededRandom(seed)() : Math.random();
+  const random = seed !== undefined ? seededRandom(seed)() : seededRandomValue();
   const weights = getPersonalityWeights();
   const traits = Object.keys(weights) as PersonalityTrait[];
 

@@ -45,6 +45,7 @@ import {
   getCachedGenesis,
   hashGenesisConfig,
 } from '../cache/genesis-cache';
+import { random, randomBelow } from '../utils/random';
 
 // =============================================================================
 // Types
@@ -1212,25 +1213,25 @@ export function createMockSimulationRunner(
         (spec.resourcePriority === 'food' ? 0.15 : 0) + // Food focus bonus
         (spec.personality === 'cautious' ? 0.15 : 0); // Cautious bonus
 
-      const survived = Math.random() < survivalChance;
+      const survived = random() < survivalChance;
       const deathTick = survived
         ? undefined
-        : Math.floor(Math.random() * ticksPerGeneration);
+        : randomBelow(ticksPerGeneration);
 
       agentStates.push({
         id: agentId,
         isAlive: survived,
         deathTick,
-        health: survived ? 50 + Math.random() * 50 : 0,
-        hunger: survived ? 30 + Math.random() * 40 : 0,
-        energy: survived ? 30 + Math.random() * 40 : 0,
-        balance: survived ? 50 + Math.random() * 100 : 0,
+        health: survived ? 50 + random() * 50 : 0,
+        hunger: survived ? 30 + random() * 40 : 0,
+        energy: survived ? 30 + random() * 40 : 0,
+        balance: survived ? 50 + random() * 100 : 0,
       });
 
       // Generate some mock event counts
       if (spec.socialOrientation > 0.5) {
-        eventCounts[`agent_${agentId}_trade`] = Math.floor(Math.random() * 5);
-        eventCounts[`agent_${agentId}_share_info`] = Math.floor(Math.random() * 3);
+        eventCounts[`agent_${agentId}_trade`] = randomBelow(5);
+        eventCounts[`agent_${agentId}_share_info`] = randomBelow(3);
       }
     }
 
