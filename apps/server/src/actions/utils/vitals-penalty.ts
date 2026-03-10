@@ -5,28 +5,29 @@
  * When agents have low energy or hunger, actions cost more.
  * This creates a gradual "slow down" effect before death spiral kicks in.
  *
- * Penalty Tiers:
- * - Energy < 30: +50% action costs
- * - Energy < 15: +100% action costs (cumulative with above)
- * - Hunger < 30: +30% action costs
+ * Penalty Tiers (reduced to prevent death spirals):
+ * - Energy < 20: +25% action costs
+ * - Energy < 10: +50% action costs (cumulative with above)
+ * - Hunger < 20: +15% action costs
  *
- * Example: Agent with energy=10, hunger=25 has penalty = 1.0 + 0.5 + 0.5 + 0.3 = 2.3x cost
+ * Example: Agent with energy=5, hunger=15 has penalty = 1.0 + 0.25 + 0.25 + 0.15 = 1.65x cost
+ * This ensures move (base 1 energy) costs at most 2 energy, allowing escape from bad situations.
  */
 
 import type { Agent } from '../../db/schema';
 
-// Configuration for progressive penalties
+// Configuration for progressive penalties (reduced to prevent death spirals)
 const PENALTY_CONFIG = {
-  // Energy thresholds and penalties
-  lowEnergyThreshold: 30,
-  lowEnergyPenalty: 0.5, // +50% cost
+  // Energy thresholds and penalties (lowered thresholds, reduced penalties)
+  lowEnergyThreshold: 20,      // was 30
+  lowEnergyPenalty: 0.25,      // was 0.5 (+25% instead of +50%)
 
-  criticalEnergyThreshold: 15,
-  criticalEnergyPenalty: 0.5, // +50% additional (cumulative)
+  criticalEnergyThreshold: 10, // was 15
+  criticalEnergyPenalty: 0.25, // was 0.5 (+25% instead of +50%)
 
-  // Hunger thresholds and penalties
-  lowHungerThreshold: 30,
-  lowHungerPenalty: 0.3, // +30% cost
+  // Hunger thresholds and penalties (lowered threshold, reduced penalty)
+  lowHungerThreshold: 20,      // was 30
+  lowHungerPenalty: 0.15,      // was 0.3 (+15% instead of +30%)
 } as const;
 
 export interface VitalsPenaltyResult {
