@@ -142,6 +142,12 @@ export const EVENT_REGISTRY: Record<string, EventTypeDefinition> = {
   world_snapshot: { category: 'observation', description: 'World state snapshot' },
   experiment_started: { category: 'observation', description: 'Experiment started' },
   experiment_ended: { category: 'observation', description: 'Experiment ended' },
+  experiment_provenance: { category: 'observation', description: 'Experiment run provenance and execution settings' },
+  experiment_intervention_scheduled: { category: 'observation', description: 'Experiment intervention scheduled from DSL' },
+  experiment_intervention_applied: { category: 'observation', description: 'Experiment intervention applied during execution' },
+  experiment_run_summary: { category: 'observation', description: 'Final experiment run summary artifact' },
+  scenario_abundance: { category: 'observation', description: 'Scenario abundance intervention applied' },
+  scenario_rule_change: { category: 'observation', description: 'Scenario rule change applied' },
 };
 
 // =============================================================================

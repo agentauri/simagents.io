@@ -380,7 +380,7 @@ class TickEngine {
 
       // Set start tick if not set
       if (ctx.startTick === undefined) {
-        ctx.startTick = tick;
+        ctx.startTick = tick - 1;
       }
 
       const ticksElapsed = tick - ctx.startTick;

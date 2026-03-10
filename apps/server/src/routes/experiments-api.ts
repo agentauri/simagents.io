@@ -21,6 +21,7 @@ import {
   updateVariantStatus,
   getNextPendingVariant,
   getCurrentRunningVariant,
+  captureVariantSnapshot,
 } from '../db/queries/experiments';
 import { getCurrentTick, resetTickCounter } from '../db/queries/world';
 import { clearCache } from '../cache/projections';
@@ -284,6 +285,7 @@ export async function registerExperimentRoutes(server: FastifyInstance): Promise
     // Update variant status
     const currentTick = await getCurrentTick();
     await updateVariantStatus(variant.id, 'running', { startTick: currentTick });
+    await captureVariantSnapshot(variant.id, currentTick);
 
     // Configure tick engine
     const finalTickInterval = tickIntervalMs ?? (Number(process.env.TICK_INTERVAL_MS) || 60000);
@@ -307,6 +309,7 @@ export async function registerExperimentRoutes(server: FastifyInstance): Promise
       experimentId: id,
       variantId: variant.id,
       durationTicks: variant.durationTicks || 100,
+      startTick: currentTick,
       variantConfig: {
         useRandomWalk: configOverrides?.useRandomWalk === true,
         useOnlyFallback: configOverrides?.useOnlyFallback === true,
