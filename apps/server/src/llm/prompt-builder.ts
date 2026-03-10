@@ -289,7 +289,7 @@ export function buildObservationPrompt(
         const items = agent.inventory.map(i => `${i.quantity}x ${i.type}`).join(', ');
         inventoryInfo = ` | Inventory: [${items}]`;
       }
-      lines.push(`- ${agent.id.slice(0, 8)} at (${agent.x}, ${agent.y}) [${agent.state}]${relInfo}${proximity}${inventoryInfo}`);
+      lines.push(`- ${agent.id} at (${agent.x}, ${agent.y}) [${agent.state}]${relInfo}${proximity}${inventoryInfo}`);
     }
 
     // Cooperation Opportunities section - show benefits of nearby agents
@@ -365,7 +365,7 @@ export function buildObservationPrompt(
         }
 
         if (opportunities.length > 0) {
-          lines.push(`- ${trader.id.slice(0, 8)}${trustBonus}:`);
+          lines.push(`- ${trader.id}${trustBonus}:`);
           for (const opp of opportunities) {
             lines.push(`  → ${opp}`);
           }
@@ -380,11 +380,11 @@ export function buildObservationPrompt(
   if (obs.knownAgents && obs.knownAgents.length > 0) {
     lines.push('', '### Agents You\'ve Heard About');
     for (const known of obs.knownAgents) {
-      let info = `- ${known.id.slice(0, 8)}`;
+      let info = `- ${known.id}`;
       if (known.discoveryType === 'direct') {
         info += ' (met directly)';
       } else {
-        info += ` (heard from ${known.referredBy?.slice(0, 8) ?? 'someone'})`;
+        info += ` (heard from ${known.referredBy ?? 'someone'})`;
       }
       if (known.lastKnownPosition) {
         info += ` - last seen at (${known.lastKnownPosition.x}, ${known.lastKnownPosition.y})`;
@@ -462,7 +462,7 @@ export function buildObservationPrompt(
     for (const claim of obs.nearbyClaims) {
       const isMine = claim.agentId === obs.self.id;
       const claimEmoji = getClaimEmoji(claim.claimType);
-      const ownerLabel = isMine ? 'YOURS' : `by ${claim.agentId.slice(0, 8)}`;
+      const ownerLabel = isMine ? 'YOURS' : `by ${claim.agentId}`;
       const strengthLabel = claim.strength >= 5 ? 'strong' : claim.strength >= 2 ? 'moderate' : 'weak';
       let line = `- ${claimEmoji} ${claim.claimType} at (${claim.x}, ${claim.y}) [${ownerLabel}, ${strengthLabel}]`;
       if (claim.description) line += ` - "${claim.description}"`;
@@ -501,7 +501,7 @@ export function buildObservationPrompt(
         : offer.paymentType === 'per_tick'
           ? `${(offer.salary / offer.duration).toFixed(1)} CITY/tick`
           : `on completion${offer.escrowPercent > 0 ? ` (${offer.escrowPercent}% escrow)` : ''}`;
-      lines.push(`- ${offer.employerId.slice(0, 8)} offers ${offer.salary} CITY for ${offer.duration} ticks (${paymentInfo}) [${distance} tiles away]`);
+      lines.push(`- ${offer.employerId} offers ${offer.salary} CITY for ${offer.duration} ticks (${paymentInfo}) [${distance} tiles away]`);
       if (offer.description) {
         lines.push(`  "${offer.description}"`);
       }
@@ -520,7 +520,7 @@ export function buildObservationPrompt(
           : emp.paymentType === 'per_tick'
             ? `(earned ${emp.amountPaid.toFixed(1)} CITY so far)`
             : `(owed ${emp.salary - emp.amountPaid} CITY on completion)`;
-        lines.push(`- ${statusEmoji} WORKING FOR ${emp.otherPartyId.slice(0, 8)}: ${progress} ${payInfo}`);
+        lines.push(`- ${statusEmoji} WORKING FOR ${emp.otherPartyId}: ${progress} ${payInfo}`);
         if (emp.needsPayment) {
           lines.push(`  ⚠️ Work complete! Waiting for employer to pay. Can CLAIM_ESCROW if unpaid.`);
         }
@@ -528,7 +528,7 @@ export function buildObservationPrompt(
         const payInfo = emp.paymentType === 'on_completion' && emp.isComplete
           ? `(needs payment: ${emp.salary - emp.amountPaid} CITY)`
           : `(paid ${emp.amountPaid.toFixed(1)}/${emp.salary} CITY)`;
-        lines.push(`- ${statusEmoji} EMPLOYING ${emp.otherPartyId.slice(0, 8)}: ${progress} ${payInfo}`);
+        lines.push(`- ${statusEmoji} EMPLOYING ${emp.otherPartyId}: ${progress} ${payInfo}`);
         if (emp.needsPayment) {
           lines.push(`  ⚠️ Work complete! You should PAY_WORKER to maintain trust.`);
         }
@@ -551,21 +551,34 @@ export function buildObservationPrompt(
 
   // Puzzle Game System (Fragment Chase)
   if (obs.activePuzzleGames && obs.activePuzzleGames.length > 0) {
-    lines.push('', '### 🧩 Puzzle Games (Fragment Chase)');
-    lines.push('💰 **COOPERATIVE GAME**: Stake CITY to join and receive puzzle FRAGMENTS.');
-    lines.push('   Share fragments with other players to solve the puzzle together.');
-    lines.push('   Winners split the PRIZE POOL (much bigger than entry stake!)');
+    // Calculate best opportunity
+    const openGames = obs.activePuzzleGames.filter((g) => !g.isParticipating && g.status === 'open');
+    const bestGame = openGames.length > 0
+      ? openGames.reduce((best, curr) => (curr.prizePool - curr.entryStake) > (best.prizePool - best.entryStake) ? curr : best)
+      : null;
+    const bestROI = bestGame ? Math.round(((bestGame.prizePool - bestGame.entryStake) / bestGame.entryStake) * 100) : 0;
+
+    lines.push('', '### 🧩💰 PUZZLE GAMES - HIGH PROFIT OPPORTUNITY!');
+    lines.push('');
+    if (bestGame && bestROI > 100) {
+      lines.push(`⚡ **BEST OPPORTUNITY**: ${bestGame.gameType.toUpperCase()} puzzle with ${bestROI}% ROI!`);
+      lines.push(`   Entry: ${bestGame.entryStake.toFixed(0)} CITY → Win up to ${bestGame.prizePool.toFixed(0)} CITY (+${(bestGame.prizePool - bestGame.entryStake).toFixed(0)} profit)`);
+      lines.push('');
+    }
+    lines.push('🎯 **HOW IT WORKS**: Stake a small amount, receive puzzle FRAGMENTS, cooperate to solve.');
+    lines.push('   This is the FASTEST way to multiply your CITY balance!');
     lines.push('');
 
     for (const game of obs.activePuzzleGames) {
-      const statusIcon = game.isParticipating ? '✅ PARTICIPATING' : '🔓 OPEN';
+      const statusIcon = game.isParticipating ? '✅ PARTICIPATING' : '🔓 OPEN TO JOIN';
       const potentialProfit = game.prizePool - game.entryStake;
+      const roi = Math.round((potentialProfit / game.entryStake) * 100);
       lines.push(`- [${game.gameType.toUpperCase()}] ${statusIcon}`);
-      lines.push(`  Prize: ${game.prizePool.toFixed(0)} CITY | Entry: ${game.entryStake.toFixed(0)} CITY (potential profit: +${potentialProfit.toFixed(0)} CITY)`);
-      lines.push(`  Players: ${game.participantCount}/${game.fragmentsNeeded} needed | Time left: ${game.ticksRemaining} ticks`);
+      lines.push(`  💵 Prize: ${game.prizePool.toFixed(0)} CITY | Entry: ${game.entryStake.toFixed(0)} CITY | **ROI: +${roi}%**`);
+      lines.push(`  👥 Players: ${game.participantCount}/${game.fragmentsNeeded} needed | ⏰ ${game.ticksRemaining} ticks left`);
     }
     lines.push('');
-    lines.push('TIP: Join puzzles to earn CITY! Cooperate with others to solve and win.');
+    lines.push('🚀 **RECOMMENDED ACTION**: Use join_puzzle to enter and start earning!');
   }
 
   // Show puzzle participation info if in a puzzle
@@ -605,7 +618,7 @@ export function buildObservationPrompt(
   // Agent's team info
   if (obs.myPuzzleTeam) {
     lines.push('', '### 👥 Your Team');
-    const leaderInfo = obs.myPuzzleTeam.isLeader ? '(YOU ARE LEADER)' : `(led by ${obs.myPuzzleTeam.leaderId.slice(0, 8)})`;
+    const leaderInfo = obs.myPuzzleTeam.isLeader ? '(YOU ARE LEADER)' : `(led by ${obs.myPuzzleTeam.leaderId})`;
     lines.push(`Team: "${obs.myPuzzleTeam.name}" ${leaderInfo}`);
     lines.push(`Members: ${obs.myPuzzleTeam.memberCount} | Total stake: ${obs.myPuzzleTeam.totalStake.toFixed(0)} CITY`);
     if (obs.myPuzzleTeam.isLeader) {
@@ -620,7 +633,7 @@ export function buildObservationPrompt(
       const trustIcon = player.trustLevel > 20 ? '💚' : player.trustLevel < -20 ? '❌' : '⚪';
       const sameGameNote = player.inSameGame ? ' (SAME PUZZLE!)' : '';
       const teamNote = player.teamId ? ` [team: ${player.teamId.slice(0, 6)}]` : '';
-      lines.push(`- ${player.agentId.slice(0, 8)} ${trustIcon} (${player.distance} tiles) - ${player.fragmentCount} fragment(s)${sameGameNote}${teamNote}`);
+      lines.push(`- ${player.agentId} ${trustIcon} (${player.distance} tiles) - ${player.fragmentCount} fragment(s)${sameGameNote}${teamNote}`);
     }
     lines.push('TIP: Share fragments and form teams to increase your winning chances!');
   }
@@ -1031,7 +1044,7 @@ export function buildAvailableActions(obs: AgentObservation): AvailableAction[] 
     return distance <= 3 && a.state !== 'dead'; // Max trade distance is 3
   });
   if (nearbyForTrade.length > 0 && obs.inventory && obs.inventory.length > 0) {
-    const agentIds = nearbyForTrade.map((a) => a.id.slice(0, 8)).join(', ');
+    const agentIds = nearbyForTrade.map((a) => a.id).join(', ');
     actions.push({
       type: 'trade',
       description: `Trade items with nearby agents (${agentIds})`,
@@ -1046,7 +1059,7 @@ export function buildAvailableActions(obs: AgentObservation): AvailableAction[] 
     return distance <= 1 && a.state !== 'dead';
   });
   if (adjacentAgents.length > 0 && obs.self.energy >= 5) {
-    const agentIds = adjacentAgents.map((a) => a.id.slice(0, 8)).join(', ');
+    const agentIds = adjacentAgents.map((a) => a.id).join(', ');
     actions.push({
       type: 'harm',
       description: `Attack adjacent agent (${agentIds}) - light/moderate/severe intensity`,
@@ -1056,7 +1069,7 @@ export function buildAvailableActions(obs: AgentObservation): AvailableAction[] 
 
   // Steal is available if there are adjacent agents
   if (adjacentAgents.length > 0 && obs.self.energy >= 8) {
-    const agentIds = adjacentAgents.map((a) => a.id.slice(0, 8)).join(', ');
+    const agentIds = adjacentAgents.map((a) => a.id).join(', ');
     actions.push({
       type: 'steal',
       description: `Steal items from adjacent agent (${agentIds})`,
@@ -1070,7 +1083,7 @@ export function buildAvailableActions(obs: AgentObservation): AvailableAction[] 
     return distance <= 3 && a.state !== 'dead';
   });
   if (nearbyForDeceive.length > 0 && obs.self.energy >= 2) {
-    const agentIds = nearbyForDeceive.map((a) => a.id.slice(0, 8)).join(', ');
+    const agentIds = nearbyForDeceive.map((a) => a.id).join(', ');
     actions.push({
       type: 'deceive',
       description: `Tell false information to nearby agent (${agentIds})`,
@@ -1086,8 +1099,8 @@ export function buildAvailableActions(obs: AgentObservation): AvailableAction[] 
     return distance <= 3 && a.state !== 'dead';
   });
   if (nearbyForShare.length > 0 && obs.knownAgents && obs.knownAgents.length > 0 && obs.self.energy >= 1) {
-    const targetIds = nearbyForShare.map((a) => a.id.slice(0, 8)).join(', ');
-    const knownIds = obs.knownAgents.map((k) => k.id.slice(0, 8)).join(', ');
+    const targetIds = nearbyForShare.map((a) => a.id).join(', ');
+    const knownIds = obs.knownAgents.map((k) => k.id).join(', ');
     actions.push({
       type: 'share_info',
       description: `Share info about known agents (${knownIds}) with nearby (${targetIds})`,
@@ -1113,7 +1126,7 @@ export function buildAvailableActions(obs: AgentObservation): AvailableAction[] 
 
   // Issue credential is available if there are nearby agents
   if (nearbyForShare.length > 0 && obs.self.energy >= 2) {
-    const agentIds = nearbyForShare.map((a) => a.id.slice(0, 8)).join(', ');
+    const agentIds = nearbyForShare.map((a) => a.id).join(', ');
     actions.push({
       type: 'issue_credential',
       description: `Issue credential to vouch for nearby agent (${agentIds}) - skill/experience/character`,
@@ -1131,8 +1144,8 @@ export function buildAvailableActions(obs: AgentObservation): AvailableAction[] 
 
   // Spread gossip is available if nearby agents exist AND agent knows about other agents
   if (nearbyForShare.length > 0 && obs.knownAgents && obs.knownAgents.length > 0 && obs.self.energy >= 1) {
-    const targetIds = nearbyForShare.map((a) => a.id.slice(0, 8)).join(', ');
-    const knownIds = obs.knownAgents.map((k) => k.id.slice(0, 8)).join(', ');
+    const targetIds = nearbyForShare.map((a) => a.id).join(', ');
+    const knownIds = obs.knownAgents.map((k) => k.id).join(', ');
     actions.push({
       type: 'spread_gossip',
       description: `Spread gossip about (${knownIds}) to nearby (${targetIds}) - positive or negative`,
@@ -1146,7 +1159,7 @@ export function buildAvailableActions(obs: AgentObservation): AvailableAction[] 
   const canReproduce = obs.self.balance >= 500 && obs.self.energy >= 80 && obs.self.health >= 90;
   if (canReproduce) {
     const partnerInfo = adjacentAgents.length > 0
-      ? ` (can partner with ${adjacentAgents.map((a) => a.id.slice(0, 8)).join(', ')})`
+      ? ` (can partner with ${adjacentAgents.map((a) => a.id).join(', ')})`
       : ' (solo reproduction)';
     actions.push({
       type: 'spawn_offspring',
@@ -1246,46 +1259,51 @@ export function buildAvailableActions(obs: AgentObservation): AvailableAction[] 
       puzzleActions.push(consumeAction);
     }
 
-    // Share fragment is available if agent has fragments
-    if (obs.myPuzzleFragments && obs.myPuzzleFragments.length > 0) {
+    // Share fragment is available if agent has fragments and there are nearby players
+    if (obs.myPuzzleFragments && obs.myPuzzleFragments.length > 0 && obs.nearbyAgents && obs.nearbyAgents.length > 0) {
       const unsharedFragments = obs.myPuzzleFragments.filter((f) => f.sharedWith.length === 0);
       if (unsharedFragments.length > 0) {
+        const fragment = unsharedFragments[0];
+        const nearbyAgent = obs.nearbyAgents[0];
         puzzleActions.push({
           type: 'share_fragment',
-          description: `Share puzzle fragment with nearby player (${unsharedFragments.length} unshared)`,
+          description: `Share puzzle fragment (fragmentId: ${fragment.id}, targetAgentId: ${nearbyAgent.id})`,
           cost: { energy: 1 },
         });
       }
     }
 
     // Form team is available if not already in a team
-    if (!obs.myPuzzleTeam) {
+    if (!obs.myPuzzleTeam && obs.puzzleParticipation) {
       puzzleActions.push({
         type: 'form_team',
-        description: 'Create a team for this puzzle',
+        description: `Create a team for this puzzle (gameId: ${obs.puzzleParticipation.gameId})`,
         cost: { energy: 2 },
       });
 
       // Join team - would need to know available teams from nearby players
       if (obs.nearbyPuzzlePlayers && obs.nearbyPuzzlePlayers.some((p) => p.teamId && p.inSameGame)) {
-        puzzleActions.push({
-          type: 'join_team',
-          description: 'Join a nearby team in this puzzle',
-        });
+        const playerWithTeam = obs.nearbyPuzzlePlayers.find((p) => p.teamId && p.inSameGame);
+        if (playerWithTeam?.teamId) {
+          puzzleActions.push({
+            type: 'join_team',
+            description: `Join nearby team (teamId: ${playerWithTeam.teamId})`,
+          });
+        }
       }
     }
 
     // Submit solution is always available in active puzzle
     puzzleActions.push({
       type: 'submit_solution',
-      description: `Submit solution to ${obs.puzzleParticipation.gameType} puzzle`,
+      description: `Submit solution to ${obs.puzzleParticipation.gameType} puzzle (gameId: ${obs.puzzleParticipation.gameId}) - params: { "gameId": "...", "solution": "X,Y" }`,
       cost: { energy: 3 },
     });
 
     // Leave puzzle is always available
     puzzleActions.push({
       type: 'leave_puzzle',
-      description: 'Abandon puzzle (lose 50% of stake!)',
+      description: `Abandon puzzle (gameId: ${obs.puzzleParticipation.gameId}) - lose 50% of stake!`,
       cost: { energy: 5 },
     });
 
@@ -1297,11 +1315,13 @@ export function buildAvailableActions(obs: AgentObservation): AvailableAction[] 
     const openGames = obs.activePuzzleGames.filter((g) => !g.isParticipating && g.status === 'open');
     if (openGames.length > 0 && obs.self.balance >= (openGames[0]?.entryStake || 5)) {
       const bestGame = openGames.reduce((best, curr) =>
-        curr.prizePool > best.prizePool ? curr : best
+        (curr.prizePool - curr.entryStake) > (best.prizePool - best.entryStake) ? curr : best
       );
+      const profit = bestGame.prizePool - bestGame.entryStake;
+      const roi = Math.round((profit / bestGame.entryStake) * 100);
       actions.push({
         type: 'join_puzzle',
-        description: `Join puzzle game (${openGames.length} open, best prize: ${bestGame.prizePool.toFixed(0)} CITY)`,
+        description: `🎯 JOIN PUZZLE (gameId: ${bestGame.id}) - ${roi}% ROI! Stake ${bestGame.entryStake.toFixed(0)} to win ${bestGame.prizePool.toFixed(0)} CITY (+${profit.toFixed(0)} profit)`,
         cost: { money: bestGame.entryStake },
       });
     }

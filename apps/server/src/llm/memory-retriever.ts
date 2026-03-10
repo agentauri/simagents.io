@@ -225,7 +225,7 @@ export function formatMemoriesForPrompt(
         const involvedIds = memory.involvedAgentIds as string[];
         const relevantAgents = involvedIds.filter((id) => nearbyAgentIds.includes(id));
         const agentLabel = relevantAgents.length > 0
-          ? ` (about ${relevantAgents.map((id) => id.slice(0, 8)).join(', ')})`
+          ? ` (about ${relevantAgents.join(', ')})`
           : '';
         lines.push(formatMemory(memory) + agentLabel);
         totalCount++;

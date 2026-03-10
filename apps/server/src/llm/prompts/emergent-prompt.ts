@@ -403,7 +403,7 @@ export function buildEmergentObservationPrompt(obs: AgentObservation): string {
         if (rel.trustScore > 20) relInfo = ' (familiar face)';
         else if (rel.trustScore < -20) relInfo = ' (you distrust them)';
       }
-      lines.push(`- Someone (${agent.id.slice(0, 8)}) stands ${distanceWord}${relInfo}`);
+      lines.push(`- Agent ${agent.id} stands ${distanceWord}${relInfo}`);
     }
   }
 
@@ -412,11 +412,11 @@ export function buildEmergentObservationPrompt(obs: AgentObservation): string {
     lines.push('');
     lines.push('**Agents You\'ve Heard Of**');
     for (const known of obs.knownAgents.slice(0, 5)) {
-      let info = `- ${known.id.slice(0, 8)}`;
+      let info = `- ${known.id}`;
       if (known.discoveryType === 'direct') {
         info += ' (you\'ve met)';
       } else {
-        info += ` (mentioned by ${known.referredBy?.slice(0, 8) ?? 'others'})`;
+        info += ` (mentioned by ${known.referredBy ?? 'others'})`;
       }
       if (known.dangerWarning) {
         info += ' - warned as dangerous';
@@ -462,7 +462,7 @@ export function buildEmergentObservationPrompt(obs: AgentObservation): string {
     lines.push('**Marked Territories**');
     for (const claim of obs.nearbyClaims.slice(0, 5)) {
       const isMine = claim.agentId === obs.self.id;
-      const owner = isMine ? 'your' : `${claim.agentId.slice(0, 8)}'s`;
+      const owner = isMine ? 'your' : `${claim.agentId}'s`;
       lines.push(`- ${owner} ${claim.claimType}${claim.description ? `: "${claim.description}"` : ''}`);
     }
   }
@@ -514,7 +514,7 @@ export function buildEmergentObservationPrompt(obs: AgentObservation): string {
           ? ' - COMPLETE, awaiting payment'
           : ' - COMPLETE and paid'
         : '';
-      lines.push(`- You are ${roleDesc} ${emp.otherPartyId.slice(0, 8)}: ${progress}${status}`);
+      lines.push(`- You are ${roleDesc} ${emp.otherPartyId}: ${progress}${status}`);
     }
   }
 
@@ -532,6 +532,62 @@ export function buildEmergentObservationPrompt(obs: AgentObservation): string {
       lines.push(
         `- Offering ${offer.salary} CITY for ${offer.duration} ticks (${paymentDesc}, ${offer.escrowAmount} in escrow) - no takers yet`
       );
+    }
+  }
+
+  // Puzzle Games: Cooperative opportunity to earn CITY
+  if (obs.activePuzzleGames && obs.activePuzzleGames.length > 0) {
+    const openGames = obs.activePuzzleGames.filter((g) => !g.isParticipating && g.status === 'open');
+    const bestGame = openGames.length > 0
+      ? openGames.reduce((best, curr) => (curr.prizePool - curr.entryStake) > (best.prizePool - best.entryStake) ? curr : best)
+      : null;
+
+    lines.push('');
+    lines.push('**Puzzle Games - High Profit Opportunity**');
+    if (bestGame) {
+      const profit = bestGame.prizePool - bestGame.entryStake;
+      const roi = Math.round((profit / bestGame.entryStake) * 100);
+      lines.push(`A ${bestGame.gameType} puzzle offers ${roi}% return: stake ${bestGame.entryStake.toFixed(0)} CITY to win up to ${bestGame.prizePool.toFixed(0)} CITY.`);
+    }
+    lines.push('Join a puzzle, receive fragments, cooperate with others to solve it and share the prize.');
+    for (const game of obs.activePuzzleGames) {
+      const status = game.isParticipating ? 'You are participating' : 'Open to join';
+      const profit = game.prizePool - game.entryStake;
+      lines.push(`- ${game.gameType.toUpperCase()} (ID: ${game.id}): ${status} | Prize: ${game.prizePool.toFixed(0)} CITY | Entry: ${game.entryStake.toFixed(0)} CITY | Profit: +${profit.toFixed(0)} | Players: ${game.participantCount}/${game.fragmentsNeeded} needed`);
+    }
+  }
+
+  // Puzzle participation info
+  if (obs.puzzleParticipation) {
+    lines.push('');
+    lines.push('**Your Puzzle Status**');
+    lines.push(`You are in a ${obs.puzzleParticipation.gameType} puzzle.`);
+    lines.push(`Staked: ${obs.puzzleParticipation.stakedAmount.toFixed(0)} CITY | Fragments: ${obs.puzzleParticipation.fragmentsReceived} received, ${obs.puzzleParticipation.fragmentsShared} shared`);
+    lines.push(`Time remaining: ${obs.puzzleParticipation.ticksRemaining} ticks`);
+    lines.push('While in puzzle, you can: share_fragment, form_team, join_team, submit_solution, or leave_puzzle (loses 50% stake).');
+  }
+
+  // Agent's puzzle fragments - CRITICAL for solving puzzles
+  if (obs.myPuzzleFragments && obs.myPuzzleFragments.length > 0) {
+    lines.push('');
+    lines.push('**Your Puzzle Fragments (CLUES)**');
+    for (const frag of obs.myPuzzleFragments) {
+      const sharedInfo = frag.sharedWith.length > 0
+        ? ` (shared with ${frag.sharedWith.length} other(s))`
+        : ' (NOT SHARED YET)';
+      lines.push(`- Fragment #${frag.fragmentIndex}: "${frag.content}"${sharedInfo}`);
+    }
+    lines.push('To solve the puzzle, you need ALL fragments. Share yours with others to receive theirs in return.');
+  }
+
+  // Nearby puzzle players - cooperation opportunities
+  if (obs.nearbyPuzzlePlayers && obs.nearbyPuzzlePlayers.length > 0) {
+    lines.push('');
+    lines.push('**Other Puzzle Players Nearby**');
+    for (const player of obs.nearbyPuzzlePlayers) {
+      const sameGame = player.inSameGame ? ' (SAME PUZZLE - can trade fragments!)' : '';
+      const fragments = player.fragmentCount > 0 ? ` - has ${player.fragmentCount} fragment(s)` : '';
+      lines.push(`- ${player.agentId} (${player.distance} steps away)${fragments}${sameGame}`);
     }
   }
 

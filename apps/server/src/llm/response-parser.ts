@@ -27,6 +27,8 @@ const VALID_ACTIONS: ActionType[] = [
   'spawn_offspring',
   // Employment System
   'offer_job', 'accept_job', 'pay_worker', 'claim_escrow', 'quit_job', 'fire_worker', 'cancel_job_offer',
+  // Puzzle System
+  'join_puzzle', 'leave_puzzle', 'share_fragment', 'form_team', 'join_team', 'submit_solution',
 ];
 
 /**
