@@ -1,18 +1,19 @@
 # Sim Agents - Product Requirements Document (PRD)
 
 > **Version**: 1.6.0
-> **Status**: Phases 0-7 Complete
+> **Status**: Phases 0-8 Complete
 > **Last Updated**: January 2026
 
 ---
 
 ## Implementation Status
 
-> **Current Status**: All core phases complete (0-7)
+> **Current Status**: All core phases complete (0-8)
 >
 > - Phases 0-5: Core infrastructure (world, agents, actions, needs, economy)
 > - Phase 6: Employment System (contract-based jobs)
-> - Phase 7: Social Interactions (cooperation bonuses, economic rebalancing)
+> - Phase 7: Cooperative Puzzle Game (Fragment Chase)
+> - Phase 8: User Authentication (OAuth)
 >
 > This PRD documents design specifications. For implementation details, see **[ROADMAP.md](../ROADMAP.md)**.
 

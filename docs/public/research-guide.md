@@ -6,7 +6,7 @@ This guide covers scientific methodology for conducting rigorous research with S
 
 SimAgents is designed for studying **emergent AI behavior** in multi-agent environments. Key principles:
 
-1. **Reproducibility**: Every experiment can be replicated with seed + configuration
+1. **Reproducibility**: Deterministic baseline experiments can be replicated with seed + configuration; LLM exploratory runs must be treated as non-deterministic
 2. **Observability**: All state changes are logged and queryable
 3. **Comparability**: Standardized metrics enable cross-study comparison
 4. **Minimal Imposition**: System provides physics, not strategies
@@ -17,12 +17,14 @@ SimAgents is designed for studying **emergent AI behavior** in multi-agent envir
 
 ### Experiment DSL
 
-Define experiments in YAML:
+Define experiments in YAML and declare the execution profile explicitly:
 
 ```yaml
 name: "resource_scarcity_cooperation"
 description: "Test cooperation emergence under resource scarcity"
 seed: 12345
+profile: llm_exploratory
+benchmarkWorld: canonical_core
 
 world:
   size: [100, 100]
@@ -63,23 +65,21 @@ shocks:
 cd apps/server
 
 # Validate configuration
-bun run src/experiments/runner.ts --dry-run experiments/my-experiment.yaml
+bun run src/experiments/runner.ts --config experiments/my-experiment.yaml --dry-run
 
 # Run experiment
-bun run src/experiments/runner.ts experiments/my-experiment.yaml
+bun run src/experiments/runner.ts --config experiments/my-experiment.yaml
 
 # Run with custom output
-bun run src/experiments/runner.ts experiments/my-experiment.yaml --output results/
+bun run src/experiments/runner.ts --config experiments/my-experiment.yaml --output results/
 ```
 
 ### Batch Experiments
 
-Run multiple seeds for statistical significance:
+Run multiple seeds before making inferential claims:
 
 ```bash
-for seed in 12345 23456 34567 45678 56789; do
-  bun run src/experiments/runner.ts experiments/my-experiment.yaml --seed $seed
-done
+bun run src/experiments/runner.ts --config experiments/my-experiment.yaml --runs 5 --output results/
 ```
 
 ---

@@ -72,6 +72,23 @@ User-facing documentation organized by audience:
   - Reproducibility requirements
   - A/B testing framework
 
+- **[Scientific Remediation Checklist](scientific-remediation-checklist.md)** - Priority roadmap for scientific hardening
+  - P0 blockers for strong research claims
+  - P1 methodological upgrades
+  - P2 publication-readiness tasks
+
+- **[Metric Specification](metric-specification.md)** - Metric tiers, formulas, and failure modes
+  - Validated vs heuristic vs descriptive metrics
+  - Null-model expectations
+
+- **[Research Bundles](research-bundles.md)** - Export structure and claim-review workflow
+  - Stable artifact layout
+  - Provenance and bundle contents
+
+- **[Literature Validation Plan](literature-validation-plan.md)** - Replication-first validation path
+  - Canonical benchmark world
+  - Acceptance criteria before novel claims
+
 ## Development Context
 
 - **[CLAUDE.md](../CLAUDE.md)** - For AI coding assistants
@@ -102,6 +119,14 @@ README.md           ─── Quick start, links to docs
         │
         ├── experiment-design-guide.md ─── Research guide
         │
+        ├── scientific-remediation-checklist.md ─── Scientific hardening roadmap
+        ├── metric-specification.md ─── Metric tiers and formulas
+        ├── research-bundles.md ─── Bundle layout and claim review
+        ├── literature-validation-plan.md ─── Replication-first validation
+        ├── templates/
+        │   ├── study-template.md ─── Preregistration-style study spec
+        │   └── claim-review-template.md ─── Internal claim review gate
+        │
         ├── public/         ─── User-facing docs (doc.simagents.io)
         │   ├── index.md
         │   ├── why-simagents.md
@@ -116,4 +141,4 @@ README.md           ─── Quick start, links to docs
 
 ---
 
-*Last updated: January 16, 2026*
+*Last updated: March 10, 2026*

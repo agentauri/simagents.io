@@ -2,6 +2,11 @@
 
 This guide covers how to design, run, and analyze scientific experiments in Sim Agents.
 
+Research claims now depend on the selected scientific profile:
+
+- `deterministic_baseline`: seeded, no external LLM sampling, cache sharing disabled, canonical core world by default
+- `llm_exploratory`: settings frozen for comparability, but still labeled non-deterministic because external providers remain stochastic
+
 ## Table of Contents
 
 1. [Overview](#overview)
@@ -18,13 +23,14 @@ This guide covers how to design, run, and analyze scientific experiments in Sim 
 
 ## Overview
 
-Sim Agents provides a complete scientific research platform for studying emergent behavior in multi-agent systems. The platform supports:
+Sim Agents provides a strong experimental platform for studying emergent behavior in multi-agent systems. For rigorous claims, prefer canonical benchmark worlds, multi-run comparisons, and exported research bundles. The platform supports:
 
 - **Controlled experiments** with reproducible seeds
 - **Multiple agent types** (LLM-powered and baseline algorithms)
 - **Shock injection** for perturbation studies
 - **Ensemble runs** with statistical aggregation
-- **Comprehensive metrics** and significance testing
+- **Research bundles** with provenance and per-run artifacts
+- **Metric tiering** so heuristic proxies are not presented as validated evidence
 
 ### Philosophy: Imposed vs Emergent
 
@@ -58,6 +64,8 @@ Experiments are defined using a JSON/YAML schema. The schema is validated at loa
   "description": "Tests agent behavior under resource scarcity",
   "hypothesis": "Cooperative agents survive longer in scarce environments",
   "seed": 42,
+  "profile": "llm_exploratory",
+  "benchmarkWorld": "canonical_core",
   "duration": 1000,
   "world": {
     "size": [100, 100],

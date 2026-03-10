@@ -51,11 +51,22 @@ cd apps/server
 bunx drizzle-kit push
 ```
 
+From the repo root you can also use:
+
+```bash
+bun run dev:setup
+# or
+pnpm dev:setup
+```
+
 ### 5. Run the Simulation
 
 ```bash
 # From root directory
 bun dev
+
+# or with pnpm
+pnpm dev
 ```
 
 Open [http://localhost:5173](http://localhost:5173) to see the visualization.

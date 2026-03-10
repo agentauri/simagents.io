@@ -1,6 +1,8 @@
 # Scientific Validation Framework - Appendix
 
 > Detailed methodology for validating emergent behavior claims in Sim Agents
+>
+> Important: deterministic baseline runs and LLM exploratory runs are now treated as different evidence classes. Only the former are expected to be exactly reproducible.
 
 ## Table of Contents
 
