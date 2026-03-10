@@ -241,8 +241,63 @@ export interface AnalyticsSnapshot {
   emergence?: EmergenceMetrics; // Phase 1: optional until tables exist
   phase2?: Phase2Metrics; // Phase 2: advanced analytics
   phase4?: Phase4Metrics; // Phase 4: credentials, gossip, reproduction, LLM
+  metricMetadata: ScientificMetricDescriptor[];
   timestamp: number;
 }
+
+export type ScientificMetricTier = 'descriptive' | 'heuristic' | 'validated' | 'experimental';
+
+export interface ScientificMetricDescriptor {
+  key: string;
+  tier: ScientificMetricTier;
+  formula: string;
+  notes: string;
+}
+
+export const SCIENTIFIC_METRIC_REGISTRY: ScientificMetricDescriptor[] = [
+  {
+    key: 'survival.overall.totalAlive',
+    tier: 'validated',
+    formula: 'COUNT(agents WHERE state != dead)',
+    notes: 'Direct state count with minimal interpretive risk.',
+  },
+  {
+    key: 'economy.giniCoefficient',
+    tier: 'validated',
+    formula: 'Gini coefficient over alive-agent balances',
+    notes: 'Standard inequality statistic computed from observed balances.',
+  },
+  {
+    key: 'behavior.actionFrequency',
+    tier: 'descriptive',
+    formula: 'Counts of persisted agent_* events',
+    notes: 'Useful telemetry, not itself a causal or normative metric.',
+  },
+  {
+    key: 'emergence.cooperationIndex',
+    tier: 'heuristic',
+    formula: '(positive trust share + repeat trade rate + cluster cohesion) / 3',
+    notes: 'Composite proxy; compare carefully and avoid publication-grade claims without validation.',
+  },
+  {
+    key: 'emergence.clustering',
+    tier: 'heuristic',
+    formula: 'Connected components under Manhattan radius threshold',
+    notes: 'Operational cluster proxy, sensitive to radius choice.',
+  },
+  {
+    key: 'phase2.socialGraph',
+    tier: 'experimental',
+    formula: 'Derived graph metrics over trust and knowledge relations',
+    notes: 'Exploratory network diagnostics; not yet benchmark validated.',
+  },
+  {
+    key: 'baselineComparison',
+    tier: 'descriptive',
+    formula: 'Category-level differences between baseline and LLM cohorts',
+    notes: 'Descriptive only; inferential significance requires multi-run analysis.',
+  },
+];
 
 // =============================================================================
 // Survival Metrics
@@ -2718,6 +2773,7 @@ export async function getAnalyticsSnapshot(): Promise<AnalyticsSnapshot> {
     emergence,
     phase2,
     phase4,
+    metricMetadata: SCIENTIFIC_METRIC_REGISTRY,
     timestamp: Date.now(),
   };
 }
@@ -2931,7 +2987,8 @@ export interface BaselineComparison {
     wealthDifference: number; // LLM avg wealth - baseline avg wealth
     cooperationDifference: number; // LLM cooperation rate - baseline
     actionDiversityDifference: number; // Difference in action entropy
-    isStatisticallySignificant: boolean; // Rough estimate (>10% difference)
+    status: 'descriptive_only';
+    note: string;
   };
 }
 
@@ -3150,12 +3207,6 @@ export async function getBaselineComparison(tick?: number): Promise<BaselineComp
     (llmEntropyCount > 0 ? llmEntropy / llmEntropyCount : 0) -
     (baselineEntropyCount > 0 ? baselineEntropy / baselineEntropyCount : 0);
 
-  // Rough statistical significance check (>10% difference in any major metric)
-  const isStatisticallySignificant =
-    Math.abs(survivalDifference) > 0.1 ||
-    Math.abs(cooperationDifference) > 0.1 ||
-    Math.abs(actionDiversityDifference) > 0.1;
-
   return {
     tick: currentTick,
     categories: {
@@ -3168,7 +3219,8 @@ export async function getBaselineComparison(tick?: number): Promise<BaselineComp
       wealthDifference: Math.round(wealthDifference * 100) / 100,
       cooperationDifference: Math.round(cooperationDifference * 1000) / 1000,
       actionDiversityDifference: Math.round(actionDiversityDifference * 1000) / 1000,
-      isStatisticallySignificant,
+      status: 'descriptive_only',
+      note: 'Single-snapshot cohort differences are descriptive only. Use multi-run statistical tests for significance claims.',
     },
   };
 }

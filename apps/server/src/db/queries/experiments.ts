@@ -52,6 +52,26 @@ export interface VariantComparisonResult {
   };
 }
 
+type SnapshotMetrics = {
+  giniCoefficient?: number;
+  cooperationIndex?: number;
+  avgWealth?: number;
+  avgHealth?: number;
+  avgHunger?: number;
+  avgEnergy?: number;
+  aliveAgents?: number;
+  totalEvents?: number;
+  tradeCount?: number;
+  conflictCount?: number;
+};
+
+type SnapshotAgentState = {
+  id: string;
+  balance: number;
+  health: number;
+  state: string;
+};
+
 // =============================================================================
 // Experiment CRUD
 // =============================================================================
@@ -387,7 +407,8 @@ export async function compareVariants(variantIds: string[]): Promise<VariantComp
     const snapshots = await getVariantSnapshots(variantId);
     if (snapshots.length === 0) continue;
 
-    // Calculate averages from snapshots
+    // Calculate averages from state-like metrics only.
+    // Cumulative counters are taken from the last snapshot to avoid double counting.
     const metricsSum = {
       giniCoefficient: 0,
       cooperationIndex: 0,
@@ -395,15 +416,11 @@ export async function compareVariants(variantIds: string[]): Promise<VariantComp
       avgHealth: 0,
       avgHunger: 0,
       avgEnergy: 0,
-      aliveAgents: 0,
-      totalEvents: 0,
-      tradeCount: 0,
-      conflictCount: 0,
     };
 
     let count = 0;
     for (const snapshot of snapshots) {
-      const metrics = snapshot.metricsSnapshot as typeof metricsSum;
+      const metrics = snapshot.metricsSnapshot as SnapshotMetrics | null;
       if (metrics) {
         metricsSum.giniCoefficient += metrics.giniCoefficient || 0;
         metricsSum.cooperationIndex += metrics.cooperationIndex || 0;
@@ -411,36 +428,33 @@ export async function compareVariants(variantIds: string[]): Promise<VariantComp
         metricsSum.avgHealth += metrics.avgHealth || 0;
         metricsSum.avgHunger += metrics.avgHunger || 0;
         metricsSum.avgEnergy += metrics.avgEnergy || 0;
-        metricsSum.aliveAgents += metrics.aliveAgents || 0;
-        metricsSum.totalEvents += metrics.totalEvents || 0;
-        metricsSum.tradeCount += metrics.tradeCount || 0;
-        metricsSum.conflictCount += metrics.conflictCount || 0;
         count++;
       }
     }
 
     // Get final state from last snapshot
     const lastSnapshot = snapshots[snapshots.length - 1];
-    const lastMetrics = lastSnapshot?.metricsSnapshot as typeof metricsSum;
-    const lastAgentStates = lastSnapshot?.agentStates as Array<{
-      id: string;
-      balance: number;
-      health: number;
-      state: string;
-    }>;
+    const lastMetrics = lastSnapshot?.metricsSnapshot as SnapshotMetrics | null;
+    const lastAgentStates = lastSnapshot?.agentStates as SnapshotAgentState[] | null;
 
     const aliveAgentsData = lastAgentStates?.filter(a => a.state !== 'dead') || [];
-    const ticksRun = variant.endTick && variant.startTick
-      ? variant.endTick - variant.startTick
+    const hasStartTick = variant.startTick !== null && variant.startTick !== undefined;
+    const hasEndTick = variant.endTick !== null && variant.endTick !== undefined;
+    const ticksRun = hasStartTick && hasEndTick
+      ? (variant.endTick as number) - (variant.startTick as number)
       : snapshots.length > 0
         ? Number(snapshots[snapshots.length - 1].tick) - Number(snapshots[0].tick)
         : 0;
 
     // Calculate survival rate (alive at end / total at start)
     const firstSnapshot = snapshots[0];
-    const firstAgentStates = firstSnapshot?.agentStates as Array<{ state: string }>;
-    const initialAlive = firstAgentStates?.filter(a => a.state !== 'dead').length || 7;
-    const finalAlive = aliveAgentsData.length;
+    const firstMetrics = firstSnapshot?.metricsSnapshot as SnapshotMetrics | null;
+    const firstAgentStates = firstSnapshot?.agentStates as Array<{ state: string }> | null;
+    const initialAlive =
+      firstMetrics?.aliveAgents ??
+      firstAgentStates?.filter(a => a.state !== 'dead').length ??
+      0;
+    const finalAlive = lastMetrics?.aliveAgents ?? aliveAgentsData.length;
     const survivalRate = initialAlive > 0 ? finalAlive / initialAlive : 0;
 
     results.push({
@@ -455,9 +469,9 @@ export async function compareVariants(variantIds: string[]): Promise<VariantComp
         avgHunger: metricsSum.avgHunger / count,
         avgEnergy: metricsSum.avgEnergy / count,
         survivalRate,
-        totalEvents: metricsSum.totalEvents,
-        tradeCount: metricsSum.tradeCount,
-        conflictCount: metricsSum.conflictCount,
+        totalEvents: lastMetrics?.totalEvents ?? 0,
+        tradeCount: lastMetrics?.tradeCount ?? 0,
+        conflictCount: lastMetrics?.conflictCount ?? 0,
       } : {
         avgGiniCoefficient: 0,
         avgCooperationIndex: 0,

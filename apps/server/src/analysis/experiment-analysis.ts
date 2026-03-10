@@ -549,11 +549,11 @@ export function generateExperimentReport(
       const compared = compareMetrics(controlComparison, treatment);
       metricComparisons.push(...compared);
 
-      // Check for significant differences
+      // Only report significance when a real statistical test is attached.
       for (const comp of compared) {
-        if (Math.abs(comp.percentChange) > 20) {
+        if (comp.statisticalTest?.significant) {
           significantFindings.push(
-            `${comp.metric}: ${comp.percentChange > 0 ? '+' : ''}${comp.percentChange.toFixed(1)}% (${controlComparison.variantName} vs ${treatment.variantName})`
+            `${comp.metric}: p=${comp.statisticalTest.pValue.toFixed(4)} (${controlComparison.variantName} vs ${treatment.variantName})`
           );
         }
       }
@@ -562,18 +562,21 @@ export function generateExperimentReport(
 
   // Calculate total ticks across all variants
   const totalTicks = variants.reduce((sum, v) => {
-    const ticks = v.endTick && v.startTick ? Number(v.endTick) - Number(v.startTick) : 0;
+    const hasTicks = v.endTick !== null && v.endTick !== undefined && v.startTick !== null && v.startTick !== undefined;
+    const ticks = hasTicks ? Number(v.endTick) - Number(v.startTick) : 0;
     return sum + ticks;
   }, 0);
 
   // Generate conclusion based on findings
   let conclusion = 'Experiment completed. ';
-  if (significantFindings.length === 0) {
-    conclusion += 'No statistically significant differences were observed between variants.';
+  if (metricComparisons.length === 0) {
+    conclusion += 'Only one completed condition was available, so no comparative inference was generated.';
+  } else if (significantFindings.length === 0) {
+    conclusion += 'Descriptive comparisons are available, but this report does not claim statistical significance without explicit multi-run tests.';
   } else if (significantFindings.length <= 3) {
-    conclusion += `Found ${significantFindings.length} significant finding(s).`;
+    conclusion += `Found ${significantFindings.length} statistically supported finding(s).`;
   } else {
-    conclusion += `Found ${significantFindings.length} significant differences between variants.`;
+    conclusion += `Found ${significantFindings.length} statistically supported differences between variants.`;
   }
 
   // Survival and economic analysis would need snapshot data
@@ -594,7 +597,9 @@ export function generateExperimentReport(
     variants: variants.map((v) => ({
       id: v.id,
       name: v.name,
-      ticksRun: v.endTick && v.startTick ? Number(v.endTick) - Number(v.startTick) : 0,
+      ticksRun: v.endTick !== null && v.endTick !== undefined && v.startTick !== null && v.startTick !== undefined
+        ? Number(v.endTick) - Number(v.startTick)
+        : 0,
       status: v.status,
     })),
     metricComparisons,
