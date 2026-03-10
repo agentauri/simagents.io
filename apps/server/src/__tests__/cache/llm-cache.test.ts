@@ -79,6 +79,7 @@ describe('LLM Cache', () => {
       enabled: true,
       ttlSeconds: 300,
       keyPrefix: 'llm-cache-test:',
+      shareAcrossAgents: true,
     });
   });
 
@@ -163,6 +164,18 @@ describe('LLM Cache', () => {
 
       expect(hash).toHaveLength(16);
       expect(hash).toMatch(/^[a-f0-9]{16}$/);
+    });
+
+    test('includes agent identity when cache sharing is disabled', () => {
+      setLLMCacheConfig({ shareAcrossAgents: false });
+
+      const obs1 = createMockObservation({ id: 'agent-a' });
+      const obs2 = createMockObservation({ id: 'agent-b' });
+
+      const hash1 = hashObservation(obs1);
+      const hash2 = hashObservation(obs2);
+
+      expect(hash1).not.toBe(hash2);
     });
   });
 

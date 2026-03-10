@@ -20,12 +20,15 @@ export interface LLMCacheConfig {
   ttlSeconds: number;
   /** Redis key prefix */
   keyPrefix: string;
+  /** Share cache entries across agents in equivalent states */
+  shareAcrossAgents: boolean;
 }
 
 const DEFAULT_CONFIG: LLMCacheConfig = {
   enabled: true,
   ttlSeconds: 300,
   keyPrefix: 'llm-cache:',
+  shareAcrossAgents: true,
 };
 
 let config: LLMCacheConfig = { ...DEFAULT_CONFIG };
@@ -68,13 +71,15 @@ const stats: CacheStats = {
  * - Tick number (changes every tick)
  * - Timestamp (changes constantly)
  * - Recent events (too variable)
- * - Agent ID (we want cache sharing across agents in similar situations)
+ * - Agent ID when `shareAcrossAgents` is enabled
  */
 function extractCacheableObservation(obs: AgentObservation): object {
   // Round numeric values to reduce variance (e.g., 73.5 -> 70, 76.2 -> 75)
   const roundToFive = (n: number) => Math.round(n / 5) * 5;
 
   return {
+    agentIdentity: config.shareAcrossAgents ? undefined : obs.self.id,
+
     // Self state (rounded for cache efficiency)
     self: {
       x: obs.self.x,
@@ -313,11 +318,13 @@ export async function getLLMCacheSize(): Promise<number> {
 export function initLLMCacheFromEnv(): void {
   const enabled = process.env.LLM_CACHE_ENABLED !== 'false';
   const ttl = parseInt(process.env.LLM_CACHE_TTL_SECONDS || '300', 10);
+  const shareAcrossAgents = process.env.LLM_CACHE_SHARE_ACROSS_AGENTS !== 'false';
 
   config = {
     enabled,
     ttlSeconds: isNaN(ttl) ? 300 : ttl,
     keyPrefix: process.env.LLM_CACHE_PREFIX || 'llm-cache:',
+    shareAcrossAgents,
   };
 
   console.log('[LLM-Cache] Initialized from environment:', config);

@@ -168,6 +168,17 @@ describe('validateSchema with baselines', () => {
     const baselineError = result.errors.find(e => e.code === 'MISSING_BASELINE');
     expect(baselineError).toBeUndefined();
   });
+
+  test('accepts scientific profile and benchmark world fields', () => {
+    const schema: ExperimentSchema = {
+      ...VALID_SCHEMA_WITH_BASELINES,
+      profile: 'deterministic_baseline',
+      benchmarkWorld: 'canonical_core',
+      mode: 'fallback',
+    };
+    const result = validateSchema(schema);
+    expect(result.valid).toBe(true);
+  });
 });
 
 // =============================================================================

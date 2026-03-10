@@ -630,6 +630,18 @@ export const CONFIG = {
      */
     useEmergentPrompt: envBool('USE_EMERGENT_PROMPT', true),
 
+    /**
+     * Decision temperature used for experiment-grade LLM runs.
+     * Keep this pinned when comparing models to avoid silent sampling drift.
+     */
+    llmDecisionTemperature: env('EXPERIMENT_LLM_TEMPERATURE', 0),
+
+    /**
+     * Output token budget used for agent decisions in controlled runs.
+     * Capability normalization may further reduce this budget.
+     */
+    llmDecisionMaxTokens: env('EXPERIMENT_LLM_MAX_TOKENS', 512),
+
     // -------------------------------------------------------------------------
     // Baseline Agents (Scientific Comparison)
     // -------------------------------------------------------------------------
@@ -910,6 +922,7 @@ interface RuntimeConfigOverrides {
   llmCache?: {
     enabled?: boolean;
     ttlSeconds?: number;
+    shareAcrossAgents?: boolean;
   };
   actions?: {
     move?: {
@@ -928,6 +941,13 @@ interface RuntimeConfigOverrides {
     sleep?: {
       energyRestoredPerTick?: number;
     };
+    harm?: {
+      damage?: {
+        light?: number;
+        moderate?: number;
+        severe?: number;
+      };
+    };
   };
   economy?: {
     currencyDecayRate?: number;
@@ -936,6 +956,11 @@ interface RuntimeConfigOverrides {
   };
   experiment?: {
     enablePersonalities?: boolean;
+    normalizeCapabilities?: boolean;
+    useSyntheticVocabulary?: boolean;
+    safetyLevel?: 'standard' | 'minimal' | 'none';
+    llmDecisionTemperature?: number;
+    llmDecisionMaxTokens?: number;
   };
   // Phase 4-6: Cooperation config (runtime modifiable for tuning)
   cooperation?: {
@@ -1021,6 +1046,11 @@ export function getRuntimeConfig(): RuntimeConfigOverrides & typeof CONFIG {
       ...CONFIG.experiment,
       useEmergentPrompt: isEmergentPromptEnabled(),
       enablePersonalities: runtimeOverrides.experiment?.enablePersonalities ?? CONFIG.experiment.enablePersonalities,
+      normalizeCapabilities: runtimeOverrides.experiment?.normalizeCapabilities ?? CONFIG.experiment.normalizeCapabilities,
+      useSyntheticVocabulary: runtimeOverrides.experiment?.useSyntheticVocabulary ?? CONFIG.experiment.useSyntheticVocabulary,
+      safetyLevel: runtimeOverrides.experiment?.safetyLevel ?? CONFIG.experiment.safetyLevel,
+      llmDecisionTemperature: runtimeOverrides.experiment?.llmDecisionTemperature ?? CONFIG.experiment.llmDecisionTemperature,
+      llmDecisionMaxTokens: runtimeOverrides.experiment?.llmDecisionMaxTokens ?? CONFIG.experiment.llmDecisionMaxTokens,
     },
     actions: {
       ...CONFIG.actions,
@@ -1039,6 +1069,13 @@ export function getRuntimeConfig(): RuntimeConfigOverrides & typeof CONFIG {
       sleep: {
         ...CONFIG.actions.sleep,
         ...runtimeOverrides.actions?.sleep,
+      },
+      harm: {
+        ...CONFIG.actions.harm,
+        damage: {
+          ...CONFIG.actions.harm.damage,
+          ...runtimeOverrides.actions?.harm?.damage,
+        },
       },
     },
     economy: {
@@ -1103,11 +1140,19 @@ export function setRuntimeConfig(updates: RuntimeConfigOverrides): void {
       gather: { ...runtimeOverrides.actions?.gather, ...updates.actions.gather },
       work: { ...runtimeOverrides.actions?.work, ...updates.actions.work },
       sleep: { ...runtimeOverrides.actions?.sleep, ...updates.actions.sleep },
+      harm: {
+        damage: { ...runtimeOverrides.actions?.harm?.damage, ...updates.actions.harm?.damage },
+      },
     } : runtimeOverrides.actions,
     economy: { ...runtimeOverrides.economy, ...updates.economy },
     // Experiment config
     experiment: updates.experiment ? {
       enablePersonalities: updates.experiment.enablePersonalities ?? runtimeOverrides.experiment?.enablePersonalities,
+      normalizeCapabilities: updates.experiment.normalizeCapabilities ?? runtimeOverrides.experiment?.normalizeCapabilities,
+      useSyntheticVocabulary: updates.experiment.useSyntheticVocabulary ?? runtimeOverrides.experiment?.useSyntheticVocabulary,
+      safetyLevel: updates.experiment.safetyLevel ?? runtimeOverrides.experiment?.safetyLevel,
+      llmDecisionTemperature: updates.experiment.llmDecisionTemperature ?? runtimeOverrides.experiment?.llmDecisionTemperature,
+      llmDecisionMaxTokens: updates.experiment.llmDecisionMaxTokens ?? runtimeOverrides.experiment?.llmDecisionMaxTokens,
     } : runtimeOverrides.experiment,
     // Phase 4-6: Cooperation config
     cooperation: updates.cooperation ? {

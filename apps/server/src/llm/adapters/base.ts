@@ -31,6 +31,7 @@ import {
   createTracedLogger,
 } from '../../telemetry';
 import { logPrompt, isPromptLoggingEnabled } from '../prompt-logger';
+import { getRuntimeConfig } from '../../config';
 
 // Traced logger for LLM operations
 const logger = createTracedLogger('LLM');
@@ -131,6 +132,21 @@ export abstract class BaseLLMAdapter implements LLMAdapter {
   protected getMaxTokens(): number {
     const config = getNormalizationConfig();
     return getNormalizedMaxTokens(this.type, config);
+  }
+
+  /**
+   * Get the current decision temperature for controlled experiment runs.
+   */
+  protected getDecisionTemperature(): number {
+    return getRuntimeConfig().experiment.llmDecisionTemperature ?? 0;
+  }
+
+  /**
+   * Get the decision token budget after applying runtime caps and normalization.
+   */
+  protected getDecisionMaxTokens(): number {
+    const configuredMax = getRuntimeConfig().experiment.llmDecisionMaxTokens ?? this.getMaxTokens();
+    return Math.min(this.getMaxTokens(), configuredMax);
   }
 
   /**
