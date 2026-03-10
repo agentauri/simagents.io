@@ -3,6 +3,10 @@
   "private": true,
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "db:push": "cd apps/server && bunx drizzle-kit push",
+    "dev:setup": "bun run infra:up && bun run db:push",
     "dev": "bun run --filter '*' dev",
     "dev:server": "bun run --filter server dev",
     "dev:web": "bun run --filter web dev",

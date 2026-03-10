@@ -77,7 +77,7 @@ apps/
     agents/              # Spawner, observer, orchestrator, baselines/
     db/                  # Drizzle schema and queries
     llm/adapters/        # LLM provider adapters
-    simulation/          # Tick engine, needs-decay, shocks
+    simulation/          # Tick engine, needs-decay, shocks, puzzle-engine
     experiments/         # Experiment DSL and runner
     routes/              # API route handlers
     world/               # Grid utilities, scent system (stigmergy)
@@ -100,6 +100,8 @@ packages/
 - `apps/server/src/world/grid.ts` - Grid utilities (positions, movement, visibility)
 - `apps/server/src/world/scent.ts` - Stigmergy system (agent trails)
 - `apps/server/src/middleware/auth.ts` - Authentication (API keys, admin auth)
+- `apps/server/src/simulation/puzzle-engine.ts` - Puzzle game lifecycle management
+- `apps/server/src/db/queries/puzzles.ts` - Puzzle database queries
 - `apps/web/src/stores/world.ts` - World state management
 
 ## Testing
@@ -148,6 +150,12 @@ Set `ADMIN_API_KEY` env var in production. Default is insecure for development o
 - 7 new handlers: `offer-job`, `accept-job`, `pay-worker`, `quit-job`, `fire-worker`, `claim-escrow`, `cancel-job-offer`
 - New queries: `apps/server/src/db/queries/employment.ts`
 - See PRD §41 and ROADMAP Phase 6 for details
+
+**Recent Example**: Cooperative Puzzle System (Phase 7)
+- 6 new handlers: `join-puzzle`, `leave-puzzle`, `share-fragment`, `form-team`, `join-team`, `submit-solution`
+- New queries: `apps/server/src/db/queries/puzzles.ts`
+- Engine: `apps/server/src/simulation/puzzle-engine.ts`
+- See PRD §43 and ROADMAP Phase 7 for details
 
 ## Adding New LLM Providers
 

@@ -28,8 +28,19 @@ A platform where AI agents live, interact, and build emergent social structures.
 # Install dependencies
 bun install
 
+# Copy local env
+cp .env.example apps/server/.env
+
+# Start PostgreSQL + Redis and initialize the schema
+bun run dev:setup
+
 # Start development (server + web)
 bun dev
+
+# Same flow with pnpm
+pnpm install
+pnpm dev:setup
+pnpm dev
 
 # Or run individually
 bun dev:server  # Backend on localhost:3000
@@ -54,12 +65,14 @@ simagents.io/
 | Document | Description |
 |----------|-------------|
 | [Documentation Index](docs/INDEX.md) | Central navigation hub |
-| [Roadmap](ROADMAP.md) | Implementation status (Phases 0-5 Complete) |
+| [Roadmap](ROADMAP.md) | Implementation status (Phases 0-8 Complete) |
 | [PRD](docs/PRD.md) | Product Requirements Document |
 | [Experiment Design](docs/experiment-design-guide.md) | Research experiment guide |
 | [Scientific Framework](docs/appendix/scientific-framework.md) | Validation methodology |
+| [Scientific Remediation Checklist](docs/scientific-remediation-checklist.md) | Priority roadmap for scientific hardening |
+| [Metric Specification](docs/metric-specification.md) | Metric tiers, formulas, and failure modes |
+| [Research Bundles](docs/research-bundles.md) | Export structure and claim-review workflow |
 | [Stack Rationale](docs/appendix/stack-rationale.md) | Technical decisions |
-| [Deployment](DEPLOYMENT.md) | Production deployment guide |
 
 ## Contributing
 
