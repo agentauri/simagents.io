@@ -12,7 +12,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
-import { db } from './db';
+import { closeDatabaseConnection } from './db';
 import { redis, closeRedisConnection } from './cache';
 import { subscribeToWorldEvents, closePubSub } from './cache/pubsub';
 import { tickEngine } from './simulation/tick-engine';
@@ -103,6 +103,7 @@ import {
 
 // Test mode and config imports
 import { isTestMode, setTestMode, CONFIG } from './config';
+import { assertLocalInfrastructureReady } from './startup/preflight';
 
 // LLM Cache imports
 import { getLLMCacheStats, getLLMCacheSize } from './cache/llm-cache';
@@ -2682,6 +2683,10 @@ async function shutdown(): Promise<void> {
   await closeRedisConnection();
   console.log('[Server] Redis closed');
 
+  // Close database
+  await closeDatabaseConnection();
+  console.log('[Server] Database closed');
+
   // Close server
   await server.close();
   console.log('[Server] HTTP server closed');
@@ -2699,6 +2704,8 @@ process.on('SIGTERM', shutdown);
 const start = async () => {
   try {
     console.log('\n🏙️  AGENTS CITY SERVER\n');
+
+    await assertLocalInfrastructureReady();
 
     // Log LLM adapter status
     await logAdapterStatus();
@@ -2740,6 +2747,9 @@ const start = async () => {
     console.log(`   SSE endpoint: http://localhost:${port}/api/events\n`);
   } catch (err) {
     server.log.error(err);
+    await closePubSub().catch(() => undefined);
+    await closeRedisConnection().catch(() => undefined);
+    await closeDatabaseConnection().catch(() => undefined);
     process.exit(1);
   }
 };
