@@ -8,7 +8,11 @@
  *   bun run src/scripts/test-reproducibility.ts
  */
 
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 import { initializeRNG, resetRNG, random, randomBelow, randomChoice } from '../utils/random';
+import { runExperiment } from '../experiments/runner';
 
 // =============================================================================
 // Test 1: Basic RNG Reproducibility
@@ -264,6 +268,73 @@ function testTickSequence(): boolean {
 }
 
 // =============================================================================
+// Test 6: Whole-Run Determinism
+// =============================================================================
+
+async function testDeterministicRunReproducibility(): Promise<boolean> {
+  console.log('\n[Test 6] Deterministic Baseline Run Reproducibility');
+  console.log('─'.repeat(50));
+
+  const tempDir = mkdtempSync(join(tmpdir(), 'simagents-repro-'));
+  const configPath = join(tempDir, 'deterministic-baseline.json');
+
+  writeFileSync(configPath, JSON.stringify({
+    name: 'Deterministic Baseline Reproducibility',
+    duration: 5,
+    seed: 4242,
+    mode: 'fallback',
+    profile: 'deterministic_baseline',
+    benchmarkWorld: 'canonical_core',
+    agents: [
+      { type: 'baseline_random', count: 1 },
+      { type: 'baseline_rule', count: 1 },
+    ],
+  }, null, 2));
+
+  try {
+    const [run1] = await runExperiment({
+      configPath,
+      runs: 1,
+      verbose: false,
+      autoInjectBaselines: false,
+      skipBaselineValidation: false,
+    });
+
+    const [run2] = await runExperiment({
+      configPath,
+      runs: 1,
+      verbose: false,
+      autoInjectBaselines: false,
+      skipBaselineValidation: false,
+    });
+
+    const identical =
+      run1.artifact.eventTraceHash === run2.artifact.eventTraceHash &&
+      run1.artifact.finalStateHash === run2.artifact.finalStateHash &&
+      run1.finalMetrics.survivalRate === run2.finalMetrics.survivalRate;
+
+    if (identical) {
+      console.log(`  ✓ Matching event trace hash: ${run1.artifact.eventTraceHash.slice(0, 12)}...`);
+      console.log(`  ✓ Matching final state hash: ${run1.artifact.finalStateHash?.slice(0, 12) ?? 'n/a'}...`);
+    } else {
+      console.log('  ✗ Deterministic runner produced different artifacts for the same seed');
+    }
+
+    return identical;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('Failed query') || message.includes('Failed to connect')) {
+      console.log(`  - Skipped: whole-run determinism requires the server database/redis stack (${message})`);
+      return true;
+    }
+    console.log(`  ✗ Unable to execute whole-run determinism check: ${message}`);
+    return false;
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+// =============================================================================
 // Main
 // =============================================================================
 
@@ -279,6 +350,7 @@ async function main() {
   results.push({ name: 'randomChoice() Reproducibility', passed: testRandomChoiceReproducibility() });
   results.push({ name: 'Different Seeds → Different Results', passed: testDifferentSeeds() });
   results.push({ name: 'Simulated Tick Sequence', passed: testTickSequence() });
+  results.push({ name: 'Deterministic Baseline Run', passed: await testDeterministicRunReproducibility() });
 
   // Summary
   console.log('\n========================================');

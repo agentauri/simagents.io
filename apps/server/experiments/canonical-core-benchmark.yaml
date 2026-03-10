@@ -1,0 +1,54 @@
+name: "canonical_core_benchmark"
+description: "Minimal benchmark world for controlled comparative studies"
+hypothesis: "Baseline and model-driven agents diverge in survival and inequality under the same constrained core world"
+seed: 4242
+duration: 50
+mode: fallback
+profile: deterministic_baseline
+benchmarkWorld: canonical_core
+requireBaselines: true
+autoInjectBaselines: false
+
+world:
+  size: [40, 40]
+  scarcityMultiplier: 1.0
+  biomes:
+    forest: 0.25
+    desert: 0.25
+    tundra: 0.25
+    plains: 0.25
+
+agents:
+  - type: baseline_random
+    count: 1
+  - type: baseline_rule
+    count: 1
+
+resources:
+  food:
+    clusters: 4
+    maxAmount: 12
+    regenRate: 0.8
+  energy:
+    clusters: 3
+    maxAmount: 10
+    regenRate: 0.6
+  material:
+    clusters: 2
+    maxAmount: 8
+    regenRate: 0.3
+
+shelters: 4
+
+metrics:
+  - survivalRate
+  - giniCoefficient
+  - tradeCount
+  - conflictCount
+
+events:
+  - tick: 20
+    type: shock
+    params:
+      type: resource_collapse
+      intensity: 0.35

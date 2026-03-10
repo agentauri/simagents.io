@@ -23,6 +23,7 @@
 import { parseArgs } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createHash } from 'crypto';
 import { initializeRNG, resetRNG } from '../utils/random';
 import {
   clearWorld,
@@ -38,6 +39,7 @@ import { resetTickCounter, initWorldState } from '../db/queries/world';
 import { startWorker, stopWorker } from '../queue';
 import { tickEngine, type ExperimentContext } from '../simulation/tick-engine';
 import { setTestMode } from '../config';
+import { getRuntimeConfig } from '../config';
 import {
   mean,
   stdDev,
@@ -48,6 +50,8 @@ import {
 import { initGlobalVersion } from '../db/queries/events';
 import type { GenesisConfig, GenesisResult } from '../agents/genesis-types';
 import type { LLMType } from '../llm/types';
+import { getLLMCacheConfig } from '../cache/llm-cache';
+import { getActiveTransformations } from '../llm/prompt-builder';
 
 // =============================================================================
 // Types
@@ -56,6 +60,8 @@ import type { LLMType } from '../llm/types';
 export interface ExperimentConfig {
   name?: string;
   description?: string;
+  profile?: 'deterministic_baseline' | 'llm_exploratory';
+  benchmarkWorld?: 'canonical_core' | 'full_surface';
   agents?: AgentConfig[];
   decisionMode?: 'llm' | 'fallback' | 'random-walk';
   startingFood?: number;
@@ -92,6 +98,8 @@ export interface RunMetrics {
   harmCount: number;
   stealCount: number;
   deathCount: number;
+  eventTraceHash: string;
+  finalStateHash: string;
   /** Genesis-specific metrics (only present when genesis is enabled) */
   genesis?: {
     totalChildren: number;
@@ -117,10 +125,16 @@ export interface EnsembleResult {
     description: string;
     seedsUsed: number[];
     ticksPerRun: number;
-    decisionMode: string;
-    timestamp: string;
-    durationMs: number;
-  };
+      decisionMode: string;
+      profile: string;
+      benchmarkWorld: string;
+      timestamp: string;
+      durationMs: number;
+      codeVersion: string | null;
+      llmCache: ReturnType<typeof getLLMCacheConfig>;
+      activeTransformations: ReturnType<typeof getActiveTransformations>;
+      runtimeConfig: ReturnType<typeof getRuntimeConfig>;
+    };
   aggregated: {
     gini: AggregatedMetric;
     cooperationIndex: AggregatedMetric;
@@ -282,6 +296,14 @@ function computeAggregatedMetric(values: number[]): AggregatedMetric {
   };
 }
 
+function hashValue(value: unknown): string {
+  return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+}
+
+function getCodeVersion(): string | null {
+  return process.env.GIT_COMMIT_SHA ?? null;
+}
+
 async function computeRunMetrics(
   seed: number,
   ticks: number,
@@ -295,9 +317,9 @@ async function computeRunMetrics(
   const gini = giniCoefficient(balances);
 
   // Calculate cooperation index: trades / (trades + harms + steals)
-  const tradeCount = events.filter((e) => e.eventType === 'agent_trade').length;
-  const harmCount = events.filter((e) => e.eventType === 'agent_harm').length;
-  const stealCount = events.filter((e) => e.eventType === 'agent_steal').length;
+  const tradeCount = events.filter((e) => e.eventType === 'agent_traded').length;
+  const harmCount = events.filter((e) => e.eventType === 'agent_harmed').length;
+  const stealCount = events.filter((e) => e.eventType === 'agent_stole').length;
   const totalInteractions = tradeCount + harmCount + stealCount;
   const cooperationIndex = totalInteractions > 0 ? tradeCount / totalInteractions : 1;
 
@@ -307,9 +329,9 @@ async function computeRunMetrics(
 
   // Time to first events
   const deathEvents = events.filter((e) => e.eventType === 'agent_died');
-  const tradeEvents = events.filter((e) => e.eventType === 'agent_trade');
+  const tradeEvents = events.filter((e) => e.eventType === 'agent_traded');
   const conflictEvents = events.filter((e) =>
-    ['agent_harm', 'agent_steal', 'agent_deceive'].includes(e.eventType)
+    ['agent_harmed', 'agent_stole', 'agent_deceived'].includes(e.eventType)
   );
 
   const timeToFirstDeath = deathEvents.length > 0
@@ -371,6 +393,19 @@ async function computeRunMetrics(
     harmCount,
     stealCount,
     deathCount: deathEvents.length,
+    eventTraceHash: hashValue(events.map((event) => ({
+      tick: event.tick,
+      eventType: event.eventType,
+      payload: event.payload,
+    }))),
+    finalStateHash: hashValue(agents.map((agent) => ({
+      id: agent.id,
+      state: agent.state,
+      balance: agent.balance,
+      health: agent.health,
+      hunger: agent.hunger,
+      energy: agent.energy,
+    }))),
   };
 }
 
@@ -725,8 +760,14 @@ async function main(): Promise<void> {
       seedsUsed: seeds.slice(0, runResults.length),
       ticksPerRun: args.ticks,
       decisionMode: args.decisionMode,
+      profile: config.profile ?? (args.decisionMode === 'llm' || genesisOptions ? 'llm_exploratory' : 'deterministic_baseline'),
+      benchmarkWorld: config.benchmarkWorld ?? 'canonical_core',
       timestamp: new Date().toISOString(),
       durationMs: totalDuration,
+      codeVersion: getCodeVersion(),
+      llmCache: getLLMCacheConfig(),
+      activeTransformations: getActiveTransformations(),
+      runtimeConfig: getRuntimeConfig(),
     },
     aggregated,
     perRun: runResults,
