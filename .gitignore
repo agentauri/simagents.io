@@ -56,6 +56,6 @@ redis-data/
 # Fly.io
 .fly/
 
-# Experiment results (keep structure, ignore data)
-apps/server/results/*.json
+# Experiment results (generated output, reproducible)
+apps/server/results/
 !apps/server/results/.gitkeep
