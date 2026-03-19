@@ -17,10 +17,9 @@ import type { ActionIntent, ActionResult } from '../types';
 import type { Agent } from '../../db/schema';
 import { db, inventory } from '../../db';
 import { getAgentById } from '../../db/queries/agents';
-import { getInventoryItem } from '../../db/queries/inventory';
 import { updateRelationshipTrust, storeMemory } from '../../db/queries/memories';
 import { getDistance } from '../../world/grid';
-import { CONFIG } from '../../config';
+import { CONFIG, getRuntimeConfig } from '../../config';
 import { getAgentRelationships } from '../../db/queries/memories';
 
 export interface TradeParams {
@@ -42,6 +41,7 @@ export async function handleTrade(
     requestingItemType,
     requestingQuantity,
   } = intent.params;
+  const runtimeConfig = getRuntimeConfig();
 
   // Validate quantities
   if (offeringQuantity < 1 || requestingQuantity < 1) {
@@ -94,12 +94,13 @@ export async function handleTrade(
   const relationship = relationships.find(r => r.otherAgentId === targetAgentId);
   const trustLevel = relationship?.trustScore ?? 0;
   const interactionCount = relationship?.interactionCount ?? 0;
+  const incentivesEnabled = runtimeConfig.cooperation.enabled;
 
   // Trust bonus: +20% items received when trading with trusted partner (trust > 20)
-  const trustBonus = trustLevel > 20 ? 0.2 : 0;
+  const trustBonus = incentivesEnabled && trustLevel > 20 ? 0.2 : 0;
 
   // Loyalty bonus: +5% per successful interaction, capped at +25%
-  const loyaltyBonus = Math.min(interactionCount * 0.05, 0.25);
+  const loyaltyBonus = incentivesEnabled ? Math.min(interactionCount * 0.05, 0.25) : 0;
 
   // Total quantity bonus for received items
   const quantityBonusMultiplier = 1 + trustBonus + loyaltyBonus;
@@ -249,7 +250,9 @@ export async function handleTrade(
   }
 
   // Trust-based bonus: higher trust = more trust gain from successful trade (relationships already queried above)
-  const trustMultiplier = trustLevel > 20 ? 1.5 : trustLevel > 0 ? 1.2 : 1.0;
+  const trustMultiplier = incentivesEnabled
+    ? (trustLevel > 20 ? 1.5 : trustLevel > 0 ? 1.2 : 1.0)
+    : 1.0;
   const bonusTrustGain = Math.floor(CONFIG.actions.trade.trustGainOnSuccess * trustMultiplier);
 
   // Update trust for both agents (symmetric positive relationship with trust bonus)

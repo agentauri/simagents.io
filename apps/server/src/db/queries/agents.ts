@@ -7,11 +7,38 @@ import { db, agents, type Agent, type NewAgent } from '../index';
 import { isValidUUID } from '../../utils/validators';
 
 export async function getAllAgents(): Promise<Agent[]> {
-  return db.select().from(agents);
+  return db
+    .select()
+    .from(agents)
+    .orderBy(
+      agents.llmType,
+      agents.x,
+      agents.y,
+      agents.state,
+      agents.color,
+      agents.balance,
+      agents.health,
+      agents.energy,
+      agents.hunger,
+    );
 }
 
 export async function getAliveAgents(): Promise<Agent[]> {
-  return db.select().from(agents).where(sql`${agents.state} != 'dead'`);
+  return db
+    .select()
+    .from(agents)
+    .where(sql`${agents.state} != 'dead'`)
+    .orderBy(
+      agents.llmType,
+      agents.x,
+      agents.y,
+      agents.state,
+      agents.color,
+      agents.balance,
+      agents.health,
+      agents.energy,
+      agents.hunger,
+    );
 }
 
 export async function getAgentById(id: string): Promise<Agent | undefined> {

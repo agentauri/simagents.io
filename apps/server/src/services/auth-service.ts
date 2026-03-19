@@ -255,6 +255,24 @@ export class AuthService {
       })
       .where(eq(users.id, user.id));
 
+    // Auto-provision tenant for new OAuth users
+    const { findTenantByUserId } = await import('../db/queries/tenants');
+    let existingTenant = await findTenantByUserId(user.id);
+
+    if (!existingTenant) {
+      const { createTenant } = await import('../db/queries/tenants');
+      const tenantResult = await createTenant({
+        name: `${user.displayName || user.email}'s workspace`,
+        ownerEmail: user.email,
+        userId: user.id,
+        maxAgents: 5,
+        maxTicksPerDay: 500,
+        maxEventsStored: 50000,
+      });
+      existingTenant = tenantResult.tenant;
+      console.log(`[Auth] Auto-provisioned tenant ${existingTenant.id} for user ${user.id}`);
+    }
+
     // Create tokens and session
     return this.createSession(user.id, user.email, metadata);
   }

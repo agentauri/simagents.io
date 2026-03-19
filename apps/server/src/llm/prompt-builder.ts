@@ -674,6 +674,26 @@ export function buildObservationPrompt(
     }
   }
 
+  // Puzzle state restrictions
+  if (obs.inActivePuzzle) {
+    forbiddenActions.push('join_puzzle (you are ALREADY in an active puzzle!)');
+  }
+  if (obs.myPuzzleTeam) {
+    forbiddenActions.push('join_team (you are ALREADY in a team!)');
+    forbiddenActions.push('form_team (you are ALREADY in a team!)');
+  }
+
+  // share_fragment: check if all fragments already shared with all nearby agents
+  if (obs.inActivePuzzle && obs.myPuzzleFragments && obs.myPuzzleFragments.length > 0) {
+    const nearbyIds = obs.nearbyAgents.map((a) => a.id);
+    const hasValidShare = obs.myPuzzleFragments.some((frag) =>
+      nearbyIds.some((id) => !(frag.sharedWith as string[]).includes(id))
+    );
+    if (!hasValidShare && nearbyIds.length > 0) {
+      forbiddenActions.push('share_fragment (all your fragments are already shared with all nearby agents!)');
+    }
+  }
+
   if (forbiddenActions.length > 0) {
     lines.push('', '### ⛔ FORBIDDEN ACTIONS (will fail if you try!)');
     for (const action of forbiddenActions) {
@@ -1259,15 +1279,24 @@ export function buildAvailableActions(obs: AgentObservation): AvailableAction[] 
       puzzleActions.push(consumeAction);
     }
 
-    // Share fragment is available if agent has fragments and there are nearby players
+    // Share fragment is available if agent has a fragment-target pair that hasn't been shared yet
     if (obs.myPuzzleFragments && obs.myPuzzleFragments.length > 0 && obs.nearbyAgents && obs.nearbyAgents.length > 0) {
-      const unsharedFragments = obs.myPuzzleFragments.filter((f) => f.sharedWith.length === 0);
-      if (unsharedFragments.length > 0) {
-        const fragment = unsharedFragments[0];
-        const nearbyAgent = obs.nearbyAgents[0];
+      let bestFragment = null as typeof obs.myPuzzleFragments[0] | null;
+      let bestTarget = null as typeof obs.nearbyAgents[0] | null;
+      for (const frag of obs.myPuzzleFragments) {
+        for (const agent of obs.nearbyAgents) {
+          if (!(frag.sharedWith as string[]).includes(agent.id)) {
+            bestFragment = frag;
+            bestTarget = agent;
+            break;
+          }
+        }
+        if (bestFragment) break;
+      }
+      if (bestFragment && bestTarget) {
         puzzleActions.push({
           type: 'share_fragment',
-          description: `Share puzzle fragment (fragmentId: ${fragment.id}, targetAgentId: ${nearbyAgent.id})`,
+          description: `Share puzzle fragment (fragmentId: ${bestFragment.id}, targetAgentId: ${bestTarget.id})`,
           cost: { energy: 1 },
         });
       }

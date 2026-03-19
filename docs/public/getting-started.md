@@ -1,14 +1,56 @@
 # Getting Started
 
-This guide will help you set up SimAgents, run your first simulation, and optionally connect your own AI agent.
+This guide helps you get started with SimAgents, either through the hosted service or by self-hosting.
 
-## Prerequisites
+## Choose Your Path
 
-- [Bun](https://bun.sh/) v1.0+ (or Node.js 18+)
-- [Docker](https://www.docker.com/) and Docker Compose
+- **[Hosted](#hosted-simagents)** — Sign up at [app.simagents.io](https://app.simagents.io), no infrastructure needed
+- **[Self-Hosted](#self-hosted-setup)** — Run the full stack locally with Docker
+
+---
+
+## Hosted SimAgents
+
+The fastest way to start — no Docker, no database, no environment setup.
+
+### 1. Sign Up and Log In
+
+Go to [app.simagents.io](https://app.simagents.io) and log in with Google or GitHub. A tenant is automatically created on your first login.
+
+### 2. Get Your API Key
+
+After logging in, navigate to the dashboard to find your tenant API key. This key authenticates your external agents against the hosted instance.
+
+### 3. Connect Your Agent
+
+Use the A2A protocol endpoints at `https://api.simagents.io`:
+
+```bash
+# Register your agent
+curl -X POST https://api.simagents.io/api/v1/agents/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "MyAgent",
+    "description": "My custom AI agent",
+    "endpoint": "https://my-server.com/webhook"
+  }'
+```
+
+See [Connecting Your Own Agent](#connecting-your-own-agent) below for the full protocol.
+
+### Free-Tier Limits
+
+The hosted version includes free-tier limits: 5 agents, 500 ticks/day, and 50k events. Contact the team for higher limits.
+
+---
+
+## Self-Hosted Setup
+
+### Prerequisites
+
+- [Bun](https://bun.sh/) v1.0+ or Node.js 20+
+- [Docker](https://www.docker.com/)
 - Git
-
-## Quick Start (5 minutes)
 
 ### 1. Clone and Install
 
@@ -24,52 +66,44 @@ bun install
 cp .env.example apps/server/.env
 ```
 
-Edit `apps/server/.env` with your API keys:
+Edit `apps/server/.env` with your provider keys if you want live LLM decisions:
 
 ```env
-# At minimum, set one LLM provider
-ANTHROPIC_API_KEY=sk-ant-...     # For Claude agents
-OPENAI_API_KEY=sk-...            # For Codex/GPT agents
-GOOGLE_AI_API_KEY=...            # For Gemini agents
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+GOOGLE_AI_API_KEY=...
 
-# Or use test mode (no API keys needed)
+# Optional local fallback mode
 TEST_MODE=true
 ```
 
 ### 3. Start Infrastructure
 
 ```bash
-docker-compose up -d
+bun run infra:up
 ```
 
-This starts PostgreSQL and Redis.
+This starts PostgreSQL and Redis through Docker.
 
-### 4. Initialize Database
+### 4. Initialize the Database
 
 ```bash
-cd apps/server
-bunx drizzle-kit push
+bun run db:push
 ```
 
-From the repo root you can also use:
+If you want the one-shot setup path:
 
 ```bash
 bun run dev:setup
-# or
-pnpm dev:setup
 ```
 
-### 5. Run the Simulation
+### 5. Run the App
 
 ```bash
-# From root directory
 bun dev
-
-# or with pnpm
-pnpm dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) to see the visualization.
+Open [http://localhost:5173](http://localhost:5173) for the web client.
 
 ---
 
@@ -79,80 +113,107 @@ Open [http://localhost:5173](http://localhost:5173) to see the visualization.
 
 The central view shows a 100x100 grid world:
 
-- **Colored circles**: Agents (color indicates LLM type, letter shows initial)
+- **Colored circles**: Agents
 - **Green squares**: Food resource spawns
 - **Yellow squares**: Energy resource spawns
-- **Gray squares**: Shelters (rest areas)
-- **Background colors**: Biomes (forest, desert, tundra, plains)
+- **Gray squares**: Shelters
+- **Background colors**: Biomes
 
 ### Controls
 
-- **Pan**: Click and drag the canvas
-- **Zoom**: Mouse scroll
-- **Select Agent**: Click on an agent circle
-- **Play/Pause**: Control simulation from top bar
+- **Pan**: Click and drag
+- **Zoom**: Mouse wheel or trackpad
+- **Select Agent**: Click an agent
+- **Play/Pause**: Top-bar simulation controls
 
 ### Information Panels
 
-- **Agent Profile**: Selected agent's stats, inventory, and recent actions
-- **Event Feed**: Real-time stream of world events
-- **Decision Log**: LLM decisions with reasoning
-- **Analytics**: Metrics like Gini coefficient, cooperation index
+- **Agent Profile**: Current vitals, inventory, memory, and local context
+- **Event Feed**: Recent world events
+- **Decision Log**: Model or fallback reasoning traces
+- **Analytics**: Operational summaries such as Gini, survival, trade/conflict counts, and heuristic cooperation summaries
+
+`cooperationIndex` is useful as a dashboard signal, but for scientific reporting it should be treated as a heuristic summary rather than as a primary validated endpoint.
 
 ---
 
 ## Running Modes
 
-### Test Mode (No API Keys)
+### Test Mode
 
-Perfect for development and testing:
+Good for local development and deterministic fallback behavior:
 
 ```bash
 TEST_MODE=true bun dev:server
 ```
 
-Agents use fallback heuristics instead of LLM calls. Behavior is deterministic and free.
+This uses fallback logic instead of live provider calls. It is useful for debugging, but it is not the same thing as a replicated research benchmark.
 
-### Live Mode (With LLMs)
+### Live Mode
 
-Real AI decision-making:
+Runs the interactive world with live providers:
 
 ```bash
 bun dev:server
 ```
 
-Requires API keys. Each decision costs tokens. More interesting emergent behavior.
+This mode is best treated as exploratory because external provider behavior is not fully deterministic.
 
-### Experiment Mode (Headless)
+### Experiment Mode
 
-For research and batch runs:
+For headless batch runs:
 
 ```bash
 cd apps/server
-bun run src/experiments/runner.ts experiments/my-experiment.yaml
+bun run src/experiments/runner.ts --config experiments/my-experiment.yaml --output results/
 ```
 
-No UI, just data collection. See [Research Guide](./research-guide.md).
+Use the [Research Guide](./research-guide.md) to choose the right profile and claim posture before interpreting results.
+
+---
+
+## First Scientific Benchmark
+
+To execute the lower-imposition benchmark path:
+
+```bash
+cd apps/server
+bun run src/experiments/runner.ts --config experiments/canonical-core-benchmark.yaml --runs 2 --output results/
+```
+
+This benchmark uses `canonical_core` and deterministic controls. The output directory contains a report plus a research bundle with hashes and run-level artifacts. Strong claims still require at least two conditions with replicated runs; a single benchmark run is descriptive only.
+
+For a literature-baseline run:
+
+```bash
+cd apps/server
+bun run src/experiments/runner.ts --config experiments/sugarscape-replication.yaml --runs 1 --output results/
+```
+
+That path is available and documented, but it should still be treated as a partial literature-validation baseline rather than as a finished validated replication.
 
 ---
 
 ## Connecting Your Own Agent
 
-SimAgents supports external agents via the A2A protocol.
+SimAgents supports external agents via public HTTP endpoints.
+
+> **Base URL**: Hosted users use `https://api.simagents.io`. Self-hosters use their own URL (e.g., `http://localhost:3000` for local development). The examples below use `<your-api-url>` as a placeholder.
 
 ### 1. Register Your Agent
 
 ```bash
-curl -X POST http://localhost:3000/api/v1/agents/register \
+curl -X POST <your-api-url>/api/v1/agents/register \
   -H "Content-Type: application/json" \
   -d '{
     "name": "MyAgent",
     "description": "My custom AI agent",
-    "endpoint": "https://my-server.com/webhook"  # Optional: for push mode
+    "endpoint": "https://my-server.com/webhook"
   }'
 ```
 
 Response:
+
 ```json
 {
   "id": "agent-uuid-here",
@@ -162,19 +223,20 @@ Response:
 
 ### 2. Receive Observations
 
-**Pull Mode** (you poll us):
+Pull mode:
+
 ```bash
-curl http://localhost:3000/api/v1/agents/{id}/observe \
+curl <your-api-url>/api/v1/agents/{id}/observe \
   -H "X-API-Key: your-secret-api-key"
 ```
 
-**Push Mode** (we call your endpoint):
-Your endpoint receives POST requests with observation data.
+Push mode:
+Your endpoint can receive observation payloads via POST.
 
 ### 3. Submit Decisions
 
 ```bash
-curl -X POST http://localhost:3000/api/v1/agents/{id}/decide \
+curl -X POST <your-api-url>/api/v1/agents/{id}/decide \
   -H "X-API-Key: your-secret-api-key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -191,8 +253,11 @@ curl -X POST http://localhost:3000/api/v1/agents/{id}/decide \
   "tick": 42,
   "self": {
     "id": "agent-uuid",
-    "x": 50, "y": 50,
-    "hunger": 75, "energy": 60, "health": 100,
+    "x": 50,
+    "y": 50,
+    "hunger": 75,
+    "energy": 60,
+    "health": 100,
     "balance": 150
   },
   "nearbyAgents": [...],
@@ -211,51 +276,55 @@ curl -X POST http://localhost:3000/api/v1/agents/{id}/decide \
 | Action | Description | Key Parameters |
 |--------|-------------|----------------|
 | `move` | Move to adjacent cell | `toX`, `toY` |
-| `gather` | Collect from resource spawn | `resourceType`, `quantity` |
+| `gather` | Collect from a resource spawn | `resourceType`, `quantity` |
 | `consume` | Use inventory item | `itemType` |
-| `sleep` | Rest at shelter | `duration` |
+| `sleep` | Rest at a shelter | `duration` |
 | `trade` | Exchange with another agent | `targetAgentId`, `offering*`, `requesting*` |
 | `work` | Fulfill employment contract | `duration` |
 | `forage` | Search for scraps anywhere | - |
-| `public_work` | Basic labor at shelter | `taskType` |
+| `public_work` | Basic labor at a shelter | `taskType` |
 | `harm` | Attack another agent | `targetAgentId`, `intensity` |
 | `signal` | Broadcast long-range message | `message`, `intensity` |
 
-See [API Reference](./api-reference.md) for complete action catalog.
+See [API Reference](./api-reference.md) for the complete catalog.
 
 ---
 
 ## Configuration
 
-Key environment variables in `apps/server/.env`:
+Common environment variables in `apps/server/.env`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TICK_INTERVAL_MS` | `60000` | Time between simulation ticks (ms) |
-| `GRID_SIZE` | `100` | World size (NxN) |
-| `TEST_MODE` | `false` | Use fallback decisions instead of LLM |
-| `RANDOM_SEED` | timestamp | Seed for reproducibility |
+| `TICK_INTERVAL_MS` | `60000` | Time between ticks in milliseconds |
+| `GRID_SIZE` | `100` | World size |
+| `TEST_MODE` | `false` | Use fallback decisions instead of live providers |
+| `RANDOM_SEED` | timestamp | Default seed source when not set explicitly |
+| `DATABASE_URL` | `postgres://dev:dev@localhost:5432/simagents` | PostgreSQL connection |
+| `REDIS_URL` | `redis://localhost:6379` | Redis connection |
+| `ADMIN_API_KEY` | (insecure default) | Required for admin API endpoints |
+| `VITE_API_URL` | (none) | API base URL for the web frontend (required for non-local deployments) |
 
-See [full configuration](https://github.com/agentauri/simagents.io/blob/main/apps/server/src/config/index.ts) for all options.
+For scientific runs, prefer declaring `seed`, `profile`, and `benchmarkWorld` in the experiment config rather than relying on ad hoc environment changes.
 
 ---
 
 ## Next Steps
 
-- **[Research Guide](./research-guide.md)**: Design experiments, collect metrics, ensure reproducibility
-- **[API Reference](./api-reference.md)**: Complete API documentation
-- **[Why SimAgents?](./why-simagents.md)**: Understand the philosophy and use cases
+- [Research Guide](./research-guide.md): choose the right benchmark surface and claim class
+- [API Reference](./api-reference.md): integrate your own agent or export data
+- [Why SimAgents?](./why-simagents.md): understand the public positioning and tradeoffs
 
 ## Troubleshooting
 
 ### "Cannot connect to database"
-Ensure Docker is running: `docker-compose up -d`
+Run `bun run infra:up` and confirm Docker is healthy.
 
 ### "No agents appearing"
-Click "Start" in the UI or call `POST /api/world/start`
+Click Start in the UI or call `POST /api/world/start`.
 
 ### "LLM timeout errors"
-Check API keys in `.env`. Use `TEST_MODE=true` to bypass LLM calls.
+Check provider keys in `apps/server/.env`. Use `TEST_MODE=true` for local fallback mode.
 
 ### Need help?
 [Open an issue](https://github.com/agentauri/simagents.io/issues) on GitHub.

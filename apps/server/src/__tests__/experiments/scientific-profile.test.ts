@@ -37,6 +37,29 @@ describe('resolveScientificProfile', () => {
     expect(profile.runtimeConfig.experiment?.normalizeCapabilities).toBe(true);
   });
 
+  test('canonical_core disables incentive-heavy mechanics for validated runs', () => {
+    const profile = resolveScientificProfile({
+      ...baseSchema,
+      benchmarkWorld: 'canonical_core',
+    });
+
+    expect(profile.runtimeConfig.cooperation?.enabled).toBe(false);
+    expect(profile.runtimeConfig.spoilage?.enabled).toBe(false);
+    expect(profile.runtimeConfig.puzzle?.enabled).toBe(false);
+    expect(profile.runtimeConfig.experiment?.enablePersonalities).toBe(false);
+    expect(profile.scientificControls).toEqual({
+      canonicalMinimalWorld: true,
+      cooperationIncentivesEnabled: false,
+      trustPricingEnabled: false,
+      tradeBonusesEnabled: false,
+      spoilageEnabled: false,
+      puzzleEnabled: false,
+      personalitiesEnabled: false,
+      llmCacheEnabled: false,
+      cacheSharingEnabled: false,
+    });
+  });
+
   test('rejects deterministic profile with llm mode', () => {
     expect(() => resolveScientificProfile({
       ...baseSchema,

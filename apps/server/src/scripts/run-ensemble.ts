@@ -40,6 +40,7 @@ import { startWorker, stopWorker } from '../queue';
 import { tickEngine, type ExperimentContext } from '../simulation/tick-engine';
 import { setTestMode } from '../config';
 import { getRuntimeConfig } from '../config';
+import { getAnalyticsSnapshot } from '../db/queries/analytics';
 import {
   mean,
   stdDev,
@@ -309,6 +310,7 @@ async function computeRunMetrics(
   ticks: number,
   events: Array<{ eventType: string; tick: number; payload: unknown }>
 ): Promise<RunMetrics> {
+  const analytics = await getAnalyticsSnapshot();
   const agents = await getAllAgents();
   const aliveAgents = agents.filter((a) => a.state !== 'dead');
 
@@ -316,12 +318,10 @@ async function computeRunMetrics(
   const balances = aliveAgents.map((a) => a.balance);
   const gini = giniCoefficient(balances);
 
-  // Calculate cooperation index: trades / (trades + harms + steals)
   const tradeCount = events.filter((e) => e.eventType === 'agent_traded').length;
   const harmCount = events.filter((e) => e.eventType === 'agent_harmed').length;
   const stealCount = events.filter((e) => e.eventType === 'agent_stole').length;
-  const totalInteractions = tradeCount + harmCount + stealCount;
-  const cooperationIndex = totalInteractions > 0 ? tradeCount / totalInteractions : 1;
+  const cooperationIndex = analytics.emergence?.cooperationIndex ?? 0;
 
   // Survival rate
   const initialAgentCount = agents.length;

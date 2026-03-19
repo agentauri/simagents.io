@@ -15,14 +15,14 @@ import type { Agent } from '../../db/schema';
 import { getSheltersAtPosition } from '../../db/queries/world';
 import { storeMemory } from '../../db/queries/memories';
 import { getAliveAgents } from '../../db/queries/agents';
-import { CONFIG } from '../../config';
+import { CONFIG, getRuntimeConfig } from '../../config';
 
 /**
  * Check if agent is alone (no other agents within solo radius)
  * Used for cooperation penalty system
  */
 async function isAgentAlone(agentId: string, x: number, y: number): Promise<boolean> {
-  const coopConfig = CONFIG.cooperation;
+  const coopConfig = getRuntimeConfig().cooperation;
   if (!coopConfig.enabled) return false;
 
   const aliveAgents = await getAliveAgents();
@@ -40,7 +40,7 @@ async function isAgentAlone(agentId: string, x: number, y: number): Promise<bool
  * Returns count of agents within work cooperation radius
  */
 async function countNearbyWorkers(agentId: string, x: number, y: number): Promise<number> {
-  const coopConfig = CONFIG.cooperation;
+  const coopConfig = getRuntimeConfig().cooperation;
   if (!coopConfig.enabled) return 0;
 
   const aliveAgents = await getAliveAgents();
@@ -71,6 +71,7 @@ export async function handlePublicWork(
   agent: Agent
 ): Promise<ActionResult> {
   const config = CONFIG.publicWorks;
+  const runtimeConfig = getRuntimeConfig();
 
   // Check if public works is enabled
   if (!config.enabled) {
@@ -138,14 +139,14 @@ export async function handlePublicWork(
 
     let cooperationNote = '';
 
-    if (alone && CONFIG.cooperation.enabled) {
+    if (alone && runtimeConfig.cooperation.enabled) {
       // Solo penalty: reduced payment when working alone
-      paymentModifier = CONFIG.cooperation.solo.publicWorkPaymentModifier;
+      paymentModifier = runtimeConfig.cooperation.solo.publicWorkPaymentModifier;
       cooperationNote = ' (solo work penalty)';
-    } else if (nearbyWorkerCount > 0 && CONFIG.cooperation.enabled) {
+    } else if (nearbyWorkerCount > 0 && runtimeConfig.cooperation.enabled) {
       // Cooperation bonus: +20% per nearby worker, capped at +60%
       const coopBonus = Math.min(
-        nearbyWorkerCount * CONFIG.cooperation.work.nearbyWorkerBonus,
+        nearbyWorkerCount * runtimeConfig.cooperation.work.nearbyWorkerBonus,
         0.6 // cap at +60%
       );
       paymentModifier = 1.0 + coopBonus;

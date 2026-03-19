@@ -19,10 +19,15 @@ import type { ExternalAgent } from '../db/schema';
 
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || 'admin_secret_key_change_me';
 
-// Warn at startup if using default key
+// Fail at startup in production if using default key
 if (ADMIN_API_KEY === 'admin_secret_key_change_me') {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'ADMIN_API_KEY must be set to a secure value in production. Cannot use default key.'
+    );
+  }
   console.warn(
-    '[Auth] ⚠️  WARNING: Using default ADMIN_API_KEY. Set ADMIN_API_KEY env var in production!'
+    '[Auth] WARNING: Using default ADMIN_API_KEY. Set ADMIN_API_KEY env var in production!'
   );
 }
 

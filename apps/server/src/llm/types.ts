@@ -579,7 +579,7 @@ export const LLM_COSTS: Record<LLMType, LLMCost> = {
   claude: { inputPer1M: 5.00, outputPer1M: 25.00 }, // Opus 4.6
   codex: { inputPer1M: 2.50, outputPer1M: 15.00 }, // GPT-5.4
   gemini: { inputPer1M: 2.00, outputPer1M: 12.00 }, // Gemini 3.1 Pro
-  deepseek: { inputPer1M: 0.55, outputPer1M: 2.19 }, // Reasoner
+  deepseek: { inputPer1M: 0.27, outputPer1M: 1.10 }, // V3 (deepseek-chat)
   qwen: { inputPer1M: 0.40, outputPer1M: 2.40 }, // Qwen 3.5 Plus
   glm: { inputPer1M: 1.00, outputPer1M: 3.20 }, // GLM-5
   grok: { inputPer1M: 0.20, outputPer1M: 0.50 }, // Grok 4.1 Fast

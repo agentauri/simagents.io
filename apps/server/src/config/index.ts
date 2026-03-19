@@ -29,11 +29,26 @@ function envBool(key: string, defaultValue: boolean): boolean {
 
 function validateProductionEnv(): void {
   if (process.env.NODE_ENV === 'production') {
-    const required = ['DATABASE_URL', 'REDIS_URL'];
+    const required = [
+      'DATABASE_URL',
+      'REDIS_URL',
+      'JWT_SECRET',
+      'ENCRYPTION_MASTER_KEY',
+      'COOKIE_SECRET',
+      'ADMIN_API_KEY',
+    ];
     const missing = required.filter((k) => !process.env[k]);
     if (missing.length > 0) {
       throw new Error(
         `Missing required environment variables in production: ${missing.join(', ')}`
+      );
+    }
+
+    // Require at least one OAuth provider in production
+    const hasOAuth = process.env.GOOGLE_CLIENT_ID || process.env.GITHUB_CLIENT_ID;
+    if (!hasOAuth) {
+      throw new Error(
+        'At least one OAuth provider (GOOGLE_CLIENT_ID or GITHUB_CLIENT_ID) must be configured in production'
       );
     }
   }
@@ -977,6 +992,10 @@ interface RuntimeConfigOverrides {
       soloMaxFromRich?: number;
       groupBonus?: number;
     };
+    work?: {
+      nearbyWorkerBonus?: number;
+      nearbyWorkerRadius?: number;
+    };
     forage?: {
       nearbyAgentBonus?: number;
       maxCooperationBonus?: number;
@@ -988,7 +1007,10 @@ interface RuntimeConfigOverrides {
       maxTrustPenalty?: number;
     };
     solo?: {
+      forageSuccessRateModifier?: number;
+      publicWorkPaymentModifier?: number;
       gatherEfficiencyModifier?: number;
+      aloneRadius?: number;
     };
   };
   // Spoilage config
@@ -1093,6 +1115,10 @@ export function getRuntimeConfig(): RuntimeConfigOverrides & typeof CONFIG {
         ...CONFIG.cooperation.groupGather,
         ...runtimeOverrides.cooperation?.groupGather,
       },
+      work: {
+        ...CONFIG.cooperation.work,
+        ...runtimeOverrides.cooperation?.work,
+      },
       forage: {
         ...CONFIG.cooperation.forage,
         ...runtimeOverrides.cooperation?.forage,
@@ -1159,6 +1185,7 @@ export function setRuntimeConfig(updates: RuntimeConfigOverrides): void {
       enabled: updates.cooperation.enabled ?? runtimeOverrides.cooperation?.enabled,
       gather: { ...runtimeOverrides.cooperation?.gather, ...updates.cooperation.gather },
       groupGather: { ...runtimeOverrides.cooperation?.groupGather, ...updates.cooperation.groupGather },
+      work: { ...runtimeOverrides.cooperation?.work, ...updates.cooperation.work },
       forage: { ...runtimeOverrides.cooperation?.forage, ...updates.cooperation.forage },
       buy: { ...runtimeOverrides.cooperation?.buy, ...updates.cooperation.buy },
       solo: { ...runtimeOverrides.cooperation?.solo, ...updates.cooperation.solo },

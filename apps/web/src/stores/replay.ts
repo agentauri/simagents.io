@@ -164,7 +164,7 @@ export const useReplayError = () => useReplayStore((s) => s.error);
 // API Functions
 // =============================================================================
 
-const API_BASE = '';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export async function fetchTickRange(): Promise<TickRange> {
   const res = await fetch(`${API_BASE}/api/replay/ticks`);

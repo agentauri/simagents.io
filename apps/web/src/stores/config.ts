@@ -291,7 +291,7 @@ function savePendingToStorage(pending: Partial<ConfigResponse>): void {
 // API Functions
 // =============================================================================
 
-const API_BASE = '';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 // Admin API key for config modifications (default for development)
 const ADMIN_API_KEY = import.meta.env.VITE_ADMIN_API_KEY || 'admin_secret_key_change_me';

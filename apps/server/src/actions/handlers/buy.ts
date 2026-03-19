@@ -13,7 +13,7 @@ import type { Agent } from '../../db/schema';
 import { addToInventory } from '../../db/queries/inventory';
 import { getSheltersAtPosition } from '../../db/queries/world';
 import { storeMemory, getAgentRelationships } from '../../db/queries/memories';
-import { CONFIG } from '../../config';
+import { CONFIG, getRuntimeConfig } from '../../config';
 import { random } from '../../utils/random';
 
 // Item prices (MVP: simple fixed prices)
@@ -36,6 +36,7 @@ export async function handleBuy(
   agent: Agent
 ): Promise<ActionResult> {
   const { itemType, quantity = 1 } = intent.params;
+  const runtimeConfig = getRuntimeConfig();
 
   // Validate item type
   const basePrice = ITEM_PRICES[itemType];
@@ -49,9 +50,9 @@ export async function handleBuy(
   // Trust-based pricing: social agents get discounts, antisocial get penalties
   let trustMultiplier = 1.0;
   let trustNote = '';
-  const buyConfig = CONFIG.cooperation.buy;
+  const buyConfig = runtimeConfig.cooperation.buy;
 
-  if (CONFIG.cooperation.enabled && buyConfig) {
+  if (runtimeConfig.cooperation.enabled && buyConfig) {
     const relationships = await getAgentRelationships(agent.id);
     if (relationships.length > 0) {
       // Calculate average trust score from all relationships

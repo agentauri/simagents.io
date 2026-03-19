@@ -26,9 +26,9 @@ export interface LLMCacheConfig {
 
 const DEFAULT_CONFIG: LLMCacheConfig = {
   enabled: true,
-  ttlSeconds: 300,
+  ttlSeconds: 75,
   keyPrefix: 'llm-cache:',
-  shareAcrossAgents: true,
+  shareAcrossAgents: false,
 };
 
 let config: LLMCacheConfig = { ...DEFAULT_CONFIG };
@@ -74,8 +74,9 @@ const stats: CacheStats = {
  * - Agent ID when `shareAcrossAgents` is enabled
  */
 function extractCacheableObservation(obs: AgentObservation): object {
-  // Round numeric values to reduce variance (e.g., 73.5 -> 70, 76.2 -> 75)
-  const roundToFive = (n: number) => Math.round(n / 5) * 5;
+  // Round numeric values to reduce variance — granularity of 2 balances
+  // cache hit rate with responsiveness to changing agent state
+  const round = (n: number) => Math.round(n / 2) * 2;
 
   return {
     agentIdentity: config.shareAcrossAgents ? undefined : obs.self.id,
@@ -84,10 +85,10 @@ function extractCacheableObservation(obs: AgentObservation): object {
     self: {
       x: obs.self.x,
       y: obs.self.y,
-      hunger: roundToFive(obs.self.hunger),
-      energy: roundToFive(obs.self.energy),
-      health: roundToFive(obs.self.health),
-      balance: roundToFive(obs.self.balance),
+      hunger: round(obs.self.hunger),
+      energy: round(obs.self.energy),
+      health: round(obs.self.health),
+      balance: round(obs.self.balance),
       state: obs.self.state,
     },
 
@@ -126,6 +127,12 @@ function extractCacheableObservation(obs: AgentObservation): object {
         quantity: i.quantity > 0 ? Math.min(i.quantity, 10) : 0, // Cap quantity for cache
       }))
       .sort((a, b) => a.type.localeCompare(b.type)),
+
+    // ALL recent failed actions — the array grows with each new failure,
+    // producing a different hash and preventing the "same hash → same bad decision" loop
+    recentFailedActions: obs.recentEvents
+      .filter((e) => e.type === 'action_failed')
+      .map((e) => e.description),
   };
 }
 
@@ -168,9 +175,19 @@ export async function getCachedResponse(
     const cached = await redis.get(key);
 
     if (cached) {
+      const decision = JSON.parse(cached) as AgentDecision;
+
+      // Check blocklist — if this action recently failed, treat as a miss
+      // so the LLM is queried again for a fresh decision
+      if (await isActionBlocked(hash, llmType, decision.action)) {
+        stats.misses++;
+        console.log(`[LLM-Cache] HIT but BLOCKED action "${decision.action}" for ${llmType} (hash: ${hash.substring(0, 8)}) — forcing re-query`);
+        return null;
+      }
+
       stats.hits++;
       console.log(`[LLM-Cache] HIT for ${llmType} (hash: ${hash.substring(0, 8)})`);
-      return JSON.parse(cached) as AgentDecision;
+      return decision;
     }
 
     stats.misses++;
@@ -197,6 +214,13 @@ export async function cacheResponse(
 
   try {
     const hash = hashObservation(obs);
+
+    // Skip caching if this action is on the blocklist (recently failed)
+    if (await isActionBlocked(hash, llmType, decision.action)) {
+      console.log(`[LLM-Cache] SKIP caching blocked action "${decision.action}" for ${llmType} (hash: ${hash.substring(0, 8)})`);
+      return;
+    }
+
     const key = getCacheKey(hash, llmType);
     const value = JSON.stringify(decision);
 
@@ -275,6 +299,107 @@ export function resetLLMCacheStats(): void {
 }
 
 /**
+ * Invalidate a specific cached entry for an agent whose action failed.
+ * Only removes the exact hash that produced the failed decision,
+ * preserving valid cache entries for other states.
+ */
+export async function invalidateCacheEntry(
+  obs: AgentObservation,
+  llmType: string
+): Promise<boolean> {
+  try {
+    const hash = hashObservation(obs);
+    const key = getCacheKey(hash, llmType);
+    const deleted = await redis.del(key);
+
+    if (deleted > 0) {
+      console.log(`[LLM-Cache] Invalidated hash ${hash.substring(0, 8)} for ${llmType} (action failed)`);
+    }
+    return deleted > 0;
+  } catch (error) {
+    console.error('[LLM-Cache] Error invalidating cache entry:', error);
+    return false;
+  }
+}
+
+// =============================================================================
+// Failed Action Blocklist
+// =============================================================================
+
+/**
+ * After an action fails, block re-caching the same action type for this
+ * observation hash. This breaks the loop:
+ *   cache → execute → fail → invalidate → LLM returns same action → re-cache → …
+ *
+ * The blocklist key lives for `blocklistTTLSeconds` (default: 3× cache TTL).
+ */
+const BLOCKLIST_SUFFIX = 'block:';
+const BLOCKLIST_TTL_MULTIPLIER = 3;
+
+function getBlocklistKey(observationHash: string, llmType: string, action: string): string {
+  return `${config.keyPrefix}${BLOCKLIST_SUFFIX}${llmType}:${observationHash}:${action}`;
+}
+
+/**
+ * Mark an action as failed for a given observation hash.
+ * Subsequent `getCachedResponse` and `cacheResponse` calls will
+ * ignore/skip entries whose action matches the blocklist.
+ */
+export async function markFailedAction(
+  obs: AgentObservation,
+  llmType: string,
+  failedAction: string
+): Promise<void> {
+  try {
+    const hash = hashObservation(obs);
+    const key = getBlocklistKey(hash, llmType, failedAction);
+    const ttl = config.ttlSeconds * BLOCKLIST_TTL_MULTIPLIER;
+    await redis.setex(key, ttl, '1');
+    console.log(`[LLM-Cache] Blocked action "${failedAction}" for ${llmType} (hash: ${hash.substring(0, 8)}, TTL: ${ttl}s)`);
+  } catch (error) {
+    console.error('[LLM-Cache] Error writing blocklist entry:', error);
+  }
+}
+
+/**
+ * Check whether a given action is currently blocked for this observation hash.
+ */
+async function isActionBlocked(
+  observationHash: string,
+  llmType: string,
+  action: string
+): Promise<boolean> {
+  try {
+    const key = getBlocklistKey(observationHash, llmType, action);
+    const exists = await redis.exists(key);
+    return exists === 1;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Invalidate all cached entries for a specific LLM type.
+ * Use only for systemic failures (adapter bugs, schema changes).
+ */
+export async function invalidateCacheForAgent(llmType: string): Promise<number> {
+  try {
+    const pattern = `${config.keyPrefix}${llmType}:*`;
+    const keys = await redis.keys(pattern);
+
+    if (keys.length > 0) {
+      await redis.del(...keys);
+    }
+
+    console.log(`[LLM-Cache] Invalidated ALL ${keys.length} entries for ${llmType}`);
+    return keys.length;
+  } catch (error) {
+    console.error('[LLM-Cache] Error invalidating cache:', error);
+    return 0;
+  }
+}
+
+/**
  * Clear all cached LLM responses.
  */
 export async function clearLLMCache(): Promise<number> {
@@ -317,12 +442,14 @@ export async function getLLMCacheSize(): Promise<number> {
  */
 export function initLLMCacheFromEnv(): void {
   const enabled = process.env.LLM_CACHE_ENABLED !== 'false';
-  const ttl = parseInt(process.env.LLM_CACHE_TTL_SECONDS || '300', 10);
-  const shareAcrossAgents = process.env.LLM_CACHE_SHARE_ACROSS_AGENTS !== 'false';
+  const ttlEnv = process.env.LLM_CACHE_TTL_SECONDS;
+  const ttl = ttlEnv ? parseInt(ttlEnv, 10) : DEFAULT_CONFIG.ttlSeconds;
+  const shareEnv = process.env.LLM_CACHE_SHARE_ACROSS_AGENTS;
+  const shareAcrossAgents = shareEnv ? shareEnv === 'true' : DEFAULT_CONFIG.shareAcrossAgents;
 
   config = {
     enabled,
-    ttlSeconds: isNaN(ttl) ? 300 : ttl,
+    ttlSeconds: isNaN(ttl) ? DEFAULT_CONFIG.ttlSeconds : ttl,
     keyPrefix: process.env.LLM_CACHE_PREFIX || 'llm-cache:',
     shareAcrossAgents,
   };

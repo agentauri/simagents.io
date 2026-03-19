@@ -16,16 +16,26 @@
  */
 
 import { v4 as uuid } from 'uuid';
-import { createAgent, getAllAgents, deleteAllAgents } from '../db/queries/agents';
+import {
+  db,
+  agentLineages,
+  events,
+  ledger,
+  reproductionStates,
+  snapshots,
+  inventory as inventoryTable,
+  shelters as sheltersTable,
+  resourceSpawns as resourceSpawnsTable,
+  agents as agentsTable,
+} from '../db';
+import { createAgent, getAllAgents } from '../db/queries/agents';
 import {
   getAllShelters,
   createShelter,
   getAllResourceSpawns,
   createResourceSpawn,
-  deleteAllShelters,
-  deleteAllResourceSpawns,
 } from '../db/queries/world';
-import { addToInventory, deleteAllInventory } from '../db/queries/inventory';
+import { addToInventory } from '../db/queries/inventory';
 import { clearAllPuzzles } from '../db/queries/puzzles';
 import type { NewAgent, NewShelter, NewResourceSpawn } from '../db/schema';
 import type { LLMType } from '../llm/types';
@@ -524,12 +534,19 @@ export function getBaselineAgentConfigs(): AgentConfig[] {
 export async function clearWorld(): Promise<void> {
   console.log('[Spawner] Clearing world...');
 
-  // Delete in order: puzzles -> inventory -> agents -> shelters -> resources
   await clearAllPuzzles();
-  await deleteAllInventory();
-  await deleteAllAgents();
-  await deleteAllShelters();
-  await deleteAllResourceSpawns();
+  await db.transaction(async (tx) => {
+    // Delete in FK-safe order before removing agents.
+    await tx.delete(inventoryTable);
+    await tx.delete(events);
+    await tx.delete(ledger);
+    await tx.delete(snapshots);
+    await tx.delete(reproductionStates);
+    await tx.delete(agentLineages);
+    await tx.delete(sheltersTable);
+    await tx.delete(agentsTable);
+    await tx.delete(resourceSpawnsTable);
+  });
 
   console.log('[Spawner] World cleared (including puzzles)');
 }

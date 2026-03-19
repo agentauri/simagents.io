@@ -15,7 +15,7 @@ import type { Agent } from '../../db/schema';
 import { addToInventory } from '../../db/queries/inventory';
 import { storeMemory } from '../../db/queries/memories';
 import { getAliveAgents } from '../../db/queries/agents';
-import { CONFIG } from '../../config';
+import { CONFIG, getRuntimeConfig } from '../../config';
 import { random } from '../../utils/random';
 
 /**
@@ -23,7 +23,7 @@ import { random } from '../../utils/random';
  * Used for cooperation penalty system
  */
 async function isAgentAlone(agentId: string, x: number, y: number): Promise<boolean> {
-  const coopConfig = CONFIG.cooperation;
+  const coopConfig = getRuntimeConfig().cooperation;
   if (!coopConfig.enabled) return false;
 
   const aliveAgents = await getAliveAgents();
@@ -41,7 +41,7 @@ async function isAgentAlone(agentId: string, x: number, y: number): Promise<bool
  * Returns count of agents within cooperation radius
  */
 async function countNearbyForagers(agentId: string, x: number, y: number): Promise<number> {
-  const coopConfig = CONFIG.cooperation;
+  const coopConfig = getRuntimeConfig().cooperation;
   if (!coopConfig.enabled) return 0;
 
   const cooperationRadius = coopConfig.forage?.cooperationRadius ?? 3;
@@ -71,6 +71,7 @@ export async function handleForage(
   agent: Agent
 ): Promise<ActionResult> {
   const config = CONFIG.actions.forage;
+  const runtimeConfig = getRuntimeConfig();
 
   // Check energy
   if (agent.energy < config.energyCost) {
@@ -111,14 +112,14 @@ export async function handleForage(
   const alone = await isAgentAlone(agent.id, agent.x, agent.y);
   const nearbyForagerCount = await countNearbyForagers(agent.id, agent.x, agent.y);
 
-  if (alone && CONFIG.cooperation.enabled) {
+  if (alone && runtimeConfig.cooperation.enabled) {
     // Solo penalty: reduced success rate when foraging alone
-    effectiveSuccessRate *= CONFIG.cooperation.solo.forageSuccessRateModifier;
+    effectiveSuccessRate *= runtimeConfig.cooperation.solo.forageSuccessRateModifier;
     cooperationNote = ' (solo foraging penalty)';
-  } else if (nearbyForagerCount > 0 && CONFIG.cooperation.enabled) {
+  } else if (nearbyForagerCount > 0 && runtimeConfig.cooperation.enabled) {
     // Cooperation bonus: +15% per nearby agent, capped at +45%
-    const bonusPerAgent = CONFIG.cooperation.forage?.nearbyAgentBonus ?? 0.15;
-    const maxBonus = CONFIG.cooperation.forage?.maxCooperationBonus ?? 0.45;
+    const bonusPerAgent = runtimeConfig.cooperation.forage?.nearbyAgentBonus ?? 0.15;
+    const maxBonus = runtimeConfig.cooperation.forage?.maxCooperationBonus ?? 0.45;
     const coopBonus = Math.min(nearbyForagerCount * bonusPerAgent, maxBonus);
     effectiveSuccessRate *= (1 + coopBonus);
     // Cap at 95% max success rate

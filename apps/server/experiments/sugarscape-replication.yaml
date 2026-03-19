@@ -1,0 +1,71 @@
+name: "sugarscape_replication"
+description: "Deterministic literature-validation benchmark centered on the Sugarscape baseline"
+hypothesis: "A Sugarscape-style baseline produces distinct survival and inequality dynamics under the canonical core world"
+
+preRegistration:
+  hypothesis: "A Sugarscape-style baseline produces distinct survival and inequality dynamics under the canonical core world"
+  primaryMetrics:
+    - Survival Rate
+    - Gini Coefficient
+  registeredAt: "2026-03-16T00:00:00Z"
+
+seed: 5151
+duration: 50
+mode: fallback
+profile: deterministic_baseline
+benchmarkWorld: canonical_core
+requireBaselines: true
+autoInjectBaselines: false
+
+world:
+  size: [40, 40]
+  scarcityMultiplier: 1.0
+  biomes:
+    forest: 0.25
+    desert: 0.25
+    tundra: 0.25
+    plains: 0.25
+
+resources:
+  food:
+    clusters: 4
+    maxAmount: 12
+    regenRate: 0.8
+  energy:
+    clusters: 3
+    maxAmount: 10
+    regenRate: 0.6
+  material:
+    clusters: 2
+    maxAmount: 8
+    regenRate: 0.3
+
+shelters: 4
+
+metrics:
+  - survivalRate
+  - giniCoefficient
+  - cooperationIndex
+  - tradeCount
+  - conflictCount
+
+variants:
+  - name: "control"
+    description: "Baseline control with random and rule-based agents only"
+    overrides:
+      agents:
+        - type: baseline_random
+          count: 2
+        - type: baseline_rule
+          count: 2
+
+  - name: "sugarscape_treatment"
+    description: "Treatment condition adding Sugarscape agent to baseline mix"
+    overrides:
+      agents:
+        - type: baseline_random
+          count: 2
+        - type: baseline_rule
+          count: 2
+        - type: baseline_sugarscape
+          count: 2

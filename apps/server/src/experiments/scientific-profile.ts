@@ -18,6 +18,18 @@ import type { ExperimentSchema } from './schema';
 export type ExperimentProfileName = 'deterministic_baseline' | 'llm_exploratory';
 export type BenchmarkWorldName = 'canonical_core' | 'full_surface';
 
+export interface ScientificControlsSummary {
+  canonicalMinimalWorld: boolean;
+  cooperationIncentivesEnabled: boolean;
+  trustPricingEnabled: boolean;
+  tradeBonusesEnabled: boolean;
+  spoilageEnabled: boolean;
+  puzzleEnabled: boolean;
+  personalitiesEnabled: boolean;
+  llmCacheEnabled: boolean;
+  cacheSharingEnabled: boolean;
+}
+
 export interface ResolvedScientificProfile {
   profile: ExperimentProfileName;
   benchmarkWorld: BenchmarkWorldName;
@@ -27,6 +39,7 @@ export interface ResolvedScientificProfile {
   emergentPromptEnabled: boolean;
   testModeEnabled: boolean;
   llmCacheConfig: Partial<LLMCacheConfig>;
+  scientificControls: ScientificControlsSummary;
   notes: string[];
 }
 
@@ -56,6 +69,8 @@ export function inferBenchmarkWorld(schema: ExperimentSchema): BenchmarkWorldNam
 export function resolveScientificProfile(schema: ExperimentSchema): ResolvedScientificProfile {
   const profile = inferExperimentProfile(schema);
   const benchmarkWorld = inferBenchmarkWorld(schema);
+  const canonicalMinimalWorld = benchmarkWorld === 'canonical_core';
+  const currentRuntime = getRuntimeConfig();
 
   if (profile === 'deterministic_baseline' && schema.genesis?.enabled) {
     throw new Error('deterministic_baseline profile cannot be used with genesis-enabled experiments.');
@@ -79,38 +94,90 @@ export function resolveScientificProfile(schema: ExperimentSchema): ResolvedScie
     notes.push('Controlled prompt, token, and cache settings are frozen for comparability.');
   }
 
-  if (benchmarkWorld === 'canonical_core') {
-    notes.push('Canonical benchmark world disables puzzle generation and personalities to reduce confounders.');
+  if (canonicalMinimalWorld) {
+    notes.push('Canonical benchmark world disables cooperation incentives, spoilage, puzzles, and personalities to reduce confounders.');
   }
+
+  const runtimeConfig = {
+    experiment: {
+      enablePersonalities: canonicalMinimalWorld
+        ? false
+        : currentRuntime.experiment.enablePersonalities,
+      normalizeCapabilities: profile === 'llm_exploratory',
+      useSyntheticVocabulary: false,
+      safetyLevel: 'standard' as const,
+      llmDecisionTemperature: 0,
+      llmDecisionMaxTokens: 512,
+    },
+    cooperation: canonicalMinimalWorld ? {
+      enabled: false,
+      gather: {
+        efficiencyMultiplierPerAgent: 1,
+        maxEfficiencyMultiplier: 1,
+      },
+      groupGather: {
+        enabled: false,
+        groupBonus: 1,
+      },
+      work: {
+        nearbyWorkerBonus: 0,
+      },
+      forage: {
+        nearbyAgentBonus: 0,
+        maxCooperationBonus: 0,
+      },
+      buy: {
+        trustPriceModifier: 0,
+        minTrustDiscount: 0,
+        maxTrustPenalty: 0,
+      },
+      solo: {
+        forageSuccessRateModifier: 1,
+        publicWorkPaymentModifier: 1,
+        gatherEfficiencyModifier: 1,
+      },
+    } : {
+      enabled: currentRuntime.cooperation.enabled,
+    },
+    spoilage: {
+      enabled: canonicalMinimalWorld
+        ? false
+        : currentRuntime.spoilage.enabled,
+    },
+    puzzle: {
+      enabled: canonicalMinimalWorld
+        ? false
+        : currentRuntime.puzzle.enabled,
+    },
+  };
+
+  const llmCacheConfig = {
+    enabled: false,
+    shareAcrossAgents: false,
+  };
+
+  const scientificControls: ScientificControlsSummary = {
+    canonicalMinimalWorld,
+    cooperationIncentivesEnabled: canonicalMinimalWorld ? false : currentRuntime.cooperation.enabled,
+    trustPricingEnabled: canonicalMinimalWorld ? false : currentRuntime.cooperation.enabled,
+    tradeBonusesEnabled: canonicalMinimalWorld ? false : currentRuntime.cooperation.enabled,
+    spoilageEnabled: runtimeConfig.spoilage.enabled,
+    puzzleEnabled: runtimeConfig.puzzle.enabled,
+    personalitiesEnabled: runtimeConfig.experiment.enablePersonalities,
+    llmCacheEnabled: llmCacheConfig.enabled,
+    cacheSharingEnabled: llmCacheConfig.shareAcrossAgents ?? false,
+  };
 
   return {
     profile,
     benchmarkWorld,
     deterministic: profile === 'deterministic_baseline',
     resolvedMode,
-    runtimeConfig: {
-      experiment: {
-        enablePersonalities: benchmarkWorld === 'full_surface'
-          ? getRuntimeConfig().experiment.enablePersonalities
-          : false,
-        normalizeCapabilities: profile === 'llm_exploratory',
-        useSyntheticVocabulary: false,
-        safetyLevel: 'standard',
-        llmDecisionTemperature: 0,
-        llmDecisionMaxTokens: 512,
-      },
-      puzzle: {
-        enabled: benchmarkWorld === 'full_surface'
-          ? getRuntimeConfig().puzzle.enabled
-          : false,
-      },
-    },
+    runtimeConfig,
     emergentPromptEnabled: true,
     testModeEnabled: resolvedMode !== 'llm',
-    llmCacheConfig: {
-      enabled: false,
-      shareAcrossAgents: false,
-    },
+    llmCacheConfig,
+    scientificControls,
     notes,
   };
 }

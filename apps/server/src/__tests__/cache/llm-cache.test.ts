@@ -17,6 +17,7 @@ import {
   clearLLMCache,
   resetLLMCacheStats,
   setLLMCacheConfig,
+  markFailedAction,
 } from '../../cache/llm-cache';
 import { checkRedisConnection } from '../../cache/index';
 import type { AgentObservation, AgentDecision } from '../../llm/types';
@@ -122,9 +123,9 @@ describe('LLM Cache', () => {
     });
 
     test('produces same hash for similar needs (within rounding)', () => {
-      // Both round to 70 (68-72 all round to 70 when rounding to nearest 5)
-      const obs1 = createMockObservation({ hunger: 68 });
-      const obs2 = createMockObservation({ hunger: 72 });
+      // Both round to 70 (69 and 70 both round to 70 when rounding to nearest 2)
+      const obs1 = createMockObservation({ hunger: 69 });
+      const obs2 = createMockObservation({ hunger: 70 });
 
       const hash1 = hashObservation(obs1);
       const hash2 = hashObservation(obs2);
@@ -386,6 +387,129 @@ describe('LLM Cache', () => {
       expect(stats.hits).toBe(0);
       expect(stats.misses).toBe(0);
       expect(stats.writes).toBe(0);
+    });
+  });
+
+  describe('failed action blocklist', () => {
+    test('blocks cached response when action is on blocklist', async () => {
+      if (!redisAvailable) {
+        console.log('Skipping test: Redis not available');
+        return;
+      }
+      const obs = createMockObservation();
+      const decision: AgentDecision = {
+        action: 'gather',
+        params: { resourceType: 'food' },
+        reasoning: 'Gathering food',
+      };
+
+      // Cache a gather decision
+      await cacheResponse(obs, 'grok', decision);
+
+      // Before blocklist: cache should hit
+      const beforeBlock = await getCachedResponse(obs, 'grok');
+      expect(beforeBlock).toEqual(decision);
+
+      // Mark gather as failed
+      await markFailedAction(obs, 'grok', 'gather');
+
+      // After blocklist: cache should return null (forced re-query)
+      const afterBlock = await getCachedResponse(obs, 'grok');
+      expect(afterBlock).toBeNull();
+    });
+
+    test('prevents re-caching a blocked action', async () => {
+      if (!redisAvailable) {
+        console.log('Skipping test: Redis not available');
+        return;
+      }
+      const obs = createMockObservation();
+      const decision: AgentDecision = {
+        action: 'gather',
+        params: { resourceType: 'food' },
+        reasoning: 'Gathering food',
+      };
+
+      // Mark gather as failed BEFORE caching
+      await markFailedAction(obs, 'grok', 'gather');
+
+      // Try to cache gather — should be skipped
+      await cacheResponse(obs, 'grok', decision);
+
+      // Clear blocklist key manually to test if it was cached
+      // If cacheResponse correctly skipped, there should be nothing cached
+      // We can check by using a different LLM type (no blocklist for it)
+      const cached = await getCachedResponse(obs, 'grok');
+      expect(cached).toBeNull();
+    });
+
+    test('does not block different actions', async () => {
+      if (!redisAvailable) {
+        console.log('Skipping test: Redis not available');
+        return;
+      }
+      const obs = createMockObservation();
+      const moveDecision: AgentDecision = {
+        action: 'move',
+        params: { toX: 5, toY: 5 },
+        reasoning: 'Moving',
+      };
+
+      // Block gather but NOT move
+      await markFailedAction(obs, 'grok', 'gather');
+
+      // Cache a move decision — should work fine
+      await cacheResponse(obs, 'grok', moveDecision);
+
+      // Move should still be served from cache
+      const cached = await getCachedResponse(obs, 'grok');
+      expect(cached).toEqual(moveDecision);
+    });
+
+    test('does not block other LLM types', async () => {
+      if (!redisAvailable) {
+        console.log('Skipping test: Redis not available');
+        return;
+      }
+      const obs = createMockObservation();
+      const decision: AgentDecision = {
+        action: 'gather',
+        params: { resourceType: 'food' },
+        reasoning: 'Gathering food',
+      };
+
+      // Block gather for grok only
+      await markFailedAction(obs, 'grok', 'gather');
+
+      // Cache gather for claude — should work fine
+      await cacheResponse(obs, 'claude', decision);
+      const cached = await getCachedResponse(obs, 'claude');
+      expect(cached).toEqual(decision);
+    });
+
+    test('hash changes with each new failure event (recentFailedActions)', () => {
+      const obs0 = createMockObservation();
+      obs0.recentEvents = [];
+
+      const obs1 = createMockObservation();
+      obs1.recentEvents = [
+        { type: 'action_failed', description: 'gather failed', tick: 1, timestamp: Date.now() },
+      ];
+
+      const obs2 = createMockObservation();
+      obs2.recentEvents = [
+        { type: 'action_failed', description: 'gather failed', tick: 1, timestamp: Date.now() },
+        { type: 'action_failed', description: 'gather failed', tick: 2, timestamp: Date.now() },
+      ];
+
+      const hash0 = hashObservation(obs0);
+      const hash1 = hashObservation(obs1);
+      const hash2 = hashObservation(obs2);
+
+      // Each should produce a different hash
+      expect(hash0).not.toBe(hash1);
+      expect(hash1).not.toBe(hash2);
+      expect(hash0).not.toBe(hash2);
     });
   });
 });

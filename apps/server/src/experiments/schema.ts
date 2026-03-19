@@ -172,6 +172,23 @@ export interface ExperimentSchema {
   /** Scientific hypothesis */
   hypothesis?: string;
 
+  /**
+   * Pre-registration record.
+   * When provided, the hypothesis and primary metrics are frozen before execution.
+   * The runner will validate that the executed experiment matches these commitments
+   * and flag any deviations as post-hoc.
+   */
+  preRegistration?: {
+    /** Hypothesis committed before execution (must match `hypothesis` field) */
+    hypothesis: string;
+    /** Primary outcome metrics committed before execution */
+    primaryMetrics: string[];
+    /** ISO timestamp when the pre-registration was created */
+    registeredAt: string;
+    /** Optional hash of the config at registration time for tamper detection */
+    configHash?: string;
+  };
+
   /** Random seed for reproducibility */
   seed?: number;
 
@@ -251,7 +268,7 @@ export interface ExperimentSchema {
 // Default Values
 // =============================================================================
 
-export const DEFAULT_SCHEMA: Required<Omit<ExperimentSchema, 'variants' | 'events' | 'hypothesis' | 'description' | 'genesis'>> = {
+export const DEFAULT_SCHEMA: Required<Omit<ExperimentSchema, 'variants' | 'events' | 'hypothesis' | 'description' | 'genesis' | 'preRegistration'>> = {
   name: 'Unnamed Experiment',
   seed: Date.now(),
   world: {
@@ -434,6 +451,27 @@ export function validateSchema(schema: unknown): { valid: boolean; errors: Valid
   // Validate seed
   if (s.seed !== undefined && typeof s.seed !== 'number') {
     errors.push({ path: 'seed', message: 'Seed must be a number' });
+  }
+
+  // Validate pre-registration
+  if (s.preRegistration) {
+    const pr = s.preRegistration as Record<string, unknown>;
+    if (!pr.hypothesis || typeof pr.hypothesis !== 'string') {
+      errors.push({ path: 'preRegistration.hypothesis', message: 'Pre-registered hypothesis is required' });
+    }
+    if (!pr.primaryMetrics || !Array.isArray(pr.primaryMetrics) || pr.primaryMetrics.length === 0) {
+      errors.push({ path: 'preRegistration.primaryMetrics', message: 'At least one primary metric must be pre-registered' });
+    }
+    if (!pr.registeredAt || typeof pr.registeredAt !== 'string') {
+      errors.push({ path: 'preRegistration.registeredAt', message: 'Registration timestamp is required' });
+    }
+    // Check hypothesis consistency: pre-registered hypothesis must match the main hypothesis
+    if (pr.hypothesis && s.hypothesis && pr.hypothesis !== s.hypothesis) {
+      errors.push({
+        path: 'preRegistration.hypothesis',
+        message: 'Pre-registered hypothesis does not match the experiment hypothesis. This indicates a post-hoc modification.',
+      });
+    }
   }
 
   if (s.profile !== undefined && s.profile !== 'deterministic_baseline' && s.profile !== 'llm_exploratory') {

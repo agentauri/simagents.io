@@ -97,7 +97,7 @@ interface PromptInspectorState {
 // API Functions
 // =============================================================================
 
-const API_BASE = '';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 async function fetchInspectorStatus(): Promise<InspectorStatus> {
   const response = await fetch(`${API_BASE}/api/prompt/inspector/status`);

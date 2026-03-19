@@ -69,6 +69,7 @@ import {
   type MetricComparison,
   type SurvivalAnalysis,
 } from '../analysis/experiment-analysis';
+import { holmBonferroniCorrection } from '../analysis/metric-validator';
 import {
   applyScientificProfile,
   resolveScientificProfile,
@@ -78,6 +79,7 @@ import {
 } from './scientific-profile';
 import { getRuntimeConfig, setRuntimeConfig } from '../config';
 import { getActiveTransformations } from '../llm/prompt-builder';
+import { resetQLearningState } from '../agents/baselines';
 
 // =============================================================================
 // Types
@@ -111,6 +113,7 @@ export interface RunProvenance {
   llmCache: ReturnType<typeof getLLMCacheConfig>;
   activeTransformations: ReturnType<typeof getActiveTransformations>;
   runtimeConfig: ReturnType<typeof getRuntimeConfig>;
+  scientificControls: ResolvedScientificProfile['scientificControls'];
   interventions: ResolvedIntervention[];
   notes: string[];
 }
@@ -144,7 +147,10 @@ export interface RunResult {
     survivalRate: number;
     avgWealth: number;
     avgHealth: number;
+    avgHunger: number;
+    avgEnergy: number;
     giniCoefficient: number;
+    cooperationIndex: number;
     tradeCount: number;
     conflictCount: number;
   };
@@ -203,12 +209,20 @@ type SnapshotMetrics = {
   aliveAgents?: number;
   avgWealth?: number;
   avgHealth?: number;
+  avgHunger?: number;
+  avgEnergy?: number;
   giniCoefficient?: number;
+  cooperationIndex?: number;
   tradeCount?: number;
   conflictCount?: number;
 };
 
 type SnapshotState = {
+  llmType?: string;
+  x?: number;
+  y?: number;
+  hunger?: number;
+  energy?: number;
   balance: number;
   health: number;
   state: string;
@@ -262,6 +276,64 @@ function hashValue(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function buildDeterministicEventTraceHash(
+  eventsToHash: Awaited<ReturnType<typeof getEventsByTickRange>>
+): string {
+  const idMap = new Map<string, string>();
+  let nextId = 1;
+
+  const normalize = (value: unknown): unknown => {
+    if (typeof value === 'string' && UUID_PATTERN.test(value)) {
+      if (!idMap.has(value)) {
+        idMap.set(value, `id_${nextId++}`);
+      }
+      return idMap.get(value);
+    }
+
+    if (Array.isArray(value)) {
+      return value.map((item) => normalize(item));
+    }
+
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, normalize(item)])
+      );
+    }
+
+    return value;
+  };
+
+  const normalizedEvents = eventsToHash
+    .filter((event) => !['tick_start', 'tick_end'].includes(event.eventType))
+    .map((event) => normalize({
+      tick: event.tick,
+      eventType: event.eventType,
+      agentId: event.agentId,
+      payload: event.payload,
+    }) as {
+      tick: number;
+      eventType: string;
+      agentId?: string | null;
+      payload: unknown;
+    });
+
+  const withCachedKey = normalizedEvents.map((event) => ({
+    ...event,
+    _payloadKey: JSON.stringify(event.payload),
+  }));
+
+  withCachedKey.sort((left, right) =>
+    left.tick - right.tick ||
+    left.eventType.localeCompare(right.eventType) ||
+    String(left.agentId ?? '').localeCompare(String(right.agentId ?? '')) ||
+    left._payloadKey.localeCompare(right._payloadKey)
+  );
+
+  return hashValue(withCachedKey);
+}
+
 function getCodeVersion(): string | null {
   const envVersion =
     process.env.GIT_COMMIT_SHA ??
@@ -283,6 +355,34 @@ function getCodeVersion(): string | null {
 
 function getInitialAgentCount(metrics: SnapshotMetrics | null, states: SnapshotState[] | null): number {
   return metrics?.aliveAgents ?? states?.filter((state) => state.state !== 'dead').length ?? 0;
+}
+
+function normalizeStateHash(states: SnapshotState[] | null): unknown[] | null {
+  if (!states) {
+    return null;
+  }
+
+  return [...states]
+    .map((state) => ({
+      llmType: state.llmType ?? 'unknown',
+      x: state.x ?? 0,
+      y: state.y ?? 0,
+      hunger: state.hunger ?? 0,
+      energy: state.energy ?? 0,
+      balance: state.balance,
+      health: state.health,
+      state: state.state,
+    }))
+    .sort((left, right) =>
+      left.llmType.localeCompare(right.llmType)
+      || left.state.localeCompare(right.state)
+      || left.x - right.x
+      || left.y - right.y
+      || left.balance - right.balance
+      || left.health - right.health
+      || left.hunger - right.hunger
+      || left.energy - right.energy
+    );
 }
 
 function buildRunMetricsFromSnapshots(
@@ -328,6 +428,9 @@ function buildRunMetricsFromSnapshots(
     }))
   );
 
+  const normalizedFirstStates = normalizeStateHash(firstStates);
+  const normalizedLastStates = normalizeStateHash(lastStates);
+
   return {
     initialAgents,
     finalMetrics: {
@@ -335,14 +438,17 @@ function buildRunMetricsFromSnapshots(
       survivalRate: initialAgents > 0 ? finalAlive / initialAgents : 0,
       avgWealth: lastMetrics?.avgWealth ?? 0,
       avgHealth: lastMetrics?.avgHealth ?? 0,
+      avgHunger: lastMetrics?.avgHunger ?? 0,
+      avgEnergy: lastMetrics?.avgEnergy ?? 0,
       giniCoefficient: lastMetrics?.giniCoefficient ?? 0,
+      cooperationIndex: lastMetrics?.cooperationIndex ?? 0,
       tradeCount: lastMetrics?.tradeCount ?? 0,
       conflictCount: lastMetrics?.conflictCount ?? 0,
     },
     survivalAnalysis,
     economicAnalysis,
-    initialStateHash: firstStates ? hashValue(firstStates) : null,
-    finalStateHash: lastStates ? hashValue(lastStates) : null,
+    initialStateHash: normalizedFirstStates ? hashValue(normalizedFirstStates) : null,
+    finalStateHash: normalizedLastStates ? hashValue(normalizedLastStates) : null,
   };
 }
 
@@ -563,9 +669,9 @@ async function executePlannedRun(
   const scientificProfile = applyScientificProfile(plan.profile);
 
   try {
+    await resetRunnerWorld();
     resetRNG();
     initializeRNG(String(plan.seed));
-    await resetRunnerWorld();
 
     if (plan.schema.genesis?.enabled) {
       await resetWorldWithGenesis(schemaToGenesisSpawnConfig({ ...plan.schema, mode: plan.profile.resolvedMode }));
@@ -591,6 +697,7 @@ async function executePlannedRun(
       llmCache: getLLMCacheConfig(),
       activeTransformations: getActiveTransformations(),
       runtimeConfig: getRuntimeConfig(),
+      scientificControls: plan.profile.scientificControls,
       interventions,
       notes: plan.profile.notes,
     };
@@ -722,12 +829,7 @@ async function executePlannedRun(
       artifact: {
         snapshotCount: snapshots.length,
         eventCount: runEvents.length,
-        eventTraceHash: hashValue(runEvents.map((event) => ({
-          tick: event.tick,
-          eventType: event.eventType,
-          agentId: event.agentId,
-          payload: event.payload,
-        }))),
+        eventTraceHash: buildDeterministicEventTraceHash(runEvents),
         initialStateHash: derived.initialStateHash,
         finalStateHash: derived.finalStateHash,
       },
@@ -762,6 +864,7 @@ async function executePlannedRun(
     tickEngine.stop();
     tickEngine.clearExperimentContext();
     resetRNG();
+    resetQLearningState();
     scientificProfile.restore();
   }
 }
@@ -782,11 +885,11 @@ function buildConditionComparisons(results: RunResult[]): VariantComparisonResul
       ticksRun: Math.round(mean(runs.map((run) => run.ticksCompleted))),
       metrics: {
         avgGiniCoefficient: mean(runs.map((run) => run.finalMetrics.giniCoefficient)),
-        avgCooperationIndex: 0,
+        avgCooperationIndex: mean(runs.map((run) => run.finalMetrics.cooperationIndex)),
         avgWealth: mean(runs.map((run) => run.finalMetrics.avgWealth)),
         avgHealth: mean(runs.map((run) => run.finalMetrics.avgHealth)),
-        avgHunger: 0,
-        avgEnergy: 0,
+        avgHunger: mean(runs.map((run) => run.finalMetrics.avgHunger)),
+        avgEnergy: mean(runs.map((run) => run.finalMetrics.avgEnergy)),
         survivalRate: mean(runs.map((run) => run.finalMetrics.survivalRate)),
         totalEvents: mean(runs.map((run) => run.artifact.eventCount)),
         tradeCount: mean(runs.map((run) => run.finalMetrics.tradeCount)),
@@ -814,11 +917,17 @@ function buildStatisticalComparisons(results: RunResult[]): MetricComparison[] {
   if (!control) {
     return [];
   }
+  if (conditionEntries.length < 2 || conditionEntries.some(([, runs]) => runs.length < 2)) {
+    return [];
+  }
 
   const metricMap: Array<{ label: string; accessor: (result: RunResult) => number }> = [
     { label: 'Gini Coefficient', accessor: (result) => result.finalMetrics.giniCoefficient },
+    { label: 'Cooperation Index', accessor: (result) => result.finalMetrics.cooperationIndex },
     { label: 'Average Wealth', accessor: (result) => result.finalMetrics.avgWealth },
     { label: 'Average Health', accessor: (result) => result.finalMetrics.avgHealth },
+    { label: 'Average Hunger', accessor: (result) => result.finalMetrics.avgHunger },
+    { label: 'Average Energy', accessor: (result) => result.finalMetrics.avgEnergy },
     { label: 'Survival Rate', accessor: (result) => result.finalMetrics.survivalRate },
     { label: 'Trade Count', accessor: (result) => result.finalMetrics.tradeCount },
     { label: 'Conflict Count', accessor: (result) => result.finalMetrics.conflictCount },
@@ -839,14 +948,77 @@ function buildStatisticalComparisons(results: RunResult[]): MetricComparison[] {
     }
   }
 
+  const alpha = 0.05;
+  const adjustedPValues = holmBonferroniCorrection(
+    comparisons.map((comparison) => comparison.statisticalTest?.pValue ?? 1)
+  );
+
+  comparisons.forEach((comparison, index) => {
+    comparison.adjustedPValue = adjustedPValues[index];
+    comparison.significantAfterCorrection = adjustedPValues[index] < alpha;
+    comparison.correctionMethod = 'holm-bonferroni';
+  });
+
   return comparisons;
+}
+
+export function hasReplicatedConditions(results: RunResult[]): boolean {
+  const grouped = new Map<string, number>();
+  for (const result of results) {
+    grouped.set(result.conditionName, (grouped.get(result.conditionName) ?? 0) + 1);
+  }
+
+  return grouped.size >= 2 && Array.from(grouped.values()).every((count) => count >= 2);
+}
+
+export function isValidatedRun(result: RunResult): boolean {
+  const controls = result.provenance.scientificControls;
+
+  return result.profile === 'deterministic_baseline'
+    && result.benchmarkWorld === 'canonical_core'
+    && controls.canonicalMinimalWorld
+    && !controls.cooperationIncentivesEnabled
+    && !controls.trustPricingEnabled
+    && !controls.tradeBonusesEnabled
+    && !controls.spoilageEnabled
+    && !controls.puzzleEnabled
+    && !controls.personalitiesEnabled
+    && !controls.llmCacheEnabled
+    && !controls.cacheSharingEnabled;
+}
+
+export function determineClaimClass(results: RunResult[]): ExperimentReport['claimClass'] {
+  if (!hasReplicatedConditions(results)) {
+    return 'descriptive_only';
+  }
+
+  return results.every((result) => isValidatedRun(result))
+    ? 'validated'
+    : 'exploratory';
+}
+
+const SUPPORTED_SCIENTIFIC_METRICS = new Set([
+  'Gini Coefficient',
+  'Average Wealth',
+  'Average Health',
+  'Average Hunger',
+  'Average Energy',
+  'Survival Rate',
+  'Trade Count',
+  'Conflict Count',
+]);
+
+export function supportsScientificFinding(metric: MetricComparison): boolean {
+  const metricLabel = metric.metric.split(' (')[0];
+  return SUPPORTED_SCIENTIFIC_METRICS.has(metricLabel);
 }
 
 function buildReport(
   experimentId: string,
   experimentName: string,
   hypothesis: string | null,
-  results: RunResult[]
+  results: RunResult[],
+  schema?: ExperimentSchema
 ): ExperimentReport {
   const conditionComparisons = buildConditionComparisons(results);
   const grouped = new Map<string, RunResult[]>();
@@ -870,22 +1042,232 @@ function buildReport(
     conditionComparisons
   );
 
-  report.metricComparisons = buildStatisticalComparisons(results);
+  const claimClass = determineClaimClass(results);
+  const statisticalComparisons = buildStatisticalComparisons(results);
+  if (statisticalComparisons.length > 0) {
+    report.metricComparisons = statisticalComparisons;
+  }
+  // Enforcement: re-verify validated claims cannot be mis-labeled
+  let enforcedClaimClass = claimClass;
+  if (claimClass === 'validated') {
+    const failedRuns = results.filter((r) => !isValidatedRun(r));
+    if (failedRuns.length > 0) {
+      enforcedClaimClass = 'exploratory';
+      report.enforcementWarnings ??= [];
+      report.enforcementWarnings.push(
+        `Downgraded from validated to exploratory: ${failedRuns.length} run(s) failed validation controls.`
+      );
+    }
+  }
+  report.claimClass = enforcedClaimClass;
+  report.claimClassEnforced = true;
+
   report.survivalAnalysis = results.map((result) => result.survivalAnalysis);
   report.economicAnalysis = results.map((result) => result.economicAnalysis);
-  report.significantFindings = report.metricComparisons
-    .filter((metric) => metric.statisticalTest?.significant)
-    .map((metric) => `${metric.metric}: p=${metric.statisticalTest?.pValue.toFixed(4)} effect=${metric.statisticalTest?.effectInterpretation ?? 'n/a'}`);
+  report.significantFindings = enforcedClaimClass === 'descriptive_only'
+    ? []
+    : report.metricComparisons
+      .filter((metric) => metric.significantAfterCorrection && supportsScientificFinding(metric))
+      .map((metric) =>
+        `${metric.metric}: adjusted p=${metric.adjustedPValue?.toFixed(4) ?? 'n/a'} effect=${metric.statisticalTest?.effectInterpretation ?? 'n/a'} (${metric.correctionMethod ?? 'uncorrected'})`
+      );
 
-  if (report.metricComparisons.length === 0) {
-    report.conclusion = 'Single-condition run completed. The bundle contains descriptive artifacts only.';
+  if (enforcedClaimClass === 'descriptive_only') {
+    report.conclusion = 'The current run set is descriptive only. Scientific claims require at least two conditions with at least two runs each.';
   } else if (report.significantFindings.length === 0) {
-    report.conclusion = 'Comparative runs completed. No metric reached statistical significance under the configured tests.';
+    report.conclusion = enforcedClaimClass === 'validated'
+      ? 'Comparative runs completed under validated controls. No metric survived Holm correction.'
+      : 'Comparative exploratory runs completed. No metric survived Holm correction.';
   } else {
-    report.conclusion = `Comparative runs completed with ${report.significantFindings.length} statistically supported finding(s).`;
+    report.conclusion = enforcedClaimClass === 'validated'
+      ? `Validated comparative runs completed with ${report.significantFindings.length} Holm-corrected finding(s).`
+      : `Exploratory comparative runs completed with ${report.significantFindings.length} Holm-corrected finding(s). Treat them as hypothesis-generating.`;
   }
 
+  // Pre-registration enforcement
+  if (schema) {
+    enforcePreRegistration(schema, report);
+  }
+
+  // Auto-generate threats to validity
+  report.threatsToValidity = generateThreatsToValidity(results, enforcedClaimClass, report);
+
   return report;
+}
+
+// =============================================================================
+// Threats to Validity
+// =============================================================================
+
+function generateThreatsToValidity(
+  results: RunResult[],
+  claimClass: ExperimentReport['claimClass'],
+  report: ExperimentReport
+): string[] {
+  const threats: string[] = [];
+
+  // Internal validity threats
+  const runsPerCondition = new Map<string, number>();
+  for (const r of results) {
+    runsPerCondition.set(r.conditionName, (runsPerCondition.get(r.conditionName) ?? 0) + 1);
+  }
+  const minRuns = Math.min(...runsPerCondition.values());
+
+  if (minRuns < 5) {
+    threats.push(
+      `Small sample size: minimum ${minRuns} run(s) per condition. ` +
+      `Statistical power may be insufficient to detect small effects. ` +
+      `Use requiredSampleSize() for a priori power analysis.`
+    );
+  }
+
+  // Check for LLM non-determinism
+  const llmRuns = results.filter((r) => r.provenance.resolvedMode === 'llm');
+  if (llmRuns.length > 0) {
+    threats.push(
+      'LLM decision-making is inherently stochastic. Even with fixed seeds, LLM API responses ' +
+      'may vary across runs due to model updates, temperature sampling, or provider-side changes. ' +
+      'Results should be treated as exploratory unless deterministic_baseline profile is used.'
+    );
+  }
+
+  // Check for cache effects
+  const cachedRuns = results.filter((r) => r.provenance.scientificControls?.llmCacheEnabled);
+  if (cachedRuns.length > 0) {
+    threats.push(
+      `${cachedRuns.length} run(s) had LLM cache enabled. Cached decisions may mask variability ` +
+      'in agent behavior and reduce the effective independence of observations.'
+    );
+  }
+
+  // Check for cooperation/trust incentives
+  const incentivizedRuns = results.filter((r) =>
+    r.provenance.scientificControls?.cooperationIncentivesEnabled ||
+    r.provenance.scientificControls?.trustPricingEnabled ||
+    r.provenance.scientificControls?.tradeBonusesEnabled
+  );
+  if (incentivizedRuns.length > 0) {
+    threats.push(
+      `${incentivizedRuns.length} run(s) had cooperation/trust incentives enabled. ` +
+      'These designed affordances may confound emergent behavior claims. ' +
+      'Use canonical_core benchmark world for unconfounded comparisons.'
+    );
+  }
+
+  // External validity threats
+  if (results.length > 0 && results[0].ticksCompleted < 100) {
+    threats.push(
+      `Short experiment duration (${results[0].ticksCompleted} ticks). ` +
+      'Emergent social patterns may require longer runs to stabilize. ' +
+      'Results may reflect transient dynamics rather than equilibrium behavior.'
+    );
+  }
+
+  // Construct validity
+  const lowPowerComparisons = report.metricComparisons.filter((mc) => {
+    const enhanced = mc as { power?: number };
+    return enhanced.power !== undefined && enhanced.power < 0.8;
+  });
+  if (lowPowerComparisons.length > 0) {
+    threats.push(
+      `${lowPowerComparisons.length} metric comparison(s) have statistical power below 0.80. ` +
+      'Non-significant results may reflect insufficient power rather than true null effects.'
+    );
+  }
+
+  // Hash consistency
+  const seedHashes = new Map<number, Set<string>>();
+  for (const r of results) {
+    const hashes = seedHashes.get(r.seed) ?? new Set();
+    hashes.add(r.artifact.eventTraceHash);
+    seedHashes.set(r.seed, hashes);
+  }
+  const inconsistentSeeds = [...seedHashes.entries()].filter(([, hashes]) => hashes.size > 1);
+  if (inconsistentSeeds.length > 0) {
+    threats.push(
+      `Reproducibility concern: ${inconsistentSeeds.length} seed(s) produced different event traces ` +
+      'across runs. This may indicate non-deterministic execution paths.'
+    );
+  }
+
+  // Descriptive-only warning
+  if (claimClass === 'descriptive_only') {
+    threats.push(
+      'This experiment produced descriptive results only. No comparative statistical claims ' +
+      'can be made. At least two conditions with two or more runs each are required.'
+    );
+  }
+
+  return threats;
+}
+
+// =============================================================================
+// Pre-Registration Enforcement
+// =============================================================================
+
+function enforcePreRegistration(
+  schema: { preRegistration?: { hypothesis: string; primaryMetrics: string[]; registeredAt: string; configHash?: string }; hypothesis?: string },
+  report: ExperimentReport
+): void {
+  if (!schema.preRegistration) {
+    report.preRegistration = {
+      registered: false,
+      hypothesis: null,
+      primaryMetrics: [],
+      registeredAt: null,
+      deviations: [],
+    };
+    return;
+  }
+
+  const pr = schema.preRegistration;
+  const deviations: string[] = [];
+
+  // Check hypothesis consistency
+  if (pr.hypothesis && schema.hypothesis && pr.hypothesis !== schema.hypothesis) {
+    deviations.push(
+      `Hypothesis modified post-registration. ` +
+      `Registered: "${pr.hypothesis.slice(0, 80)}..." ` +
+      `Current: "${schema.hypothesis.slice(0, 80)}..."`
+    );
+  }
+
+  // Check that all pre-registered primary metrics are in the report
+  const reportedMetricLabels = new Set(
+    report.metricComparisons.map((mc) => mc.metric.split(' (')[0])
+  );
+  for (const metric of pr.primaryMetrics) {
+    if (!reportedMetricLabels.has(metric)) {
+      deviations.push(`Pre-registered primary metric "${metric}" not found in report output.`);
+    }
+  }
+
+  // Flag non-pre-registered significant findings
+  const primarySet = new Set(pr.primaryMetrics);
+  for (const finding of report.significantFindings) {
+    const metricLabel = finding.split(':')[0]?.split(' (')[0]?.trim();
+    if (metricLabel && !primarySet.has(metricLabel)) {
+      deviations.push(
+        `Significant finding on non-pre-registered metric "${metricLabel}". ` +
+        'This should be reported as exploratory/post-hoc, not confirmatory.'
+      );
+    }
+  }
+
+  if (deviations.length > 0) {
+    report.enforcementWarnings ??= [];
+    report.enforcementWarnings.push(
+      `Pre-registration deviations detected: ${deviations.length} issue(s). See preRegistration.deviations for details.`
+    );
+  }
+
+  report.preRegistration = {
+    registered: true,
+    hypothesis: pr.hypothesis,
+    primaryMetrics: pr.primaryMetrics,
+    registeredAt: pr.registeredAt,
+    deviations,
+  };
 }
 
 function exportResearchBundle(
@@ -894,6 +1276,35 @@ function exportResearchBundle(
   report: ExperimentReport,
   bundle: ResearchBundle
 ): void {
+  // Enforce claim class consistency before writing to disk
+  if (report.claimClass === 'validated') {
+    const invalidRuns = bundle.runs.filter((run) => !isValidatedRun(run));
+    if (invalidRuns.length > 0) {
+      console.warn(`[Runner] Enforcement: downgrading claim from validated to exploratory — ${invalidRuns.length} run(s) fail validation controls.`);
+      report.claimClass = 'exploratory';
+      report.enforcementWarnings ??= [];
+      report.enforcementWarnings.push(
+        `Export-time downgrade: ${invalidRuns.length} run(s) failed validation controls.`,
+      );
+    }
+  }
+
+  // Check hash consistency for validated claims (separate check so it's not skipped by prior downgrade)
+  if (report.claimClass === 'validated') {
+    const seeds = new Map<number, string>();
+    for (const run of bundle.runs) {
+      const existingHash = seeds.get(run.seed);
+      if (existingHash && existingHash !== run.artifact.eventTraceHash) {
+        console.warn(`[Runner] Enforcement: downgrading claim — inconsistent hashes for seed ${run.seed}.`);
+        report.claimClass = 'exploratory';
+        report.enforcementWarnings ??= [];
+        report.enforcementWarnings.push(`Hash inconsistency detected for seed ${run.seed}.`);
+        break;
+      }
+      seeds.set(run.seed, run.artifact.eventTraceHash);
+    }
+  }
+
   const baseName = basename(configPath, extname(configPath));
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const bundleDir = join(outputDir, `${baseName}-${timestamp}`);
@@ -1068,7 +1479,7 @@ export async function runExperiment(options: RunnerOptions): Promise<RunResult[]
 
   await updateExperimentStatus(experiment.id, 'completed');
 
-  const report = buildReport(experiment.id, experiment.name, schema.hypothesis ?? null, results);
+  const report = buildReport(experiment.id, experiment.name, schema.hypothesis ?? null, results, schema);
   const bundle: ResearchBundle = {
     experiment: {
       id: experiment.id,

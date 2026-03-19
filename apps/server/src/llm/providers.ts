@@ -43,10 +43,10 @@ export const LLM_PROVIDERS: LLMProviderInfo[] = [
   },
   {
     type: 'deepseek',
-    displayName: 'DeepSeek Reasoner',
+    displayName: 'DeepSeek V3',
     envVar: 'DEEPSEEK_API_KEY',
     docsUrl: 'https://platform.deepseek.com/api_keys',
-    costInfo: '$0.55/1M input, $2.19/1M output',
+    costInfo: '$0.27/1M input, $1.10/1M output',
   },
   {
     type: 'qwen',

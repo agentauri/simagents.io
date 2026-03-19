@@ -83,7 +83,7 @@ function savePromptToStorage(prompt: string | null): void {
 // API Functions
 // =============================================================================
 
-const API_BASE = '';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 interface PromptStatusResponse {
   customPrompt: string | null;

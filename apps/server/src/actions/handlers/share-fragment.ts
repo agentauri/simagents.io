@@ -19,6 +19,7 @@ import type { ActionIntent, ActionResult, ShareFragmentParams } from '../types';
 import type { Agent } from '../../db/schema';
 import {
   getFragmentById,
+  getAgentFragmentsInGame,
   getParticipant,
   markFragmentShared,
   incrementFragmentsShared,
@@ -43,13 +44,26 @@ export async function handleShareFragment(
     };
   }
 
-  // Get the fragment
-  const fragment = await getFragmentById(fragmentId);
+  // Get the fragment — also handle common LLM error of sending gameId instead of fragmentId
+  let fragment = fragmentId ? await getFragmentById(fragmentId) : null;
   if (!fragment) {
-    return {
-      success: false,
-      error: `Fragment not found: ${fragmentId}`,
-    };
+    // Fallback: if agent sent gameId instead of fragmentId, find their first unshared fragment
+    const gameId = (intent.params as unknown as Record<string, unknown>).gameId as string | undefined;
+    if (gameId) {
+      const agentFragments = await getAgentFragmentsInGame(agent.id, gameId);
+      const unshared = agentFragments?.find((f) =>
+        !(f.sharedWith as string[] || []).includes(targetAgentId)
+      );
+      if (unshared) {
+        fragment = unshared;
+      }
+    }
+    if (!fragment) {
+      return {
+        success: false,
+        error: `Fragment not found: ${fragmentId}. Use the fragment ID from your puzzle fragments list, not the game ID.`,
+      };
+    }
   }
 
   // Check agent owns the fragment

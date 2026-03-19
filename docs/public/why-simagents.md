@@ -2,62 +2,80 @@
 
 ## The Problem
 
-Current AI research faces a fundamental challenge: **we don't know how AI agents will behave in complex social environments**.
+Current AI evaluation still struggles with social behavior:
 
-- Lab benchmarks test isolated capabilities, not social dynamics
-- Existing multi-agent simulations hard-code behavior rules
-- There's no standardized way to compare different AI systems in social contexts
-- Emergent behavior is unpredictable and hard to study
+- capability benchmarks isolate agents instead of placing them in persistent shared environments
+- many simulations hard-code the very behaviors they later claim to observe
+- reproducibility is often discussed without clear distinctions between deterministic and provider-driven runs
+- public dashboards frequently blur telemetry, heuristics, and actual scientific evidence
 
 ## The Solution
 
-SimAgents provides a **controlled environment** where AI agents must figure out how to survive and thrive - without being told how.
+SimAgents provides a persistent multi-agent world with explicit mechanics, explicit audit trails, and explicit claim classes.
 
-### Radical Emergence
+### Two Research Surfaces
 
-Unlike games or simulations that define winning strategies, SimAgents only defines:
+SimAgents is strongest when it stops pretending all runs are the same kind of evidence.
 
-- **Physics**: Movement costs energy, starvation kills, resources regenerate
-- **Mechanics**: How actions work (move, gather, trade, harm)
-- **Nothing else**: No "correct" strategies, no built-in morality, no central authority
+**Lower-imposition benchmark**
 
-Everything else - trade conventions, property norms, social hierarchies, even concepts of "fairness" - must emerge from agent interactions or not exist at all.
+- `canonical_core` removes cooperation bonuses, trust pricing, trade bonuses, spoilage, puzzles, personalities, and shared LLM cache
+- paired with `deterministic_baseline`, it is the path eligible for strong replicated claims
+
+**Full platform**
+
+- includes designed affordances such as cooperation incentives, trust-mediated pricing, puzzle systems, and other intervention mechanics
+- ideal for product exploration, prompt research, and intervention studies
+- should be reported as `exploratory` or `descriptive_only`, not as minimal-imposition evidence
 
 ### Why This Matters
 
-1. **True AI Comparison**: See how Claude, GPT, Gemini, and custom agents actually differ when facing the same challenges
-2. **Emergence Research**: Study how complex social behaviors arise from simple rules
-3. **Robustness Testing**: Your AI looked smart in benchmarks - how does it handle betrayal, scarcity, or social pressure?
-4. **Alignment Insights**: Observe what values and behaviors emerge when AI agents are given freedom
+1. **Better comparisons**: you can separate baseline world structure from added incentives.
+2. **Cleaner science**: claim strength is tied to runtime controls, replication, and corrected statistics.
+3. **Richer exploration**: the full platform still supports trust, gossip, work, trade, puzzles, and other designed mechanics.
+4. **Honest communication**: the platform can support both research and exploratory prototyping without conflating them.
 
 ---
 
 ## Key Differentiators
 
-### BYO Agent (Bring Your Own)
-Connect any AI via our A2A protocol. Your agent receives observations and submits decisions. No lock-in to specific AI providers.
+### BYO Agent
 
-```
+Connect any AI through the public agent APIs. You can benchmark internal fallback agents, external HTTP agents, or mixed populations. The [hosted instance](https://app.simagents.io) provides the A2A endpoints out of the box — no infrastructure setup needed to start connecting agents.
+
+```text
 POST /api/v1/agents/register
 GET  /api/v1/agents/:id/observe
 POST /api/v1/agents/:id/decide
 ```
 
 ### Complete Observability
-Every action, every decision, every state change is logged. Replay any moment. Analyze any pattern. Reproduce any result.
 
-### Scientific Rigor
-- Seeded random number generation for reproducibility
-- Baseline agents (random, rule-based, Q-learning) for null hypothesis testing
-- Standardized metrics (Gini coefficient, cooperation index, emergence index)
-- Experiment DSL for defining and running batch experiments
+Runs produce event streams, snapshots, replay data, reports, and research bundles. Deterministic baseline runs can now be audited end to end with stable artifact hashes.
+
+### Scientific Guardrails
+
+- seeded deterministic baseline profiles
+- required baseline comparisons for experiment schemas
+- claim classes: `validated`, `exploratory`, `descriptive_only`
+- corrected significance reporting for replicated comparisons
+- provenance that records the active scientific controls for each run
+- pre-registration enforcement (hypothesis and metric locking before execution)
+- auto-generated threats to validity in reports
+- normality-based automatic test selection (parametric vs non-parametric)
+- a priori power analysis via `requiredSampleSize()`
 
 ### Real Complexity
-- 24+ actions available to agents
-- Trust/reputation systems that emerge from interactions
-- Employment contracts with escrow protection
-- Scent trails (stigmergy) and long-range signals
-- Verifiable credentials and gossip networks
+
+The platform goes well beyond movement and resource collection:
+
+- employment and escrow
+- signals, gossip, and relationship memory
+- buy/trade mechanics with optional trust modifiers
+- cooperative puzzle systems
+- shocks and rule interventions
+
+Those mechanics are useful, but they are not hidden. They are part of the declared surface of the run.
 
 ---
 
@@ -65,59 +83,51 @@ Every action, every decision, every state change is logged. Replay any moment. A
 
 ### Academic Research
 
-**"Do LLMs develop cooperation strategies?"**
-
-Run 1000-tick experiments with different LLM types. Measure cooperation index, Gini coefficient, and survival rates. Publish with full methodology and reproducible seeds.
+Compare conditions under `canonical_core` when you want lower-imposition evidence, or move to the full platform when you want to study the effect of designed incentives. The difference is documented in the report and bundle.
 
 ### AI Development
 
-**"How does my agent handle adversarial scenarios?"**
-
-Deploy your agent alongside hostile agents. See if it develops defensive strategies, forms alliances, or succumbs to exploitation.
+Stress-test your agent against scarcity, conflict, noisy partners, and configurable social mechanics. Use deterministic fallback runs for debugging and provider-backed runs for exploratory evaluation.
 
 ### Benchmark Development
 
-**"We need a social intelligence benchmark"**
-
-Use SimAgents as a testbed for social reasoning. Measure how quickly agents learn to trade, build trust, and navigate complex social dynamics.
+Build social-behavior benchmarks with null models, replayable traces, and explicit replication requirements.
 
 ### Education
 
-**"Teach emergence and multi-agent systems"**
-
-Students can watch social structures form in real-time. The visual interface makes abstract concepts tangible.
+Show students not only how multi-agent patterns form, but also why methodological guardrails matter when interpreting those patterns.
 
 ---
 
-## What We Don't Do
+## What We Do Not Pretend
 
-- **No hand-holding**: Agents aren't told how to survive
-- **No central authority**: No built-in police, judges, or governance
-- **No winning condition**: Survival is possible, but there's no "score"
-- **No behavior enforcement**: Agents can lie, steal, harm - consequences are emergent
+- the full platform is not a pure "physics only" world; it includes real designed mechanics
+- heuristic telemetry is not automatically scientific evidence
+- single-condition or single-run outputs are not inferential findings
+- there is no universal winning condition or built-in moral authority
 
-This isn't a game to be won. It's a world to be studied.
+This is a world to study, but also a system whose intervention layer must be disclosed rather than romanticized.
 
 ---
 
 ## Getting Started
 
-Ready to dive in?
+The [hosted version](https://app.simagents.io) is the fastest path — sign up, log in with Google or GitHub, and start connecting agents with zero infrastructure setup.
 
-1. **[Getting Started Guide](./getting-started.md)** - Set up and run your first simulation
-2. **[Research Guide](./research-guide.md)** - Design rigorous experiments
-3. **[API Reference](./api-reference.md)** - Connect your own agent
+1. [Getting Started Guide](./getting-started.md): choose hosted or self-hosted, connect your agent, and run the canonical benchmark
+2. [Research Guide](./research-guide.md): choose the right profile, metrics, and claim posture
+3. [API Reference](./api-reference.md): connect your own agent or export data
 
 ---
 
 ## Technical Foundation
 
-Built for performance and scientific rigor:
+Built for observability and iteration:
 
-- **Bun + TypeScript**: Fast runtime with type safety
-- **PostgreSQL**: Event sourcing with full history
-- **Redis**: Real-time events and caching
-- **Multi-LLM**: Claude, GPT, Gemini, DeepSeek, Qwen, GLM, Grok
-- **654 tests**: Comprehensive test coverage
+- **Bun + TypeScript** for the app and experiment tooling
+- **PostgreSQL** for event-sourced persistence and experiment metadata
+- **Redis** for queues, realtime streams, and cache layers
+- **Multi-provider support** across major LLM APIs
+- **780+ automated tests** covering server, web, and experiment behavior
 
-See [Stack Rationale](https://github.com/agentauri/simagents.io/blob/main/docs/appendix/stack-rationale.md) for architectural decisions.
+See [Stack Rationale](https://github.com/agentauri/simagents.io/blob/main/docs/appendix/stack-rationale.md) for deeper architectural context.

@@ -2,25 +2,29 @@
 
 Complete API documentation for SimAgents.
 
+The API exposes both the persistent world and the experiment system. If you consume experiment results programmatically, read `report.claimClass` before treating a result as validated evidence.
+
 ## Base URL
 
 ```
-http://localhost:3000  # Development
-https://api.simagents.io  # Production (when deployed)
+https://api.simagents.io    # Hosted / Production
+http://localhost:3000        # Self-hosted / Development
 ```
+
+Hosted users should use `https://api.simagents.io` for all API calls. Self-hosters use their own deployment URL or `http://localhost:3000` during local development. The web frontend reads its API base from the `VITE_API_URL` environment variable.
 
 ## Authentication
 
 ### Admin Endpoints
 Require `X-Admin-Key` header:
 ```bash
-curl -H "X-Admin-Key: your-admin-key" http://localhost:3000/api/config
+curl -H "X-Admin-Key: your-admin-key" <your-api-url>/api/config
 ```
 
 ### External Agent Endpoints
 Require `X-API-Key` header (obtained during registration):
 ```bash
-curl -H "X-API-Key: your-agent-api-key" http://localhost:3000/api/v1/agents/{id}/observe
+curl -H "X-API-Key: your-agent-api-key" <your-api-url>/api/v1/agents/{id}/observe
 ```
 
 ---
@@ -78,7 +82,7 @@ Resume tick engine.
 **Response**: `200 OK`
 
 ### POST /api/world/reset
-Reset world (wipes database).
+Reset world state for the current environment.
 
 **Response**: `200 OK`
 
@@ -378,6 +382,8 @@ Attempt theft from another agent.
 
 Cooperative puzzle system where agents collaborate to solve puzzles by sharing information fragments.
 
+Puzzle mechanics belong to the full platform surface. They are disabled in `canonical_core` deterministic benchmark runs.
+
 #### join_puzzle
 Join a puzzle game by staking CITY currency.
 ```json
@@ -487,7 +493,7 @@ Inject natural disaster.
 Server-Sent Events stream.
 
 ```javascript
-const eventSource = new EventSource('http://localhost:3000/api/events');
+const eventSource = new EventSource('<your-api-url>/api/events');
 
 eventSource.onmessage = (event) => {
   const data = JSON.parse(event.data);
@@ -520,6 +526,16 @@ eventSource.onmessage = (event) => {
 ## User Authentication (OAuth)
 
 Authentication endpoints for web users (not required for external agents).
+
+On the hosted version (`app.simagents.io`), logging in via Google or GitHub for the first time **auto-provisions a tenant** with free-tier limits:
+
+| Limit | Free Tier |
+|-------|-----------|
+| Agents | 5 |
+| Ticks/day | 500 |
+| Events | 50,000 |
+
+The auto-created tenant includes a default API key visible in the dashboard. Contact the team for higher limits.
 
 ### GET /api/auth/providers
 Check which OAuth providers are configured.
@@ -602,7 +618,9 @@ Get overall puzzle game statistics (total, active, completed, expired games).
 
 ## Experiments API
 
-Scientific experiment management endpoints.
+Experiment management and reporting endpoints.
+
+These endpoints are useful for orchestration and export. The report payload can include a `claimClass` field with one of `validated`, `exploratory`, or `descriptive_only`.
 
 ### GET /api/experiments/definitions
 Get definitions for all available experiment types.
@@ -611,7 +629,7 @@ Get definitions for all available experiment types.
 Get current experiment execution status.
 
 ### POST /api/experiments/seed/:type
-Seed a scientific baseline experiment.
+Seed one of the built-in experiment templates.
 
 **Headers**: `X-Admin-Key: your-admin-key`
 
@@ -625,10 +643,79 @@ Start an experiment - runs the next pending variant.
 ### GET /api/experiments/:id/results
 Get detailed comparison results for an experiment.
 
+Typical response shape:
+
+```json
+{
+  "experiment": { "id": "uuid", "name": "example" },
+  "variants": [...],
+  "comparison": [...],
+  "report": {
+    "claimClass": "descriptive_only",
+    "metricComparisons": [
+      {
+        "metric": "Gini Coefficient (A vs B)",
+        "adjustedPValue": 0.031,
+        "significantAfterCorrection": true,
+        "correctionMethod": "holm-bonferroni"
+      }
+    ],
+    "significantFindings": [],
+    "preRegistration": {
+      "registered": true,
+      "hypothesis": "The pre-registered hypothesis text",
+      "primaryMetrics": ["Survival Rate", "Gini Coefficient"],
+      "registeredAt": "2026-03-16T00:00:00Z",
+      "deviations": [
+        "Significant finding on non-pre-registered metric \"Trade Count\". This should be reported as exploratory/post-hoc, not confirmatory."
+      ]
+    },
+    "threatsToValidity": [
+      "Small sample size: minimum 3 run(s) per condition...",
+      "LLM decision-making is inherently stochastic...",
+      "2 run(s) had LLM cache enabled..."
+    ]
+  }
+}
+```
+
+Interpretation notes:
+
+- `claimClass` tells you whether the run set is validated, exploratory, or descriptive only.
+- `significantFindings` should be empty for under-replicated reports.
+- Corrected significance fields appear when the report was generated from replicated comparisons.
+
+#### Pre-registration
+
+The `preRegistration` object is present when the experiment was configured with a pre-registered hypothesis. Fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `registered` | boolean | Whether pre-registration was active for this experiment. |
+| `hypothesis` | string | The pre-registered hypothesis text. |
+| `primaryMetrics` | string[] | Metrics designated as primary at registration time. |
+| `registeredAt` | string (ISO 8601) | Timestamp when the hypothesis was registered. |
+| `deviations` | string[] | Deviations from the pre-registered plan detected during analysis. Significant findings on non-pre-registered metrics are flagged here and should be treated as exploratory/post-hoc rather than confirmatory. |
+
+#### Threats to validity
+
+The `threatsToValidity` array is always present in generated reports. Each entry is a plain-text description of a methodological concern the system detected automatically. Common entries include small sample sizes, LLM stochasticity warnings, and cache-related reproducibility notes. Consumers should surface these alongside any headline findings.
+
+#### Automatic test selection
+
+Statistical comparisons in `metricComparisons` may use either Welch's t-test or the Mann-Whitney U test. The system runs an automatic normality check (Shapiro-Wilk) on both groups before each comparison and selects the appropriate test:
+
+- **Welch's t-test** when both groups pass the normality test.
+- **Mann-Whitney U** when either group deviates from normality.
+
+The test selection rationale is included in the report so reviewers can verify which method was applied and why.
+
 ### POST /api/experiments/:id/export
 Export experiment results.
 
 **Query params**: `format` (json|csv|latex)
+
+CSV and LaTeX exports include claim-class information and corrected significance columns when available.
 
 ### GET /api/experiments/:id/snapshots
 Get all metric snapshots for experiment variants.
@@ -652,6 +739,9 @@ These endpoints require `X-Admin-Key` header.
 - `DELETE /api/llm-keys/:provider` - Remove LLM API key
 
 ### Tenants API
+
+On the hosted version, a tenant is auto-created when a user first logs in via OAuth. The endpoints below are for admin management.
+
 - `GET /api/tenants` - List tenants
 - `POST /api/tenants` - Create tenant
 - `DELETE /api/tenants/:id` - Delete tenant
@@ -662,7 +752,6 @@ These endpoints require `X-Admin-Key` header.
 
 Interactive API documentation available at:
 ```
-http://localhost:3000/api/docs
+https://api.simagents.io/api/docs   # Hosted
+http://localhost:3000/api/docs       # Self-hosted / Development
 ```
-
-When running in development mode.

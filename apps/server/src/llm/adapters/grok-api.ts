@@ -14,7 +14,7 @@ export class GrokAPIAdapter extends BaseLLMAdapter {
 
   // xAI API (OpenAI-compatible)
   private readonly endpoint = 'https://api.x.ai/v1/chat/completions';
-  private readonly model = 'grok-4-1-fast-reasoning';
+  private readonly model = 'grok-4-1-fast';
   private readonly timeout: number;
 
   constructor(timeout = 30000) {

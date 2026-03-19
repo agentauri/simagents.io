@@ -318,15 +318,15 @@ async function testDeterministicRunReproducibility(): Promise<boolean> {
       console.log(`  ✓ Matching final state hash: ${run1.artifact.finalStateHash?.slice(0, 12) ?? 'n/a'}...`);
     } else {
       console.log('  ✗ Deterministic runner produced different artifacts for the same seed');
+      console.log(`    run1 event trace: ${run1.artifact.eventTraceHash}`);
+      console.log(`    run2 event trace: ${run2.artifact.eventTraceHash}`);
+      console.log(`    run1 final state: ${run1.artifact.finalStateHash ?? 'n/a'}`);
+      console.log(`    run2 final state: ${run2.artifact.finalStateHash ?? 'n/a'}`);
     }
 
     return identical;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (message.includes('Failed query') || message.includes('Failed to connect')) {
-      console.log(`  - Skipped: whole-run determinism requires the server database/redis stack (${message})`);
-      return true;
-    }
     console.log(`  ✗ Unable to execute whole-run determinism check: ${message}`);
     return false;
   } finally {

@@ -42,7 +42,7 @@ export interface AuthState {
 // API Functions
 // =============================================================================
 
-const API_BASE = '';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 interface UserResponse {
   id: string;
@@ -269,8 +269,7 @@ export async function initializeAuth(): Promise<boolean> {
 // =============================================================================
 
 const getApiBase = () => {
-  // In production, use relative URL. In dev, might need to specify backend URL.
-  return '';
+  return import.meta.env.VITE_API_URL || '';
 };
 
 export function loginWithGoogle() {

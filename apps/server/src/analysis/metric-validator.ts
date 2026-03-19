@@ -16,6 +16,7 @@ import { v4 as uuid } from 'uuid';
 import { db } from '../db/index';
 import { agents, events, agentRelationships } from '../db/schema';
 import { eq, sql } from 'drizzle-orm';
+import { getAnalyticsSnapshot } from '../db/queries/analytics';
 import {
   giniCoefficient,
   mean,
@@ -26,9 +27,10 @@ import {
   interpretEffectSize,
   confidenceInterval,
   statisticalPower,
+  normalCDF,
 } from './experiment-analysis';
 import type { Agent, NewAgent } from '../db/schema';
-import { randomBelow } from '../utils/random';
+import { randomBelow, shuffle } from '../utils/random';
 
 // =============================================================================
 // Types
@@ -165,29 +167,11 @@ async function calculateGiniCoefficient(): Promise<number> {
 
 /**
  * Calculate cooperation index from events
- * Formula: trades / (trades + conflicts)
+ * Formula source of truth: analytics emergence registry
  */
 async function calculateCooperationIndex(): Promise<number> {
-  const tradeCount = await db
-    .select({ count: sql<number>`COUNT(*)` })
-    .from(events)
-    .where(eq(events.eventType, 'agent_trade'));
-
-  const harmCount = await db
-    .select({ count: sql<number>`COUNT(*)` })
-    .from(events)
-    .where(eq(events.eventType, 'agent_harm'));
-
-  const stealCount = await db
-    .select({ count: sql<number>`COUNT(*)` })
-    .from(events)
-    .where(eq(events.eventType, 'agent_steal'));
-
-  const trades = Number(tradeCount[0]?.count ?? 0);
-  const conflicts = Number(harmCount[0]?.count ?? 0) + Number(stealCount[0]?.count ?? 0);
-
-  if (trades + conflicts === 0) return 0.5; // Neutral if no interactions
-  return trades / (trades + conflicts);
+  const analytics = await getAnalyticsSnapshot();
+  return analytics.emergence?.cooperationIndex ?? 0;
 }
 
 /**
@@ -862,12 +846,8 @@ export function permutationTest(
   // Perform permutations
   let moreExtreme = 0;
   for (let i = 0; i < numPermutations; i++) {
-    // Shuffle combined array
-    const shuffled = [...combined];
-    for (let j = shuffled.length - 1; j > 0; j--) {
-      const k = randomBelow(j + 1);
-      [shuffled[j], shuffled[k]] = [shuffled[k], shuffled[j]];
-    }
+    // Shuffle combined array using seeded Fisher-Yates
+    const shuffled = shuffle([...combined]);
 
     // Split into two groups
     const permGroup1 = shuffled.slice(0, n1);
@@ -944,28 +924,6 @@ function chiSquaredPValue(chiSquared: number, df: number): number {
   // Convert to p-value using normal CDF
   const pValue = 1 - normalCDF(z);
   return Math.min(Math.max(pValue, 0), 1);
-}
-
-/**
- * Standard normal CDF approximation
- */
-function normalCDF(x: number): number {
-  const a1 = 0.254829592;
-  const a2 = -0.284496736;
-  const a3 = 1.421413741;
-  const a4 = -1.453152027;
-  const a5 = 1.061405429;
-  const p = 0.3275911;
-
-  const sign = x < 0 ? -1 : 1;
-  x = Math.abs(x) / Math.SQRT2;
-
-  const t = 1 / (1 + p * x);
-  const y =
-    1 -
-    ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
-
-  return 0.5 * (1 + sign * y);
 }
 
 /**
@@ -1059,18 +1017,20 @@ export function comprehensiveStatisticalComparison(
   const pctChange = mean1 !== 0 ? ((mean2 - mean1) / Math.abs(mean1)) * 100 : 0;
 
   // Run all tests
+  const rawTTest = tTest(group1, group2);
   const tTestResult = {
-    ...tTest(group1, group2),
+    ...rawTTest,
     testName: 't_test',
     alpha: 0.05,
-    isSignificant: tTest(group1, group2).significant,
+    isSignificant: rawTTest.significant,
   } as SignificanceTestResult;
 
+  const rawMannWhitney = mannWhitneyU(group1, group2);
   const mannWhitneyResult = {
-    ...mannWhitneyU(group1, group2),
+    ...rawMannWhitney,
     testName: 'mann_whitney_u',
     alpha: 0.05,
-    isSignificant: mannWhitneyU(group1, group2).significant,
+    isSignificant: rawMannWhitney.significant,
   } as SignificanceTestResult;
 
   const permResult = permutationTest(group1, group2, { numPermutations: 1000 });

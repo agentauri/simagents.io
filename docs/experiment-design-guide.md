@@ -48,7 +48,7 @@ The platform distinguishes between:
 - Social structures, alliances
 - Reputation, trust
 
-Experiments should measure emergent behaviors, not imposed mechanics.
+Experiments should measure emergent behaviors, not imposed mechanics. In practice, `canonical_core` is the lower-imposition benchmark because it disables cooperation/trust incentives, spoilage, puzzles, personalities, and shared LLM cache.
 
 ---
 
@@ -105,6 +105,9 @@ Experiments are defined using a JSON/YAML schema. The schema is validated at loa
 | `duration` | number | Yes | - | Simulation duration in ticks |
 | `tickIntervalMs` | number | No | 1000 | Tick interval in milliseconds |
 | `mode` | string | No | `"llm"` | Decision mode: `llm`, `fallback`, `random_walk` |
+| `preRegistration` | object | No | - | Pre-registration record with `hypothesis`, `primaryMetrics`, `registeredAt`, `configHash` |
+| `profile` | string | No | - | Scientific execution profile: `deterministic_baseline` or `llm_exploratory` |
+| `benchmarkWorld` | string | No | - | World complexity preset: `canonical_core` or `full_surface` |
 
 #### World Configuration (`world`)
 
@@ -148,7 +151,7 @@ Available metrics for collection:
 |--------|-------------|
 | `survivalRate` | Percentage of agents alive at end |
 | `giniCoefficient` | Wealth inequality (0 = equal, 1 = unequal) |
-| `cooperationIndex` | trades / (trades + harms + steals) |
+| `cooperationIndex` | heuristic `(positive trust share + repeat trade rate + cluster cohesion) / 3` |
 | `tradeCount` | Total trade events |
 
 #### Decision Modes
@@ -194,13 +197,13 @@ The schema supports `variants` for running multiple configurations:
 
 | Type | Model | Description |
 |------|-------|-------------|
-| `claude` | Claude 3.5 | Anthropic's balanced reasoning model |
-| `gemini` | Gemini Pro | Google's fast response model |
-| `codex` | GPT-4 | OpenAI's strong planning model |
-| `deepseek` | DeepSeek | Cost-effective option |
-| `qwen` | Qwen | Alibaba's multilingual model |
-| `glm` | GLM-4 | Chinese-optimized model |
-| `grok` | Grok | xAI's unconventional model |
+| `claude` | Claude Opus 4.6 (Anthropic) | Anthropic's balanced reasoning model |
+| `gemini` | Gemini 3.1 Pro (Google) | Google's fast response model |
+| `codex` | GPT-5.4 (OpenAI) | OpenAI's strong planning model |
+| `deepseek` | DeepSeek-R2 (DeepSeek) | Cost-effective option |
+| `qwen` | Qwen 3.5 Plus (Alibaba) | Alibaba's multilingual model |
+| `glm` | GLM-5 (Zhipu) | Chinese-optimized model |
+| `grok` | Grok 4.1 Fast (xAI) | xAI's unconventional model |
 | `external` | - | External agent via A2A protocol |
 
 ### Example Configuration
@@ -258,6 +261,8 @@ Implements classic Sugarscape agent behavior:
 - Greedy movement toward richest cells
 - Metabolism-based resource consumption
 
+Use `apps/server/experiments/sugarscape-replication.yaml` as the controlled literature-validation config. This is a baseline-comparison path, not proof that the literature replication is already validated.
+
 Default parameters:
 - `sugarscapeVision`: 4 (cells in each direction)
 - `sugarscapeMetabolism`: 1 (resources consumed per tick)
@@ -280,6 +285,43 @@ Default Q-learning parameters:
 - `qlearningExplorationRate`: 0.3 (epsilon)
 - `qlearningExplorationDecay`: 0.999
 - `qlearningMinExplorationRate`: 0.05
+
+**Note**: `resetQLearningState()` is called between experiment runs in an ensemble to prevent Q-table leakage across seeds. Each run starts with a fresh Q-table so that learned policies from one seed do not influence subsequent runs.
+
+## Scientific Controls
+
+For low-imposition experiments, use:
+
+```json
+{
+  "profile": "deterministic_baseline",
+  "benchmarkWorld": "canonical_core"
+}
+```
+
+This combination disables cooperation incentives, trust-based pricing, trade bonuses, spoilage, puzzles, personalities, and shared LLM cache. Any other configuration should be reported as exploratory or intervention-heavy rather than minimally imposed.
+
+**Agent processing order**: Agents are shuffled deterministically each tick (using the experiment seed) to eliminate processing-order bias. This ensures that no agent systematically benefits from acting first or last within a tick.
+
+### Pre-Registration
+
+Experiments support formal pre-registration through the `preRegistration` field. When present, the runner enforces hypothesis consistency and flags any findings on non-pre-registered metrics as post-hoc.
+
+```yaml
+preRegistration:
+  hypothesis: "Your hypothesis here"
+  primaryMetrics: ["Survival Rate", "Gini Coefficient"]
+  registeredAt: "2026-03-16T00:00:00Z"
+```
+
+| Sub-field | Type | Description |
+|-----------|------|-------------|
+| `hypothesis` | string | The hypothesis being tested. Must match the top-level `hypothesis` field if both are present. |
+| `primaryMetrics` | string[] | Metrics that constitute the primary analysis. All other metrics are treated as exploratory. |
+| `registeredAt` | string (ISO 8601) | Timestamp when the pre-registration was created. |
+| `configHash` | string (auto-generated) | Hash of the experiment configuration at registration time. Used to detect post-registration config changes. |
+
+The runner compares the `configHash` at execution time against the stored value. If the experiment configuration has changed since registration, a warning is emitted in the results. Any metric not listed in `primaryMetrics` that shows a significant result is annotated as a post-hoc finding in the output.
 
 ---
 
@@ -554,6 +596,13 @@ The analysis includes:
 | Mann-Whitney U | Non-parametric comparison |
 | Cohen's d | Effect size measurement |
 | Statistical power | Detection capability |
+| `normalityTest()` | Jarque-Bera (n>=20) or skewness z-test (n<20); returns `{ statistic, pValue, isNormal }` |
+| `autoSelectTest()` | Automatically selects Welch's t-test or Mann-Whitney U based on normality |
+| `requiredSampleSize(effectSize, power?, alpha?)` | A priori power analysis; returns minimum n per group |
+| `studentTCDF(t, df)` | Proper Student's t-distribution CDF |
+| `permutationTest()` | Non-parametric test using 10,000 permutations |
+| `chiSquaredTest()` | For categorical distributions |
+| `kolmogorovSmirnovTest()` | Two-sample distribution comparison |
 
 ### Multiple Comparison Corrections
 
@@ -597,7 +646,7 @@ Significance indicators:
 
 ### Statistical Rigor
 
-1. **Pre-registration**: Define metrics before running experiments
+1. **Pre-registration**: Define metrics before running experiments using the `preRegistration` schema field (see [Pre-Registration](#pre-registration)). The runner enforces hypothesis consistency and flags findings on non-pre-registered metrics as post-hoc
 2. **Multiple Corrections**: Apply when testing multiple hypotheses
 3. **Effect Sizes**: Report Cohen's d alongside p-values
 4. **Confidence Intervals**: Include uncertainty estimates

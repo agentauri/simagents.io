@@ -70,6 +70,9 @@ export const tenants = pgTable('tenants', {
   description: varchar('description', { length: 1000 }),
   ownerEmail: varchar('owner_email', { length: 255 }),
 
+  // User association (for OAuth auto-provisioning)
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).unique(),
+
   // Timestamps
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -77,6 +80,7 @@ export const tenants = pgTable('tenants', {
 }, (table) => [
   index('tenants_api_key_hash_idx').on(table.apiKeyHash),
   index('tenants_is_active_idx').on(table.isActive),
+  index('tenants_user_id_idx').on(table.userId),
 ]);
 
 // =============================================================================

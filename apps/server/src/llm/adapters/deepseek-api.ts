@@ -10,10 +10,10 @@ import { getEffectiveKey, isKeyDisabled } from '../key-manager';
 export class DeepSeekAPIAdapter extends BaseLLMAdapter {
   readonly type: LLMType = 'deepseek';
   readonly method: LLMMethod = 'api';
-  readonly name = 'DeepSeek Reasoner (API)';
+  readonly name = 'DeepSeek V3 (API)';
 
   private readonly endpoint = 'https://api.deepseek.com/v1/chat/completions';
-  private readonly model = 'deepseek-reasoner';
+  private readonly model = 'deepseek-chat';
   private readonly timeout: number;
 
   constructor(timeout = 30000) {

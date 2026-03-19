@@ -15,7 +15,7 @@ import { getResourceSpawnsAtPosition, harvestResource } from '../../db/queries/w
 import { addToInventory } from '../../db/queries/inventory';
 import { storeMemory } from '../../db/queries/memories';
 import { getAliveAgents } from '../../db/queries/agents';
-import { CONFIG as GLOBAL_CONFIG } from '../../config';
+import { CONFIG as GLOBAL_CONFIG, getRuntimeConfig } from '../../config';
 
 // Gather configuration (use global config values)
 const CONFIG = {
@@ -28,7 +28,7 @@ const CONFIG = {
  * Count other agents at the same position for cooperation bonus
  */
 async function countAgentsAtPosition(agentId: string, x: number, y: number): Promise<number> {
-  const coopConfig = GLOBAL_CONFIG.cooperation;
+  const coopConfig = getRuntimeConfig().cooperation;
   if (!coopConfig.enabled) return 0;
 
   const aliveAgents = await getAliveAgents();
@@ -40,7 +40,7 @@ async function countAgentsAtPosition(agentId: string, x: number, y: number): Pro
  * More agents at the same position = better efficiency (up to max cap)
  */
 function getCooperationMultiplier(otherAgentsCount: number): number {
-  const coopConfig = GLOBAL_CONFIG.cooperation;
+  const coopConfig = getRuntimeConfig().cooperation;
   if (!coopConfig.enabled || otherAgentsCount === 0) return 1.0;
 
   const multiplierPerAgent = coopConfig.gather.efficiencyMultiplierPerAgent;
@@ -68,6 +68,7 @@ export async function handleGather(
   agent: Agent
 ): Promise<ActionResult> {
   const { resourceType, quantity = 1 } = intent.params;
+  const runtimeConfig = getRuntimeConfig();
 
   // Validate quantity
   if (quantity < 1 || quantity > CONFIG.maxGatherPerAction) {
@@ -121,7 +122,7 @@ export async function handleGather(
 
   // Phase 5: Cooperation Threshold (Sugarscape CT)
   // Rich spawns require multiple agents to fully harvest
-  const groupGatherConfig = GLOBAL_CONFIG.cooperation.groupGather;
+  const groupGatherConfig = runtimeConfig.cooperation.groupGather;
   const otherAgentsHere = await countAgentsAtPosition(agent.id, agent.x, agent.y);
   const isRichSpawn = targetSpawn.currentAmount > groupGatherConfig.richSpawnThreshold;
   let maxGatherLimit = quantity;
@@ -156,8 +157,8 @@ export async function handleGather(
   }
 
   // Solo penalty: if no other agents nearby, reduce efficiency
-  if (otherAgentsHere === 0 && GLOBAL_CONFIG.cooperation.enabled) {
-    efficiencyMultiplier *= GLOBAL_CONFIG.cooperation.solo.gatherEfficiencyModifier;
+  if (otherAgentsHere === 0 && runtimeConfig.cooperation.enabled) {
+    efficiencyMultiplier *= runtimeConfig.cooperation.solo.gatherEfficiencyModifier;
   }
 
   const finalGathered = Math.floor(actualGathered * efficiencyMultiplier);

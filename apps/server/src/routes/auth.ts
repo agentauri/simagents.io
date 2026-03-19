@@ -72,6 +72,7 @@ const refreshTokenCookieOptions = {
   sameSite: 'lax' as const, // 'lax' needed for OAuth redirects
   path: '/api/auth',
   maxAge: 30 * 24 * 60 * 60, // 30 days in seconds
+  domain: process.env.COOKIE_DOMAIN || undefined,
 };
 
 // =============================================================================
@@ -387,7 +388,7 @@ export async function registerAuthRoutes(server: FastifyInstance): Promise<void>
       });
     } catch (error) {
       // Clear invalid cookie
-      reply.clearCookie(REFRESH_TOKEN_COOKIE, { path: '/api/auth' });
+      reply.clearCookie(REFRESH_TOKEN_COOKIE, { path: '/api/auth', domain: process.env.COOKIE_DOMAIN || undefined });
 
       return reply.code(401).send({
         error: 'Unauthorized',
@@ -413,12 +414,12 @@ export async function registerAuthRoutes(server: FastifyInstance): Promise<void>
       }
 
       // Clear cookie
-      reply.clearCookie(REFRESH_TOKEN_COOKIE, { path: '/api/auth' });
+      reply.clearCookie(REFRESH_TOKEN_COOKIE, { path: '/api/auth', domain: process.env.COOKIE_DOMAIN || undefined });
 
       return reply.send({ success: true });
     } catch (error) {
       // Still clear cookie even if logout fails
-      reply.clearCookie(REFRESH_TOKEN_COOKIE, { path: '/api/auth' });
+      reply.clearCookie(REFRESH_TOKEN_COOKIE, { path: '/api/auth', domain: process.env.COOKIE_DOMAIN || undefined });
 
       return reply.send({ success: true });
     }
@@ -493,7 +494,7 @@ export async function registerAuthRoutes(server: FastifyInstance): Promise<void>
         await authService.logoutAll(user.id);
 
         // Clear current cookie
-        reply.clearCookie(REFRESH_TOKEN_COOKIE, { path: '/api/auth' });
+        reply.clearCookie(REFRESH_TOKEN_COOKIE, { path: '/api/auth', domain: process.env.COOKIE_DOMAIN || undefined });
 
         return reply.send({ success: true });
       } catch (error) {

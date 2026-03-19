@@ -163,6 +163,15 @@ await server.register(cookie, {
   parseOptions: {},
 });
 
+// Security headers
+server.addHook('onSend', async (request, reply) => {
+  reply.header('X-Content-Type-Options', 'nosniff');
+  reply.header('X-Frame-Options', 'DENY');
+  if (process.env.NODE_ENV === 'production') {
+    reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+});
+
 // =============================================================================
 // OpenAPI / Swagger Documentation
 // =============================================================================

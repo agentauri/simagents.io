@@ -3,7 +3,7 @@
  * Scientific model: uses resourceSpawns and shelters instead of typed locations
  */
 
-const API_BASE = '';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export interface AgentState {
   id: string;

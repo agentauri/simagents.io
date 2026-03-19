@@ -112,7 +112,7 @@ interface AnalyticsState {
   setVisible: (visible: boolean) => void;
 }
 
-const API_BASE = '';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export const useAnalyticsStore = create<AnalyticsState>((set, get) => ({
   // Initial state

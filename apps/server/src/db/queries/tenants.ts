@@ -77,6 +77,7 @@ export interface CreateTenantInput {
   name: string;
   description?: string;
   ownerEmail?: string;
+  userId?: string;
   maxAgents?: number;
   maxTicksPerDay?: number;
   maxEventsStored?: number;
@@ -104,6 +105,7 @@ export async function createTenant(input: CreateTenantInput): Promise<CreateTena
       name: input.name,
       description: input.description,
       ownerEmail: input.ownerEmail,
+      userId: input.userId,
       apiKeyHash,
       maxAgents: input.maxAgents ?? 20,
       maxTicksPerDay: input.maxTicksPerDay ?? 1000,
@@ -148,6 +150,19 @@ export async function getTenantByApiKeyHash(apiKeyHash: string): Promise<Tenant 
     .select()
     .from(tenants)
     .where(eq(tenants.apiKeyHash, apiKeyHash))
+    .limit(1);
+
+  return result[0] || null;
+}
+
+/**
+ * Get tenant by user ID (for OAuth auto-provisioning)
+ */
+export async function findTenantByUserId(userId: string): Promise<Tenant | null> {
+  const result = await db
+    .select()
+    .from(tenants)
+    .where(eq(tenants.userId, userId))
     .limit(1);
 
   return result[0] || null;

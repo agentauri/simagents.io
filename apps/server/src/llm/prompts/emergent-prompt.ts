@@ -551,9 +551,13 @@ export function buildEmergentObservationPrompt(obs: AgentObservation): string {
     }
     lines.push('Join a puzzle, receive fragments, cooperate with others to solve it and share the prize.');
     for (const game of obs.activePuzzleGames) {
-      const status = game.isParticipating ? 'You are participating' : 'Open to join';
-      const profit = game.prizePool - game.entryStake;
-      lines.push(`- ${game.gameType.toUpperCase()} (ID: ${game.id}): ${status} | Prize: ${game.prizePool.toFixed(0)} CITY | Entry: ${game.entryStake.toFixed(0)} CITY | Profit: +${profit.toFixed(0)} | Players: ${game.participantCount}/${game.fragmentsNeeded} needed`);
+      if (game.isParticipating) {
+        // Don't advertise as joinable — agent is already in
+        lines.push(`- ${game.gameType.toUpperCase()} (ID: ${game.id}): You are IN this puzzle | Prize: ${game.prizePool.toFixed(0)} CITY | ${game.participantCount}/${game.fragmentsNeeded} players`);
+      } else {
+        const profit = game.prizePool - game.entryStake;
+        lines.push(`- ${game.gameType.toUpperCase()} (ID: ${game.id}): Open to join | Prize: ${game.prizePool.toFixed(0)} CITY | Entry: ${game.entryStake.toFixed(0)} CITY | Profit: +${profit.toFixed(0)} | Players: ${game.participantCount}/${game.fragmentsNeeded} needed`);
+      }
     }
   }
 
@@ -564,7 +568,15 @@ export function buildEmergentObservationPrompt(obs: AgentObservation): string {
     lines.push(`You are in a ${obs.puzzleParticipation.gameType} puzzle.`);
     lines.push(`Staked: ${obs.puzzleParticipation.stakedAmount.toFixed(0)} CITY | Fragments: ${obs.puzzleParticipation.fragmentsReceived} received, ${obs.puzzleParticipation.fragmentsShared} shared`);
     lines.push(`Time remaining: ${obs.puzzleParticipation.ticksRemaining} ticks`);
-    lines.push('While in puzzle, you can: share_fragment, form_team, join_team, submit_solution, or leave_puzzle (loses 50% stake).');
+
+    // Build action list based on actual state
+    const puzzleActions = ['share_fragment', 'submit_solution', 'leave_puzzle (loses 50% stake)'];
+    if (obs.myPuzzleTeam) {
+      lines.push(`You are in team "${obs.myPuzzleTeam.name}" (${obs.myPuzzleTeam.memberCount} members).`);
+    } else {
+      puzzleActions.push('form_team', 'join_team');
+    }
+    lines.push(`While in puzzle, you can: ${puzzleActions.join(', ')}.`);
   }
 
   // Agent's puzzle fragments - CRITICAL for solving puzzles
@@ -572,12 +584,15 @@ export function buildEmergentObservationPrompt(obs: AgentObservation): string {
     lines.push('');
     lines.push('**Your Puzzle Fragments (CLUES)**');
     for (const frag of obs.myPuzzleFragments) {
-      const sharedInfo = frag.sharedWith.length > 0
-        ? ` (shared with ${frag.sharedWith.length} other(s))`
-        : ' (NOT SHARED YET)';
-      lines.push(`- Fragment #${frag.fragmentIndex}: "${frag.content}"${sharedInfo}`);
+      if (frag.sharedWith.length > 0) {
+        const recipients = frag.sharedWith.map((id: string) => id.slice(0, 8)).join(', ');
+        lines.push(`- Fragment ID: ${frag.id} | #${frag.fragmentIndex}: "${frag.content}" (shared with: ${recipients})`);
+      } else {
+        lines.push(`- Fragment ID: ${frag.id} | #${frag.fragmentIndex}: "${frag.content}" (NOT SHARED YET)`);
+      }
     }
     lines.push('To solve the puzzle, you need ALL fragments. Share yours with others to receive theirs in return.');
+    lines.push('Use share_fragment with params: { "fragmentId": "<fragment ID from above>", "targetAgentId": "<agent ID>" }');
   }
 
   // Nearby puzzle players - cooperation opportunities
@@ -588,6 +603,18 @@ export function buildEmergentObservationPrompt(obs: AgentObservation): string {
       const sameGame = player.inSameGame ? ' (SAME PUZZLE - can trade fragments!)' : '';
       const fragments = player.fragmentCount > 0 ? ` - has ${player.fragmentCount} fragment(s)` : '';
       lines.push(`- ${player.agentId} (${player.distance} steps away)${fragments}${sameGame}`);
+    }
+  }
+
+  // Nearby resources (world observation, not prescription)
+  const nearbyResources = obs.nearbyResourceSpawns?.filter(s => s.currentAmount > 0);
+  if (nearbyResources && nearbyResources.length > 0) {
+    lines.push('');
+    lines.push('**Nearby Resources**');
+    for (const spawn of nearbyResources.slice(0, 5)) {
+      const dist = Math.abs(obs.self.x - spawn.x) + Math.abs(obs.self.y - spawn.y);
+      const here = dist === 0 ? ' (HERE)' : ` (${dist} steps away)`;
+      lines.push(`- ${spawn.resourceType}: ${spawn.currentAmount} available at (${spawn.x},${spawn.y})${here}`);
     }
   }
 

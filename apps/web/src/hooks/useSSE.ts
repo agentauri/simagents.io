@@ -5,6 +5,8 @@ import { playSound } from './useAudio';
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 type ConnectionMode = 'sse' | 'polling';
 
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 // =============================================================================
 // Constants
 // =============================================================================
@@ -251,14 +253,14 @@ export function useSSE() {
   const poll = useCallback(async () => {
     try {
       // Fetch world state
-      const stateResponse = await fetch('/api/world/state');
+      const stateResponse = await fetch(`${API_BASE}/api/world/state`);
       if (stateResponse.ok) {
         const stateData = await stateResponse.json();
         updateWorldState(stateData);
       }
 
       // Fetch recent events
-      const eventsResponse = await fetch('/api/events/recent?limit=20');
+      const eventsResponse = await fetch(`${API_BASE}/api/events/recent?limit=20`);
       if (eventsResponse.ok) {
         const eventsData = await eventsResponse.json();
         const events = eventsData.events as WorldEvent[];
@@ -310,7 +312,7 @@ export function useSSE() {
 
     // Fetch initial world state
     try {
-      const response = await fetch('/api/world/state');
+      const response = await fetch(`${API_BASE}/api/world/state`);
       const data = await response.json();
       updateWorldState(data);
     } catch (error) {
@@ -328,7 +330,7 @@ export function useSSE() {
     setMode('sse');
     sseConnectTimeRef.current = Date.now();
 
-    const eventSource = new EventSource('/api/events');
+    const eventSource = new EventSource(`${API_BASE}/api/events`);
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
