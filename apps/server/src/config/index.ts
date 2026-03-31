@@ -24,40 +24,6 @@ function envBool(key: string, defaultValue: boolean): boolean {
 }
 
 // =============================================================================
-// Production Environment Validation
-// =============================================================================
-
-function validateProductionEnv(): void {
-  if (process.env.NODE_ENV === 'production') {
-    const required = [
-      'DATABASE_URL',
-      'REDIS_URL',
-      'JWT_SECRET',
-      'ENCRYPTION_MASTER_KEY',
-      'COOKIE_SECRET',
-      'ADMIN_API_KEY',
-    ];
-    const missing = required.filter((k) => !process.env[k]);
-    if (missing.length > 0) {
-      throw new Error(
-        `Missing required environment variables in production: ${missing.join(', ')}`
-      );
-    }
-
-    // Require at least one OAuth provider in production
-    const hasOAuth = process.env.GOOGLE_CLIENT_ID || process.env.GITHUB_CLIENT_ID;
-    if (!hasOAuth) {
-      throw new Error(
-        'At least one OAuth provider (GOOGLE_CLIENT_ID or GITHUB_CLIENT_ID) must be configured in production'
-      );
-    }
-  }
-}
-
-// Validate on module load
-validateProductionEnv();
-
-// =============================================================================
 // Configuration Object
 // =============================================================================
 

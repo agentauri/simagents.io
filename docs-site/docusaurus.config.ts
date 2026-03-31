@@ -11,7 +11,7 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://doc.simagents.io',
+  url: 'https://github.com/agentauri/simagents.io',
   baseUrl: '/',
 
   organizationName: 'agentauri',

@@ -233,8 +233,6 @@ jobs:
       - name: Build web frontend
         working-directory: apps/web
         run: npm run build
-        env:
-          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://api.simagents.io' }}
 
       - name: Upload web build artifact
         uses: actions/upload-artifact@v4
@@ -244,34 +242,7 @@ jobs:
           retention-days: 7
 
   # ============================================================================
-  # Job 5: Docker Build Validation (only for main branch)
-  # ============================================================================
-  docker-build:
-    name: Docker Build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: [build-server, test-server]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image (validation only)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: apps/server/Dockerfile
-          push: false
-          tags: simagents-server:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # ============================================================================
-  # Job 6: CI Summary
+  # Job 5: CI Summary
   # ============================================================================
   ci-success:
     name: CI Success

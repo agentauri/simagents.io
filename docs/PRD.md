@@ -2295,7 +2295,7 @@ Agents who want "voting" create it themselves using proposal/response primitives
 │  Queue:       BullMQ (async LLM calls)                      │
 │  AI:          OpenAI/Anthropic API direct (no LangChain)    │
 │  Frontend:    React + Vite + TailwindCSS + Zustand          │
-│  Infra:       Docker + Fly.io                               │
+│  Infra:       Docker (self-hosted)                            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -2656,22 +2656,9 @@ volumes:
   postgres_data:
 ```
 
-#### Production: **Fly.io** (Recommended)
+#### Production
 
-**Why Fly.io**:
-- Easy WebSocket/SSE support
-- Managed PostgreSQL
-- Managed Redis
-- Global deployment
-- Simple CLI
-
-**Cost estimate (MVP)**:
-| Resource | Spec | Cost/month |
-|----------|------|------------|
-| App | 2 instances, 512MB | $10 |
-| PostgreSQL | 1GB RAM | $15 |
-| Redis | 256MB | $5 |
-| **Total** | | **~$30** |
+SimAgents is self-hosted. Use the provided `Dockerfile` and `docker-compose.yml` to run on any container platform.
 
 #### Monitoring
 

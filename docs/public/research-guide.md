@@ -94,19 +94,19 @@ bun run src/experiments/runner.ts --config experiments/my-experiment.yaml --outp
 bun run src/experiments/runner.ts --config experiments/my-experiment.yaml --runs 5 --output results/
 ```
 
-**Hosted** — experiments can also be submitted via the API:
+Experiments can also be submitted via the API:
 
 ```bash
 # Seed a built-in experiment template
-curl -X POST https://api.simagents.io/api/experiments/seed/all \
+curl -X POST http://localhost:3000/api/experiments/seed/all \
   -H "X-Admin-Key: your-admin-key"
 
 # Start an experiment
-curl -X POST https://api.simagents.io/api/experiments/{id}/start \
+curl -X POST http://localhost:3000/api/experiments/{id}/start \
   -H "X-Admin-Key: your-admin-key"
 
 # Get results
-curl https://api.simagents.io/api/experiments/{id}/results
+curl http://localhost:3000/api/experiments/{id}/results
 ```
 
 See the [API Reference](./api-reference.md#experiments-api) for the full experiments API.

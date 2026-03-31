@@ -63,9 +63,6 @@ bun run infra:up                 # Start Docker (PostgreSQL + Redis)
 bun run db:push                  # Apply schema changes
 bun run dev:setup                # Full setup (infra + db + install)
 
-# Deployment (CI/CD workflows in .github/workflows/)
-fly deploy                       # Deploy API to Fly.io (see deploy-api.yml)
-wrangler pages deploy            # Deploy web to Cloudflare Pages (see deploy-web.yml)
 ```
 
 ## Initial Setup
@@ -76,21 +73,6 @@ cp .env.example apps/server/.env
 docker-compose up -d
 cd apps/server && bunx drizzle-kit push
 ```
-
-### Production Setup
-
-Production deployments require additional secrets beyond the development defaults:
-
-- `JWT_SECRET` — Signing key for access/refresh tokens (required, no default)
-- `ENCRYPTION_MASTER_KEY` — AES key for encrypting stored API keys (required, no default)
-- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — For Google OAuth login
-- `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` — For GitHub OAuth login
-- `COOKIE_DOMAIN` — Domain for cross-origin auth cookies (e.g., `.simagents.io`)
-- `AUTH_CALLBACK_URL` — OAuth callback base URL (e.g., `https://api.simagents.io`)
-- `FRONTEND_URL` — Web app URL for redirects (e.g., `https://app.simagents.io`)
-- `CORS_ALLOWED_ORIGINS` — Comma-separated allowed origins
-
-See `.github/workflows/deploy-api.yml` and `.github/workflows/deploy-web.yml` for CI/CD configuration.
 
 ## Project Structure
 
@@ -151,17 +133,6 @@ Tests are in `apps/server/src/__tests__/` organized by domain (actions/, integra
 | `REDIS_URL` | `redis://localhost:6379` | Redis connection |
 | `RANDOM_SEED` | timestamp | Seed for reproducible experiments |
 | `ADMIN_API_KEY` | (insecure default) | Required for admin API endpoints |
-| `VITE_API_URL` | (none) | API base URL for the web frontend (e.g., `https://api.simagents.io`) |
-| `COOKIE_DOMAIN` | (none) | Domain scope for auth cookies (e.g., `.simagents.io`) |
-| `AUTH_CALLBACK_URL` | (none) | OAuth callback base URL |
-| `FRONTEND_URL` | (none) | Web app URL for OAuth redirects |
-| `CORS_ALLOWED_ORIGINS` | (none) | Comma-separated allowed CORS origins |
-| `GOOGLE_CLIENT_ID` | (none) | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | (none) | Google OAuth client secret |
-| `GITHUB_CLIENT_ID` | (none) | GitHub OAuth client ID |
-| `GITHUB_CLIENT_SECRET` | (none) | GitHub OAuth client secret |
-| `JWT_SECRET` | (none) | Signing key for auth tokens (required in production) |
-| `ENCRYPTION_MASTER_KEY` | (none) | AES key for encrypting stored API keys (required in production) |
 
 See `apps/server/src/config/index.ts` for full configuration options.
 

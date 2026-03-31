@@ -26,26 +26,14 @@ redis.on('connect', () => {
 export async function checkRedisConnection(
   { logFailure = true }: { logFailure?: boolean } = {}
 ): Promise<boolean> {
-  const probe = new Redis(redisUrl, {
-    lazyConnect: true,
-    maxRetriesPerRequest: 1,
-    retryStrategy: () => null,
-  });
-
-  probe.on('error', (error) => {
-    if (logFailure) {
-      console.error('Redis connection failed:', error);
-    }
-  });
-
   try {
-    await probe.connect();
-    await probe.ping();
-    await probe.quit();
+    if (redis.status === 'wait') {
+      await redis.connect();
+    }
+    await redis.ping();
     return true;
   } catch (error) {
-    probe.disconnect();
-    if (logFailure && !(error instanceof Error && error.message.includes('Failed to connect'))) {
+    if (logFailure) {
       console.error('Redis connection failed:', error);
     }
     return false;

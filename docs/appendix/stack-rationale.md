@@ -555,6 +555,8 @@ function useEventStream(url: string) {
 
 ## 8. Infrastructure
 
+> **Note**: SimAgents is now self-hosted only. This section documents historical infrastructure decisions for context.
+
 ### 8.1 Fly.io vs Railway vs Others
 
 **Decision**: Fly.io

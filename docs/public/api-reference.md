@@ -7,11 +7,10 @@ The API exposes both the persistent world and the experiment system. If you cons
 ## Base URL
 
 ```
-https://api.simagents.io    # Hosted / Production
-http://localhost:3000        # Self-hosted / Development
+http://localhost:3000
 ```
 
-Hosted users should use `https://api.simagents.io` for all API calls. Self-hosters use their own deployment URL or `http://localhost:3000` during local development. The web frontend reads its API base from the `VITE_API_URL` environment variable.
+The web frontend reads its API base from the `VITE_API_URL` environment variable (defaults to the dev server proxy).
 
 ## Authentication
 
@@ -527,15 +526,7 @@ eventSource.onmessage = (event) => {
 
 Authentication endpoints for web users (not required for external agents).
 
-On the hosted version (`app.simagents.io`), logging in via Google or GitHub for the first time **auto-provisions a tenant** with free-tier limits:
-
-| Limit | Free Tier |
-|-------|-----------|
-| Agents | 5 |
-| Ticks/day | 500 |
-| Events | 50,000 |
-
-The auto-created tenant includes a default API key visible in the dashboard. Contact the team for higher limits.
+When OAuth is configured (optional), logging in via Google or GitHub for the first time auto-provisions a tenant.
 
 ### GET /api/auth/providers
 Check which OAuth providers are configured.
@@ -740,7 +731,7 @@ These endpoints require `X-Admin-Key` header.
 
 ### Tenants API
 
-On the hosted version, a tenant is auto-created when a user first logs in via OAuth. The endpoints below are for admin management.
+When OAuth is configured, a tenant is auto-created on first login. The endpoints below are for admin management.
 
 - `GET /api/tenants` - List tenants
 - `POST /api/tenants` - Create tenant
@@ -752,6 +743,5 @@ On the hosted version, a tenant is auto-created when a user first logs in via OA
 
 Interactive API documentation available at:
 ```
-https://api.simagents.io/api/docs   # Hosted
-http://localhost:3000/api/docs       # Self-hosted / Development
+http://localhost:3000/api/docs
 ```

@@ -12,8 +12,8 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
-import { closeDatabaseConnection } from './db';
-import { redis, closeRedisConnection } from './cache';
+import { closeDatabaseConnection, checkDatabaseConnection } from './db';
+import { redis, closeRedisConnection, checkRedisConnection } from './cache';
 import { subscribeToWorldEvents, closePubSub } from './cache/pubsub';
 import { tickEngine } from './simulation/tick-engine';
 import { startWorker, stopWorker, getQueueStats } from './queue';
@@ -398,6 +398,44 @@ server.get('/health', {
   },
 }, async () => {
   return { status: 'ok', timestamp: new Date().toISOString() };
+});
+
+const readinessResponseSchema = {
+  type: 'object',
+  properties: {
+    status: { type: 'string' },
+    checks: {
+      type: 'object',
+      properties: {
+        database: { type: 'boolean' },
+        redis: { type: 'boolean' },
+      },
+    },
+    timestamp: { type: 'string', format: 'date-time' },
+  },
+} as const;
+
+server.get('/readiness', {
+  schema: {
+    description: 'Readiness probe - checks database and Redis connectivity',
+    tags: ['Health'],
+    response: {
+      200: readinessResponseSchema,
+      503: readinessResponseSchema,
+    },
+  },
+}, async (_request, reply) => {
+  const [dbOk, redisOk] = await Promise.all([
+    checkDatabaseConnection({ logFailure: false }),
+    checkRedisConnection({ logFailure: false }),
+  ]);
+  const allOk = dbOk && redisOk;
+  const body = {
+    status: allOk ? 'ready' : 'not_ready',
+    checks: { database: dbOk, redis: redisOk },
+    timestamp: new Date().toISOString(),
+  };
+  return reply.code(allOk ? 200 : 503).send(body);
 });
 
 server.get('/api/status', {

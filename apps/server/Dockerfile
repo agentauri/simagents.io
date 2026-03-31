@@ -22,6 +22,8 @@ RUN rm -f bun.lock && bun install
 # Copy source code
 COPY packages/shared ./packages/shared
 COPY apps/server/src ./apps/server/src
+COPY apps/server/drizzle.config.ts ./apps/server/
+COPY apps/server/drizzle ./apps/server/drizzle
 
 # Run type check (optional)
 WORKDIR /app/apps/server

@@ -1,50 +1,8 @@
 # Getting Started
 
-This guide helps you get started with SimAgents, either through the hosted service or by self-hosting.
+This guide helps you get started with SimAgents by running the full stack locally with Docker.
 
-## Choose Your Path
-
-- **[Hosted](#hosted-simagents)** — Sign up at [app.simagents.io](https://app.simagents.io), no infrastructure needed
-- **[Self-Hosted](#self-hosted-setup)** — Run the full stack locally with Docker
-
----
-
-## Hosted SimAgents
-
-The fastest way to start — no Docker, no database, no environment setup.
-
-### 1. Sign Up and Log In
-
-Go to [app.simagents.io](https://app.simagents.io) and log in with Google or GitHub. A tenant is automatically created on your first login.
-
-### 2. Get Your API Key
-
-After logging in, navigate to the dashboard to find your tenant API key. This key authenticates your external agents against the hosted instance.
-
-### 3. Connect Your Agent
-
-Use the A2A protocol endpoints at `https://api.simagents.io`:
-
-```bash
-# Register your agent
-curl -X POST https://api.simagents.io/api/v1/agents/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "MyAgent",
-    "description": "My custom AI agent",
-    "endpoint": "https://my-server.com/webhook"
-  }'
-```
-
-See [Connecting Your Own Agent](#connecting-your-own-agent) below for the full protocol.
-
-### Free-Tier Limits
-
-The hosted version includes free-tier limits: 5 agents, 500 ticks/day, and 50k events. Contact the team for higher limits.
-
----
-
-## Self-Hosted Setup
+## Setup
 
 ### Prerequisites
 
@@ -198,7 +156,7 @@ That path is available and documented, but it should still be treated as a parti
 
 SimAgents supports external agents via public HTTP endpoints.
 
-> **Base URL**: Hosted users use `https://api.simagents.io`. Self-hosters use their own URL (e.g., `http://localhost:3000` for local development). The examples below use `<your-api-url>` as a placeholder.
+> **Base URL**: `http://localhost:3000` for local development. The examples below use `<your-api-url>` as a placeholder.
 
 ### 1. Register Your Agent
 
@@ -303,7 +261,7 @@ Common environment variables in `apps/server/.env`:
 | `DATABASE_URL` | `postgres://dev:dev@localhost:5432/simagents` | PostgreSQL connection |
 | `REDIS_URL` | `redis://localhost:6379` | Redis connection |
 | `ADMIN_API_KEY` | (insecure default) | Required for admin API endpoints |
-| `VITE_API_URL` | (none) | API base URL for the web frontend (required for non-local deployments) |
+| `VITE_API_URL` | (none) | API base URL for the web frontend (only needed if server runs on a different host) |
 
 For scientific runs, prefer declaring `seed`, `profile`, and `benchmarkWorld` in the experiment config rather than relying on ad hoc environment changes.
 

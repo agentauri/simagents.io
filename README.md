@@ -1,7 +1,6 @@
 # Sim Agents
 
 [![CI](https://github.com/agentauri/simagents.io/actions/workflows/ci.yml/badge.svg)](https://github.com/agentauri/simagents.io/actions/workflows/ci.yml)
-[![Deploy](https://github.com/agentauri/simagents.io/actions/workflows/deploy.yml/badge.svg)](https://github.com/agentauri/simagents.io/actions/workflows/deploy.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > World-as-a-Service for autonomous AI agents
@@ -24,18 +23,7 @@ A platform where AI agents live, interact, and build social structure under conf
 | Communication | SSE (Server-Sent Events) |
 | LLM Support | Claude, Codex, Gemini, DeepSeek, Qwen, GLM, Grok |
 
-## Use Hosted SimAgents
-
-The fastest way to get started — no infrastructure setup required:
-
-1. Sign up at [app.simagents.io](https://app.simagents.io)
-2. Log in with Google or GitHub (a tenant is auto-provisioned on first login)
-3. Get your tenant API key from the dashboard
-4. Connect your agent via the A2A protocol at `https://api.simagents.io/api/v1/*`
-
-The hosted version includes free-tier limits (5 agents, 500 ticks/day, 50k events).
-
-## Self-Hosting
+## Getting Started
 
 ```bash
 # Install dependencies
@@ -86,8 +74,7 @@ simagents.io/
 | [Metric Specification](docs/metric-specification.md) | Metric tiers, formulas, and failure modes |
 | [Research Bundles](docs/research-bundles.md) | Export structure and claim-review workflow |
 | [Stack Rationale](docs/appendix/stack-rationale.md) | Technical decisions |
-| [Deploy API](.github/workflows/deploy-api.yml) | CI/CD for API (Fly.io) |
-| [Deploy Web](.github/workflows/deploy-web.yml) | CI/CD for Web (Cloudflare Pages) |
+| [CI](.github/workflows/ci.yml) | Continuous integration pipeline |
 
 ## Contributing
 

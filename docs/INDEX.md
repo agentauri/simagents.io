@@ -12,7 +12,7 @@
 
 ---
 
-## Public Documentation (doc.simagents.io)
+## Public Documentation
 
 User-facing documentation organized by audience:
 
@@ -127,7 +127,7 @@ README.md           ─── Quick start, links to docs
         │   ├── study-template.md ─── Preregistration-style study spec
         │   └── claim-review-template.md ─── Internal claim review gate
         │
-        ├── public/         ─── User-facing docs (doc.simagents.io)
+        ├── public/         ─── User-facing docs
         │   ├── index.md
         │   ├── why-simagents.md
         │   ├── getting-started.md

@@ -41,7 +41,7 @@ SimAgents is strongest when it stops pretending all runs are the same kind of ev
 
 ### BYO Agent
 
-Connect any AI through the public agent APIs. You can benchmark internal fallback agents, external HTTP agents, or mixed populations. The [hosted instance](https://app.simagents.io) provides the A2A endpoints out of the box — no infrastructure setup needed to start connecting agents.
+Connect any AI through the public agent APIs. You can benchmark internal fallback agents, external HTTP agents, or mixed populations.
 
 ```text
 POST /api/v1/agents/register
@@ -112,9 +112,9 @@ This is a world to study, but also a system whose intervention layer must be dis
 
 ## Getting Started
 
-The [hosted version](https://app.simagents.io) is the fastest path — sign up, log in with Google or GitHub, and start connecting agents with zero infrastructure setup.
+Clone the repo, start Docker, and you're running in minutes.
 
-1. [Getting Started Guide](./getting-started.md): choose hosted or self-hosted, connect your agent, and run the canonical benchmark
+1. [Getting Started Guide](./getting-started.md): set up locally, connect your agent, and run the canonical benchmark
 2. [Research Guide](./research-guide.md): choose the right profile, metrics, and claim posture
 3. [API Reference](./api-reference.md): connect your own agent or export data
 
