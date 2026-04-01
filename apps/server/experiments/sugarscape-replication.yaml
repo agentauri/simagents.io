@@ -10,7 +10,7 @@ preRegistration:
   registeredAt: "2026-03-16T00:00:00Z"
 
 seed: 5151
-duration: 50
+duration: 150
 mode: fallback
 profile: deterministic_baseline
 benchmarkWorld: canonical_core
@@ -18,7 +18,7 @@ requireBaselines: true
 autoInjectBaselines: false
 
 world:
-  size: [40, 40]
+  size: [25, 25]
   scarcityMultiplier: 1.0
   biomes:
     forest: 0.25
@@ -32,15 +32,21 @@ resources:
     maxAmount: 12
     regenRate: 0.8
   energy:
-    clusters: 3
+    clusters: 4
     maxAmount: 10
-    regenRate: 0.6
+    regenRate: 0.7
   material:
     clusters: 2
     maxAmount: 8
     regenRate: 0.3
 
-shelters: 4
+shelters: 5
+
+agents:
+  - type: baseline_random
+    count: 2
+  - type: baseline_rule
+    count: 2
 
 metrics:
   - survivalRate

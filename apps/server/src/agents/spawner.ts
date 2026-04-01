@@ -16,6 +16,7 @@
  */
 
 import { v4 as uuid } from 'uuid';
+import { deterministicUUID, isSeeded } from '../utils/random';
 import {
   db,
   agentLineages,
@@ -58,6 +59,11 @@ import {
   type LLMInvoker,
 } from './genesis';
 import { createProductionInvoker, createDiverseMockInvoker } from './genesis-llm-invoker';
+
+/** Use seeded UUID during experiments for determinism, crypto UUID otherwise */
+function generateId(): string {
+  return isSeeded() ? deterministicUUID() : uuid();
+}
 
 // =============================================================================
 // Agent Configurations
@@ -307,7 +313,7 @@ export async function spawnInitialResourceSpawns(): Promise<void> {
     const biomeRegenRate = config.regenRate * biomeConfig.regenMultipliers[resourceType];
 
     const spawn: NewResourceSpawn = {
-      id: uuid(),
+      id: generateId(),
       x: config.x,
       y: config.y,
       resourceType: config.resourceType,
@@ -341,7 +347,7 @@ export async function spawnInitialShelters(): Promise<void> {
 
   for (const config of SHELTER_CONFIGS) {
     const shelter: NewShelter = {
-      id: uuid(),
+      id: generateId(),
       x: config.x,
       y: config.y,
       canSleep: config.canSleep,
@@ -410,7 +416,7 @@ export async function spawnInitialAgents(): Promise<void> {
     }
 
     const agent: NewAgent = {
-      id: uuid(),
+      id: generateId(),
       llmType: agentConfig.llmType,
       x: agentConfig.startX,
       y: agentConfig.startY,
@@ -601,7 +607,7 @@ export async function spawnWorldWithConfig(config?: SpawnConfiguration): Promise
     const biomeRegenRate = rsConfig.regenRate * biomeConfig.regenMultipliers[resourceType];
 
     const spawn: NewResourceSpawn = {
-      id: uuid(),
+      id: generateId(),
       x: rsConfig.x,
       y: rsConfig.y,
       resourceType: rsConfig.resourceType,
@@ -617,7 +623,7 @@ export async function spawnWorldWithConfig(config?: SpawnConfiguration): Promise
   // Spawn shelters
   for (const shelterConfig of shelters) {
     const shelter: NewShelter = {
-      id: uuid(),
+      id: generateId(),
       x: shelterConfig.x,
       y: shelterConfig.y,
       canSleep: shelterConfig.canSleep,
@@ -648,7 +654,7 @@ export async function spawnWorldWithConfig(config?: SpawnConfiguration): Promise
     }
 
     const agent: NewAgent = {
-      id: uuid(),
+      id: generateId(),
       llmType: agentConfig.llmType,
       x: agentConfig.startX,
       y: agentConfig.startY,

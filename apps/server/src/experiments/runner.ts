@@ -34,6 +34,8 @@ import { getAliveAgents } from '../db/queries/agents';
 import { appendEvent, getEventsByTickRange } from '../db/queries/events';
 import { clearCache } from '../cache/projections';
 import { getLLMCacheConfig } from '../cache/llm-cache';
+import { redis } from '../cache';
+import { sql } from 'drizzle-orm';
 import { db } from '../db';
 import { events, ledger } from '../db/schema';
 import { initWorldState, resetTickCounter, getCurrentTick } from '../db/queries/world';
@@ -47,6 +49,9 @@ import {
   randomInt,
   resetRNG,
 } from '../utils/random';
+import { clearAllScents } from '../world/scent';
+import { clearForageCooldowns } from '../actions/handlers/forage';
+import { clearPublicWorkSessions } from '../actions/handlers/public-work';
 import {
   clearBlackoutState,
   clearScheduledCompositeShocks,
@@ -79,7 +84,7 @@ import {
 } from './scientific-profile';
 import { getRuntimeConfig, setRuntimeConfig } from '../config';
 import { getActiveTransformations } from '../llm/prompt-builder';
-import { resetQLearningState } from '../agents/baselines';
+import { resetQLearningState, clearBaselineAgentCache } from '../agents/baselines';
 
 // =============================================================================
 // Types
@@ -278,13 +283,36 @@ function hashValue(value: unknown): string {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const NON_DETERMINISTIC_KEYS = new Set([
+  'timestamp', 'processingTimeMs', 'updatedAt', 'createdAt', 'diedAt',
+  'duration', 'elapsed', 'startTime', 'endTime',
+]);
+
+const INFRASTRUCTURE_EVENTS = new Set([
+  'tick_start', 'tick_end',
+  'experiment_provenance', 'experiment_started', 'experiment_ended',
+]);
+
+function stripNonDetFields(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return JSON.stringify(payload);
+  const cleaned = Object.fromEntries(
+    Object.entries(payload as Record<string, unknown>)
+      .filter(([k]) => !NON_DETERMINISTIC_KEYS.has(k))
+  );
+  return JSON.stringify(cleaned);
+}
+
 export function buildDeterministicEventTraceHash(
   eventsToHash: Awaited<ReturnType<typeof getEventsByTickRange>>
 ): string {
   const idMap = new Map<string, string>();
   let nextId = 1;
 
-  const normalize = (value: unknown): unknown => {
+  const normalize = (value: unknown, key?: string): unknown => {
+    if (key && NON_DETERMINISTIC_KEYS.has(key)) {
+      return undefined;
+    }
+
     if (typeof value === 'string' && UUID_PATTERN.test(value)) {
       if (!idMap.has(value)) {
         idMap.set(value, `id_${nextId++}`);
@@ -298,40 +326,42 @@ export function buildDeterministicEventTraceHash(
 
     if (value && typeof value === 'object') {
       return Object.fromEntries(
-        Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, normalize(item)])
+        Object.entries(value as Record<string, unknown>)
+          .filter(([k]) => !NON_DETERMINISTIC_KEYS.has(k))
+          .map(([k, item]) => [k, normalize(item, k)])
       );
     }
 
     return value;
   };
 
-  const normalizedEvents = eventsToHash
-    .filter((event) => !['tick_start', 'tick_end'].includes(event.eventType))
-    .map((event) => normalize({
+  // Pre-compute sort keys to avoid repeated JSON.stringify in comparator
+  const filtered = eventsToHash
+    .filter((event) => !INFRASTRUCTURE_EVENTS.has(event.eventType))
+    .map((event) => ({
+      event,
+      sortKey: stripNonDetFields(event.payload),
+    }));
+
+  // Sort BEFORE normalization so UUID→id_N mapping is deterministic
+  filtered.sort((a, b) =>
+    a.event.tick - b.event.tick ||
+    a.event.eventType.localeCompare(b.event.eventType) ||
+    String(a.event.agentId ?? '').localeCompare(String(b.event.agentId ?? '')) ||
+    a.sortKey.localeCompare(b.sortKey)
+  );
+
+  const normalizedEvents = filtered.map(({ event }) => {
+    const norm = normalize({
       tick: event.tick,
       eventType: event.eventType,
       agentId: event.agentId,
       payload: event.payload,
-    }) as {
-      tick: number;
-      eventType: string;
-      agentId?: string | null;
-      payload: unknown;
-    });
+    }) as { tick: number; eventType: string; agentId?: string | null; payload: unknown };
+    return { ...norm, _payloadKey: JSON.stringify(norm.payload) };
+  });
 
-  const withCachedKey = normalizedEvents.map((event) => ({
-    ...event,
-    _payloadKey: JSON.stringify(event.payload),
-  }));
-
-  withCachedKey.sort((left, right) =>
-    left.tick - right.tick ||
-    left.eventType.localeCompare(right.eventType) ||
-    String(left.agentId ?? '').localeCompare(String(right.agentId ?? '')) ||
-    left._payloadKey.localeCompare(right._payloadKey)
-  );
-
-  return hashValue(withCachedKey);
+  return hashValue(normalizedEvents);
 }
 
 function getCodeVersion(): string | null {
@@ -452,15 +482,23 @@ function buildRunMetricsFromSnapshots(
   };
 }
 
-async function resetRunnerWorld(): Promise<void> {
+export async function resetRunnerWorld(): Promise<void> {
   tickEngine.stop();
   tickEngine.clearExperimentContext();
   clearScheduledShocks();
   clearScheduledCompositeShocks();
   clearBlackoutState();
+  resetQLearningState();
+  clearBaselineAgentCache();
+  clearForageCooldowns();
+  clearPublicWorkSessions();
   await clearWorld();
-  await db.delete(events);
-  await db.delete(ledger);
+  await clearAllScents();
+  // Flush all LLM cache and blocklist keys for deterministic experiment runs
+  const llmKeys = await redis.keys('llm-cache:*');
+  if (llmKeys.length > 0) await redis.del(...llmKeys);
+  await db.execute(sql`TRUNCATE TABLE events RESTART IDENTITY CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE ledger RESTART IDENTITY CASCADE`);
   await resetTickCounter();
   await initWorldState();
   await clearCache();

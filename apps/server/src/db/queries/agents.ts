@@ -53,7 +53,7 @@ export async function getAgentById(id: string): Promise<Agent | undefined> {
 export async function getAgentsAtPosition(x: number, y: number): Promise<Agent[]> {
   return db.select().from(agents).where(
     and(eq(agents.x, x), eq(agents.y, y), sql`${agents.state} != 'dead'`)
-  );
+  ).orderBy(agents.id);
 }
 
 export async function createAgent(agent: NewAgent): Promise<Agent> {

@@ -27,7 +27,7 @@ import { tickEngine } from '../simulation/tick-engine';
 import { buildObservation, formatEvent } from './observer';
 import { executeAction, createIntent } from '../actions';
 import type { ActionResult } from '../actions/types';
-import { invalidateCacheEntry, invalidateCacheForAgent, markFailedAction } from '../cache/llm-cache';
+import { invalidateCacheEntry, invalidateCacheForAgent, markFailedAction, getLLMCacheConfig } from '../cache/llm-cache';
 
 export interface AgentTickResult {
   agentId: string;
@@ -297,12 +297,15 @@ export async function processAgentsTick(tick: number): Promise<AgentTickResult[]
 
         // Invalidate the specific cached entry that produced this failed decision
         // AND block re-caching the same action to break the fail→cache→fail loop
-        const obs = observationByAgentId.get(result.agentId);
-        if (obs) {
-          await Promise.all([
-            invalidateCacheEntry(obs, agent.llmType).catch(() => {}),
-            markFailedAction(obs, agent.llmType, result.decision.action).catch(() => {}),
-          ]);
+        // Skip when cache is disabled (deterministic experiments) to avoid non-deterministic Redis TTLs
+        if (getLLMCacheConfig().enabled) {
+          const obs = observationByAgentId.get(result.agentId);
+          if (obs) {
+            await Promise.all([
+              invalidateCacheEntry(obs, agent.llmType).catch(() => {}),
+              markFailedAction(obs, agent.llmType, result.decision.action).catch(() => {}),
+            ]);
+          }
         }
 
         // Store action_failed event so agent sees it in next tick

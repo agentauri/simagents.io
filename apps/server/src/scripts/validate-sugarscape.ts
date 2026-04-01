@@ -16,7 +16,9 @@
 import { mkdtempSync, rmSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { runExperiment, type RunResult } from '../experiments/runner';
+import { runExperiment, resetRunnerWorld, type RunResult } from '../experiments/runner';
+import { db } from '../db';
+import { sql } from 'drizzle-orm';
 import {
   cohensD,
   interpretEffectSize,
@@ -80,12 +82,27 @@ async function checkReproducibility(
   const tmpDir2 = mkdtempSync(join(tmpdir(), 'sugarscape-repro-2-'));
 
   try {
+    // Nuclear reset: truncate ALL tables to ensure pristine starting state
+    const nuclearReset = async () => {
+      await resetRunnerWorld();
+      await db.execute(sql`
+        TRUNCATE TABLE variant_snapshots, experiment_variants, experiments,
+                       events, ledger, inventory, agent_memories, agent_relationships,
+                       agent_knowledge, agent_roles
+        RESTART IDENTITY CASCADE
+      `);
+    };
+
+    await nuclearReset();
+
     const results1 = await runExperiment({
       configPath: CONFIG_PATH,
       runs: 1,
       outputDir: tmpDir1,
       verbose,
     });
+
+    await nuclearReset();
 
     const results2 = await runExperiment({
       configPath: CONFIG_PATH,
@@ -205,6 +222,7 @@ async function main() {
   console.log(`  Completed ${allResults.length} runs across ${conditions.length} conditions.`);
 
   // Phase 2: Reproducibility check
+  await resetRunnerWorld();
   const reproChecks = Math.min(seedCount, 3);
   console.log(`\n[Phase 2] Reproducibility — running ${reproChecks} determinism check(s)...`);
   const reproResults: ReproducibilityResult[] = [];

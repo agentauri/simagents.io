@@ -67,6 +67,14 @@ export async function getScentsAt(locations: { x: number; y: number }[]): Promis
 }
 
 /**
+ * Clear all scent data from Redis (used between experiment runs for determinism).
+ */
+export async function clearAllScents(): Promise<void> {
+  const keys = await redis.keys(`${SCENT_PREFIX}*`);
+  if (keys.length > 0) await redis.del(...keys);
+}
+
+/**
  * Calculate scent strength based on age (ticks elapsed)
  */
 export function calculateScentStrength(scentTick: number, currentTick: number): 'strong' | 'weak' | 'faint' {

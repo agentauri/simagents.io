@@ -62,6 +62,10 @@ interface PublicWorkSession {
 
 const activeSessions = new Map<string, PublicWorkSession>();
 
+export function clearPublicWorkSessions(): void {
+  activeSessions.clear();
+}
+
 export interface PublicWorkParams {
   taskType?: 'road_maintenance' | 'resource_survey' | 'shelter_cleanup';
 }

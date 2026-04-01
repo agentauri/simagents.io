@@ -58,6 +58,10 @@ async function countNearbyForagers(agentId: string, x: number, y: number): Promi
 // Track forage cooldowns per location per agent
 const forageCooldowns = new Map<string, number>();
 
+export function clearForageCooldowns(): void {
+  forageCooldowns.clear();
+}
+
 function getCooldownKey(agentId: string, x: number, y: number): string {
   return `${agentId}:${x}:${y}`;
 }

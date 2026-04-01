@@ -113,6 +113,21 @@ export function randomBool(probability = 0.5): boolean {
 }
 
 /**
+ * Generate a deterministic UUID v4 using the seeded RNG.
+ * Falls back to crypto.randomUUID() when RNG is not seeded.
+ */
+export function deterministicUUID(): string {
+  if (!rng) {
+    return crypto.randomUUID();
+  }
+  const bytes = Array.from({ length: 16 }, () => Math.floor(random() * 256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 1
+  const hex = bytes.map(b => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
+/**
  * Generate a random hex color.
  */
 export function randomColor(): string {
