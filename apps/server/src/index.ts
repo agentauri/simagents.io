@@ -123,11 +123,6 @@ import { registerLLMKeysRoutes } from './routes/llm-keys-api';
 import { registerPromptRoutes } from './routes/prompt-api';
 import { registerPromptInspectorRoutes } from './routes/prompt-inspector-api';
 
-// User Authentication routes
-import cookie from '@fastify/cookie';
-import { registerAuthRoutes } from './routes/auth';
-import { registerUserKeysRoutes } from './routes/user-keys';
-
 // Puzzle Games routes
 import { registerPuzzlesRoutes } from './routes/puzzles-api';
 
@@ -157,11 +152,6 @@ await server.register(cors, {
   credentials: CONFIG.cors.credentials,
 });
 
-// Cookie plugin for auth refresh tokens
-await server.register(cookie, {
-  secret: process.env.COOKIE_SECRET || 'default-cookie-secret-change-in-production',
-  parseOptions: {},
-});
 
 // Security headers
 server.addHook('onSend', async (request, reply) => {
@@ -368,12 +358,6 @@ await registerPromptRoutes(server);
 
 // Register Prompt Inspector routes (Phase 2: Live Inspector)
 await registerPromptInspectorRoutes(server);
-
-// Register User Authentication routes
-await registerAuthRoutes(server);
-
-// Register User LLM Keys routes
-await registerUserKeysRoutes(server);
 
 // Register Puzzle Games routes
 await registerPuzzlesRoutes(server);

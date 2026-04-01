@@ -34,10 +34,6 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { SocialGraphView, SocialGraphButton } from './components/SocialGraph';
 import { MobileAgentList, MobileDecisionLog } from './components/Mobile';
 import { ConfigPanel } from './components/ConfigPanel';
-import { AuthModal, UserMenu } from './components/Auth';
-import { initializeAuth, useIsAuthenticated } from './stores/auth';
-import { isAuthRequired } from './utils/env';
-
 export default function App() {
   const { status, connect, disconnect } = useSSE();
   const selectedAgentId = useWorldStore((s) => s.selectedAgentId);
@@ -58,24 +54,12 @@ export default function App() {
   const [mobileView, setMobileView] = useState<MobileView>('canvas');
   // Config panel state
   const [showConfigPanel, setShowConfigPanel] = useState(false);
-  // Auth modal state
-  const [showAuthModal, setShowAuthModal] = useState(false);
   const agents = useAgents();
   const events = useEvents();
   const aliveAgents = agents.filter(a => a.health > 0);
-  const isAuthenticated = useIsAuthenticated();
 
   // World control hook for BE API
   const { fetchState, start, pause, resume, reset, fetchRecentEvents } = useWorldControl();
-
-  // Initialize auth on mount (try to restore session from refresh token)
-  useEffect(() => {
-    initializeAuth().then((success) => {
-      if (success) {
-        console.log('[App] Auth session restored');
-      }
-    });
-  }, []);
 
   // Sync with backend on mount (restore running simulation)
   useEffect(() => {
@@ -123,12 +107,6 @@ export default function App() {
 
   // Handle start simulation - scientific mode (no city layout needed)
   const handleStartSimulation = useCallback(async () => {
-    // In production, require authentication before starting
-    if (isAuthRequired() && !isAuthenticated) {
-      setShowAuthModal(true);
-      return;
-    }
-
     // Call backend to start simulation (spawns resources, shelters, agents automatically)
     const result = await start();
     if (!result.success) {
@@ -149,7 +127,7 @@ export default function App() {
 
     // Connect SSE after setting state
     connect();
-  }, [setMode, start, setWorldState, connect, isAuthenticated]);
+  }, [setMode, start, setWorldState, connect]);
 
   // Handle reset - calls BE to reset DB
   const handleReset = useCallback(async () => {
@@ -303,11 +281,8 @@ export default function App() {
           onPause={handlePause}
           onResume={handleResume}
           onOpenConfig={() => setShowConfigPanel(true)}
-          onSignInClick={() => setShowAuthModal(true)}
         />
 
-        {/* User Menu / Sign In */}
-        <UserMenu onSignInClick={() => setShowAuthModal(true)} />
       </div>
     </div>
   );
@@ -411,12 +386,6 @@ export default function App() {
 
   return (
     <>
-      {/* Auth Modal */}
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-      />
-
       {/* Social Graph Overlay */}
       <SocialGraphView />
 
