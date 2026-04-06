@@ -72,6 +72,9 @@ export function PersonalityConfig() {
     ? genesisConfig.childrenPerMother * genesisConfig.mothers.length
     : 7; // Standard mode: 7 agents
 
+  const weightPct = (trait: PersonalityTrait): number =>
+    Number.isFinite(weights[trait]) ? weights[trait] * 100 : 0;
+
   // Calculate expected count for a given number of agents
   const getExpectedCount = (trait: PersonalityTrait, totalAgents: number) => {
     return Math.round(weights[trait] * totalAgents);
@@ -105,8 +108,8 @@ export function PersonalityConfig() {
                 <div
                   key={trait}
                   className={`${PERSONALITY_INFO[trait].color} transition-all duration-300`}
-                  style={{ width: `${weights[trait] * 100}%` }}
-                  title={`${PERSONALITY_INFO[trait].label}: ${(weights[trait] * 100).toFixed(0)}%`}
+                  style={{ width: `${weightPct(trait)}%` }}
+                  title={`${PERSONALITY_INFO[trait].label}: ${weightPct(trait).toFixed(0)}%`}
                 />
               ))}
             </div>
@@ -125,7 +128,7 @@ export function PersonalityConfig() {
                     <span className="text-sm text-gray-200">{PERSONALITY_INFO[trait].label}</span>
                   </div>
                   <span className="text-sm font-mono text-gray-400">
-                    {(weights[trait] * 100).toFixed(0)}%
+                    {weightPct(trait).toFixed(0)}%
                   </span>
                 </div>
                 <input
@@ -133,7 +136,7 @@ export function PersonalityConfig() {
                   min={0}
                   max={100}
                   step={1}
-                  value={weights[trait] * 100}
+                  value={weightPct(trait)}
                   onChange={(e) => {
                     // Set raw value, normalization happens in setPersonalityWeight
                     const rawValue = parseInt(e.target.value) / 100;

@@ -1,20 +1,19 @@
 /**
- * Grok API Adapter
- * Uses xAI API (OpenAI-compatible)
+ * Mistral AI API Adapter
+ * Uses OpenAI-compatible API
  */
 
 import { BaseLLMAdapter } from './base';
 import type { LLMType, LLMMethod } from '../types';
 import { getEffectiveKey, isKeyDisabled } from '../key-manager';
 
-export class GrokAPIAdapter extends BaseLLMAdapter {
-  readonly type: LLMType = 'grok';
+export class MistralAPIAdapter extends BaseLLMAdapter {
+  readonly type: LLMType = 'mistral';
   readonly method: LLMMethod = 'api';
-  readonly name = 'Grok 4.20 Reasoning (API)';
+  readonly name = 'Mistral Large (API)';
 
-  // xAI API (OpenAI-compatible)
-  private readonly endpoint = 'https://api.x.ai/v1/chat/completions';
-  private readonly model = 'grok-4.20-0309-reasoning';
+  private readonly endpoint = 'https://api.mistral.ai/v1/chat/completions';
+  private readonly model = 'mistral-large-latest';
   private readonly timeout: number;
 
   constructor(timeout = 30000) {
@@ -23,18 +22,18 @@ export class GrokAPIAdapter extends BaseLLMAdapter {
   }
 
   private getApiKey(): string | undefined {
-    return getEffectiveKey('grok');
+    return getEffectiveKey('mistral');
   }
 
   async isAvailable(): Promise<boolean> {
-    if (isKeyDisabled('grok')) return false;
+    if (isKeyDisabled('mistral')) return false;
     return !!this.getApiKey();
   }
 
   protected async callLLM(prompt: string): Promise<string> {
     const apiKey = this.getApiKey();
     if (!apiKey) {
-      throw new Error('GROK_API_KEY not set');
+      throw new Error('MISTRAL_API_KEY not set');
     }
 
     const controller = new AbortController();
@@ -60,7 +59,7 @@ export class GrokAPIAdapter extends BaseLLMAdapter {
 
       if (!response.ok) {
         const error = await response.text();
-        throw new Error(`Grok API error: ${response.status} ${error}`);
+        throw new Error(`Mistral API error: ${response.status} ${error}`);
       }
 
       const data = await response.json() as {
@@ -71,7 +70,7 @@ export class GrokAPIAdapter extends BaseLLMAdapter {
     } catch (error) {
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`Grok API timeout after ${this.timeout}ms`);
+        throw new Error(`Mistral API timeout after ${this.timeout}ms`);
       }
       throw error;
     }

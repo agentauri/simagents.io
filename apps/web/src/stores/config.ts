@@ -17,6 +17,7 @@ export interface SimulationConfig {
   visibilityRadius: number;
   testMode: boolean;
   randomSeed: number;
+  maxTicks: number;
 }
 
 export interface AgentConfig {
@@ -109,7 +110,7 @@ export interface SpoilageConfig {
   removalThreshold: number;
 }
 
-export type LLMType = 'claude' | 'codex' | 'gemini' | 'deepseek' | 'qwen' | 'glm' | 'grok';
+export type LLMType = 'claude' | 'codex' | 'gemini' | 'deepseek' | 'qwen' | 'glm' | 'grok' | 'mistral' | 'minimax' | 'kimi';
 
 export interface GenesisConfig {
   enabled: boolean;
@@ -502,13 +503,14 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 
   setPersonalityWeight: (trait: PersonalityTrait, weight: number) => {
     const { personalityConfig } = get();
-    const newWeights = { ...personalityConfig.weights, [trait]: weight };
+    const safeWeight = Number.isFinite(weight) ? weight : 0;
+    const newWeights = { ...personalityConfig.weights, [trait]: safeWeight };
 
     // Normalize to sum to 1.0
-    const total = Object.values(newWeights).reduce((sum, w) => sum + w, 0);
+    const total = Object.values(newWeights).reduce((sum, w) => sum + (Number.isFinite(w) ? w : 0), 0);
     if (total > 0) {
       for (const t of Object.keys(newWeights) as PersonalityTrait[]) {
-        newWeights[t] = newWeights[t] / total;
+        newWeights[t] = (Number.isFinite(newWeights[t]) ? newWeights[t] : 0) / total;
       }
     }
 

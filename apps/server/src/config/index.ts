@@ -44,6 +44,8 @@ export const CONFIG = {
     testMode: envString('TEST_MODE', 'false') === 'true',
     /** Random seed for reproducible experiments (default: current timestamp) */
     randomSeed: env('RANDOM_SEED', Date.now()),
+    /** Max ticks before auto-stop (0 = unlimited) */
+    maxTicks: env('MAX_TICKS', 0),
   },
 
   // ---------------------------------------------------------------------------

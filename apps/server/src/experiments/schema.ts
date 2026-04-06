@@ -308,6 +308,9 @@ const LLM_COLORS: Record<LLMType, string> = {
   qwen: '#8b5cf6',
   glm: '#ec4899',
   grok: '#1d4ed8',
+  mistral: '#f97316',
+  minimax: '#14b8a6',
+  kimi: '#a855f7',
   external: '#6b7280',
   // Baseline agents use neutral/gray tones
   baseline_random: '#9ca3af',
@@ -316,7 +319,7 @@ const LLM_COLORS: Record<LLMType, string> = {
   baseline_qlearning: '#374151',
 };
 
-const ALL_LLM_TYPES: LLMType[] = ['claude', 'codex', 'gemini', 'deepseek', 'qwen', 'glm', 'grok'];
+const ALL_LLM_TYPES: LLMType[] = ['claude', 'codex', 'gemini', 'deepseek', 'qwen', 'glm', 'grok', 'mistral', 'minimax', 'kimi'];
 
 // =============================================================================
 // Baseline Validation Constants

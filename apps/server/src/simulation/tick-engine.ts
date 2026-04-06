@@ -20,7 +20,7 @@ import {
   createTracedLogger,
 } from '../telemetry';
 import { TICK_INTERVAL_MS } from '@simagents/shared';
-import { incrementTick, getCurrentTick, getWorldState } from '../db/queries/world';
+import { incrementTick, getCurrentTick, getWorldState, regenerateResources } from '../db/queries/world';
 import { getAliveAgents, updateAgent } from '../db/queries/agents';
 import { appendEvent } from '../db/queries/events';
 import { publishEvent, type WorldEvent } from '../cache/pubsub';
@@ -317,7 +317,10 @@ class TickEngine {
       }
     }
 
-    // Phase 5d: MEMORY CLEANUP - Periodically clean up orphaned critical ticks map entries
+    // Phase 5d: RESOURCE REGENERATION - Replenish resource spawns
+    await regenerateResources();
+
+    // Phase 5e: MEMORY CLEANUP - Periodically clean up orphaned critical ticks map entries
     if (tick % 100 === 0) {
       const aliveAgentIds = new Set(agents.filter(a => !deadAgentIds.has(a.id)).map(a => a.id));
       const removed = await cleanupOrphanedCriticalTicks(aliveAgentIds);
@@ -485,6 +488,12 @@ class TickEngine {
     });
     markSpanSuccess(tickSpan);
     tickSpan.end();
+
+    // Global maxTicks check (only when not in experiment mode)
+    if (!this.experimentContext && CONFIG.simulation.maxTicks > 0 && tick >= CONFIG.simulation.maxTicks) {
+      console.log(`[TickEngine] Reached maxTicks limit (${CONFIG.simulation.maxTicks}). Stopping.`);
+      this.stop();
+    }
 
     return {
       tick,

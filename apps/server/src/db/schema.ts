@@ -652,6 +652,7 @@ export const experiments = pgTable('experiments', {
   status: varchar('status', { length: 50 }).notNull().default('planning'), // planning, running, completed, cancelled
   hypothesis: text('hypothesis'),
   metrics: jsonb('metrics').$type<string[]>(), // Which metrics to track
+  codeVersion: varchar('code_version', { length: 40 }), // Git commit hash for reproducibility
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   startedAt: timestamp('started_at', { withTimezone: true }),
   completedAt: timestamp('completed_at', { withTimezone: true }),

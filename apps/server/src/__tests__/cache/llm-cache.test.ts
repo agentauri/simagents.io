@@ -493,13 +493,13 @@ describe('LLM Cache', () => {
 
       const obs1 = createMockObservation();
       obs1.recentEvents = [
-        { type: 'action_failed', description: 'gather failed', tick: 1, timestamp: Date.now() },
+        { type: 'action_failed', description: 'gather failed', tick: 1 },
       ];
 
       const obs2 = createMockObservation();
       obs2.recentEvents = [
-        { type: 'action_failed', description: 'gather failed', tick: 1, timestamp: Date.now() },
-        { type: 'action_failed', description: 'gather failed', tick: 2, timestamp: Date.now() },
+        { type: 'action_failed', description: 'gather failed', tick: 1 },
+        { type: 'action_failed', description: 'gather failed', tick: 2 },
       ];
 
       const hash0 = hashObservation(obs0);

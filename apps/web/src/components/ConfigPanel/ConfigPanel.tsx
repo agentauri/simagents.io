@@ -317,6 +317,16 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
                 onChange={(v) => updateSimulation({ testMode: v })}
                 isRuntimeModifiable={isRuntimeModifiable('simulation.testMode')}
               />
+              <ConfigInput
+                type="number"
+                label="Max Ticks"
+                description="Auto-stop after N ticks. 0 = unlimited"
+                value={getValue('simulation', 'maxTicks', 0)}
+                onChange={(v) => updateSimulation({ maxTicks: v })}
+                min={0}
+                step={1}
+                isRuntimeModifiable={isRuntimeModifiable('simulation.maxTicks')}
+              />
             </ConfigSection>
 
             {/* Agent Starting Values */}

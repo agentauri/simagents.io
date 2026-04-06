@@ -35,6 +35,10 @@ export const LLMTypeSchema = z.enum([
   'deepseek',
   'qwen',
   'glm',
+  'grok',
+  'mistral',
+  'minimax',
+  'kimi',
 ]);
 
 export const AgentPositionSchema = z.object({

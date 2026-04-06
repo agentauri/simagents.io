@@ -41,7 +41,11 @@ export type LLMType =
   | 'gemini'
   | 'deepseek'
   | 'qwen'
-  | 'glm';
+  | 'glm'
+  | 'grok'
+  | 'mistral'
+  | 'minimax'
+  | 'kimi';
 
 // ============================================
 // Location Types

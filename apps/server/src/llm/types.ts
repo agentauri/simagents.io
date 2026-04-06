@@ -18,6 +18,9 @@ export type LLMType =
   | 'qwen'
   | 'glm'
   | 'grok'
+  | 'mistral'
+  | 'minimax'
+  | 'kimi'
   | 'external'
   // Baseline agents for scientific comparison (non-LLM)
   | 'baseline_random'
@@ -580,9 +583,12 @@ export const LLM_COSTS: Record<LLMType, LLMCost> = {
   codex: { inputPer1M: 2.50, outputPer1M: 15.00 }, // GPT-5.4
   gemini: { inputPer1M: 2.00, outputPer1M: 12.00 }, // Gemini 3.1 Pro
   deepseek: { inputPer1M: 0.27, outputPer1M: 1.10 }, // V3 (deepseek-chat)
-  qwen: { inputPer1M: 0.40, outputPer1M: 2.40 }, // Qwen 3.5 Plus
-  glm: { inputPer1M: 1.00, outputPer1M: 3.20 }, // GLM-5
-  grok: { inputPer1M: 0.20, outputPer1M: 0.50 }, // Grok 4.1 Fast
+  qwen: { inputPer1M: 0.80, outputPer1M: 3.20 }, // Qwen 3.5 Max
+  glm: { inputPer1M: 1.00, outputPer1M: 3.20 }, // GLM-5.1
+  grok: { inputPer1M: 2.00, outputPer1M: 10.00 }, // Grok 4.20 Reasoning
+  mistral: { inputPer1M: 2.00, outputPer1M: 6.00 }, // Mistral Large
+  minimax: { inputPer1M: 0.30, outputPer1M: 1.20 }, // MiniMax M2.7
+  kimi: { inputPer1M: 0.60, outputPer1M: 2.50 }, // Kimi K2.5 (Moonshot)
   external: { inputPer1M: 0, outputPer1M: 0 }, // External agents - no platform cost
   // Baseline agents - no LLM cost (heuristic decisions)
   baseline_random: { inputPer1M: 0, outputPer1M: 0 },

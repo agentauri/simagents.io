@@ -11,10 +11,10 @@ import { getEffectiveKey, isKeyDisabled } from '../key-manager';
 export class GLMAPIAdapter extends BaseLLMAdapter {
   readonly type: LLMType = 'glm';
   readonly method: LLMMethod = 'api';
-  readonly name = 'GLM-5 (API)';
+  readonly name = 'GLM-5.1 (API)';
 
   private readonly endpoint = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-  private readonly model = 'glm-5';
+  private readonly model = 'glm-5.1';
   private readonly timeout: number;
 
   constructor(timeout = 30000) {

@@ -84,6 +84,7 @@ export async function createExperiment(data: {
   description?: string;
   hypothesis?: string;
   metrics?: string[];
+  codeVersion?: string;
 }): Promise<Experiment> {
   const result = await db
     .insert(experiments)
@@ -92,6 +93,7 @@ export async function createExperiment(data: {
       description: data.description,
       hypothesis: data.hypothesis,
       metrics: data.metrics,
+      codeVersion: data.codeVersion,
     })
     .returning();
 

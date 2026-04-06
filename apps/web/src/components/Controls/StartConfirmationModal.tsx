@@ -52,7 +52,7 @@ export function StartConfirmationModal({
     : 7;
 
   // All possible LLM types
-  const ALL_LLM_TYPES: LLMType[] = ['claude', 'codex', 'gemini', 'deepseek', 'qwen', 'glm', 'grok'];
+  const ALL_LLM_TYPES: LLMType[] = ['claude', 'codex', 'gemini', 'deepseek', 'qwen', 'glm', 'grok', 'mistral', 'minimax', 'kimi'];
   const DISPLAY_NAMES: Record<LLMType, string> = {
     claude: 'Claude',
     codex: 'Codex',
@@ -61,6 +61,9 @@ export function StartConfirmationModal({
     qwen: 'Qwen',
     glm: 'GLM',
     grok: 'Grok',
+    mistral: 'Mistral',
+    minimax: 'MiniMax',
+    kimi: 'Kimi',
   };
 
   // Get active API keys from store state (only if synced)

@@ -27,7 +27,7 @@ When implementing features, always distinguish:
 - **Runtime**: Bun + TypeScript
 - **Backend**: Fastify + PostgreSQL (Drizzle ORM) + Redis + BullMQ
 - **Frontend**: React + Vite + TailwindCSS + Zustand + HTML5 Canvas
-- **AI**: Multi-LLM (Claude, Gemini, Codex, DeepSeek, Qwen, GLM, Grok) + Baseline agents (random, rule-based, sugarscape, q-learning)
+- **AI**: Multi-LLM (Claude, Gemini, Codex, DeepSeek, Qwen, GLM, Grok, Mistral, MiniMax, Kimi) + Baseline agents (random, rule-based, sugarscape, q-learning)
 
 ## Commands
 

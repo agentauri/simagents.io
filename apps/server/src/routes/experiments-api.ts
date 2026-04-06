@@ -324,7 +324,7 @@ export async function registerExperimentRoutes(server: FastifyInstance): Promise
 
     return {
       success: true,
-      experiment: { id, name: experiment.name },
+      experiment: { id, name: experiment.name, codeVersion: experiment.codeVersion },
       variant: {
         id: variant.id,
         name: variant.name,
@@ -703,6 +703,7 @@ export async function registerExperimentRoutes(server: FastifyInstance): Promise
         id: experiment.id,
         name: experiment.name,
         status: experiment.status,
+        codeVersion: experiment.codeVersion,
       } : null,
       currentVariant: {
         id: runningVariant.id,

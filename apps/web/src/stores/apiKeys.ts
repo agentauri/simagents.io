@@ -13,7 +13,7 @@ import { create } from 'zustand';
 // Types
 // =============================================================================
 
-export type LLMType = 'claude' | 'codex' | 'gemini' | 'deepseek' | 'qwen' | 'glm' | 'grok';
+export type LLMType = 'claude' | 'codex' | 'gemini' | 'deepseek' | 'qwen' | 'glm' | 'grok' | 'mistral' | 'minimax' | 'kimi';
 
 export interface LLMProviderInfo {
   type: LLMType;
@@ -174,7 +174,7 @@ async function setDisabledAPI(type: LLMType, disabled: boolean): Promise<void> {
 // Initial State
 // =============================================================================
 
-const ALL_TYPES: LLMType[] = ['claude', 'codex', 'gemini', 'deepseek', 'qwen', 'glm', 'grok'];
+const ALL_TYPES: LLMType[] = ['claude', 'codex', 'gemini', 'deepseek', 'qwen', 'glm', 'grok', 'mistral', 'minimax', 'kimi'];
 
 function createEmptyStatus(): Record<LLMType, ProviderKeyStatus> {
   const status: Partial<Record<LLMType, ProviderKeyStatus>> = {};

@@ -24,12 +24,6 @@ const ITEM_PRICES: Record<string, number> = {
   tool: 30,
 };
 
-// Item effects on needs
-export const ITEM_EFFECTS: Record<string, { hunger?: number; energy?: number; health?: number }> = {
-  food: { hunger: 30 },
-  water: { energy: 10 },
-  medicine: { health: 30 },
-};
 
 export async function handleBuy(
   intent: ActionIntent<BuyParams>,

@@ -5,7 +5,7 @@
  * reproducible research bundles with provenance, snapshots, and per-run metrics.
  */
 
-import { execSync } from 'child_process';
+import { getGitCommitHash } from '../utils/git';
 import { createHash } from 'crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { basename, extname, join } from 'path';
@@ -374,13 +374,8 @@ function getCodeVersion(): string | null {
     return envVersion;
   }
 
-  try {
-    return execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
-      .toString()
-      .trim();
-  } catch {
-    return null;
-  }
+  const hash = getGitCommitHash();
+  return hash === 'unknown' ? null : hash;
 }
 
 function getInitialAgentCount(metrics: SnapshotMetrics | null, states: SnapshotState[] | null): number {

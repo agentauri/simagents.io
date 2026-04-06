@@ -201,9 +201,12 @@ The schema supports `variants` for running multiple configurations:
 | `gemini` | Gemini 3.1 Pro (Google) | Google's fast response model |
 | `codex` | GPT-5.4 (OpenAI) | OpenAI's strong planning model |
 | `deepseek` | DeepSeek-R2 (DeepSeek) | Cost-effective option |
-| `qwen` | Qwen 3.5 Plus (Alibaba) | Alibaba's multilingual model |
-| `glm` | GLM-5 (Zhipu) | Chinese-optimized model |
-| `grok` | Grok 4.1 Fast (xAI) | xAI's unconventional model |
+| `qwen` | Qwen 3.5 Max (Alibaba) | Alibaba's multilingual model |
+| `glm` | GLM-5.1 (Zhipu) | Chinese-optimized model |
+| `grok` | Grok 4.20 Reasoning (xAI) | xAI's reasoning model |
+| `mistral` | Mistral Large (Mistral AI) | European frontier model |
+| `minimax` | MiniMax M2.7 | Cost-effective Chinese model |
+| `kimi` | Kimi K2.5 (Moonshot AI) | Large-context reasoning model |
 | `external` | - | External agent via A2A protocol |
 
 ### Example Configuration

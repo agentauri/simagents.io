@@ -21,6 +21,9 @@ const ALL_MOTHERS: { id: LLMType; label: string; color: string }[] = [
   { id: 'qwen', label: 'Qwen', color: 'bg-cyan-500' },
   { id: 'glm', label: 'GLM', color: 'bg-red-500' },
   { id: 'grok', label: 'Grok', color: 'bg-yellow-500' },
+  { id: 'mistral', label: 'Mistral', color: 'bg-orange-400' },
+  { id: 'minimax', label: 'MiniMax', color: 'bg-teal-500' },
+  { id: 'kimi', label: 'Kimi', color: 'bg-violet-500' },
 ];
 
 // Available archetypes for selection

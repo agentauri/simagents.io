@@ -23,7 +23,7 @@
 ## Phase Summary
 
 ### Phase 0: Kernel (MVP)
-Core simulation with tick-based time, needs decay (hunger/energy/health), agent death, and event sourcing. 6 initial actions: `move`, `gather`, `consume`, `sleep`, `work`, `buy`. Scientific model with resource spawns and shelters. Multi-LLM support (Claude, Gemini, Codex, DeepSeek, Qwen, GLM, Grok).
+Core simulation with tick-based time, needs decay (hunger/energy/health), agent death, and event sourcing. 6 initial actions: `move`, `gather`, `consume`, `sleep`, `work`, `buy`. Scientific model with resource spawns and shelters. Multi-LLM support (Claude, Gemini, Codex, DeepSeek, Qwen, GLM, Grok, Mistral, MiniMax, Kimi).
 
 > See: [PRD Sections 5-9](docs/PRD.md)
 

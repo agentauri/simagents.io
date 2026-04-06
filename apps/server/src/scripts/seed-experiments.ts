@@ -21,6 +21,7 @@ import {
   listExperiments,
 } from '../db/queries/experiments';
 import type { AgentConfig } from '../agents/spawner';
+import { getGitCommitHash } from '../utils/git';
 
 // =============================================================================
 // Types
@@ -296,12 +297,13 @@ export async function seedExperiment(
     };
   }
 
-  // Create experiment
+  // Create experiment with code version for reproducibility
   const experiment = await createExperiment({
     name: definition.name,
     description: definition.description,
     hypothesis: definition.hypothesis,
     metrics: definition.metrics,
+    codeVersion: getGitCommitHash(),
   });
 
   console.log(`  [Created] Experiment: ${experiment.id}`);

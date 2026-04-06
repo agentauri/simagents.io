@@ -11,6 +11,9 @@ import { DeepSeekAPIAdapter } from './adapters/deepseek-api';
 import { QwenAPIAdapter } from './adapters/qwen-api';
 import { GLMAPIAdapter } from './adapters/glm-api';
 import { GrokAPIAdapter } from './adapters/grok-api';
+import { MistralAPIAdapter } from './adapters/mistral-api';
+import { MiniMaxAPIAdapter } from './adapters/minimax-api';
+import { KimiAPIAdapter } from './adapters/kimi-api';
 import { CONFIG } from '../config';
 
 // Adapter registry
@@ -19,18 +22,21 @@ const adapters: Map<LLMType, LLMAdapter> = new Map();
 // Initialize adapters with configurable timeout
 function initAdapters(): void {
   const timeout = CONFIG.llm.defaultTimeoutMs;
-  // GLM needs longer timeout due to China network latency
-  const glmTimeout = Math.max(timeout, 60000);
+  // Extended timeout for China-based API providers (GLM, MiniMax, Kimi)
+  const extendedTimeout = Math.max(timeout, 60000);
 
   // Primary LLMs via API (reliable)
   adapters.set('claude', new ClaudeAPIAdapter(timeout));
   adapters.set('codex', new OpenAIAPIAdapter(timeout));
   adapters.set('gemini', new GeminiAPIAdapter(timeout));
-  // Secondary LLMs via API
+  // Additional LLMs via API
   adapters.set('deepseek', new DeepSeekAPIAdapter(timeout));
   adapters.set('qwen', new QwenAPIAdapter(timeout));
-  adapters.set('glm', new GLMAPIAdapter(glmTimeout)); // Extended timeout for China API
+  adapters.set('glm', new GLMAPIAdapter(extendedTimeout));
   adapters.set('grok', new GrokAPIAdapter(timeout));
+  adapters.set('mistral', new MistralAPIAdapter(timeout));
+  adapters.set('minimax', new MiniMaxAPIAdapter(extendedTimeout));
+  adapters.set('kimi', new KimiAPIAdapter(extendedTimeout));
 }
 
 // Initialize on module load

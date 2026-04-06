@@ -39,6 +39,7 @@ interface ConfigResponse {
     visibilityRadius: number;
     testMode: boolean;
     randomSeed: number;
+    maxTicks: number;
   };
   agent: {
     startingBalance: number;
@@ -186,6 +187,7 @@ function buildConfigResponse(): ConfigResponse {
       visibilityRadius: runtime.simulation.visibilityRadius,
       testMode: isTestMode(),
       randomSeed: runtime.simulation.randomSeed,
+      maxTicks: runtime.simulation.maxTicks,
     },
     agent: {
       startingBalance: runtime.agent.startingBalance,
@@ -290,6 +292,7 @@ function buildDefaultsResponse(): ConfigResponse {
       visibilityRadius: CONFIG.simulation.visibilityRadius,
       testMode: CONFIG.simulation.testMode,
       randomSeed: CONFIG.simulation.randomSeed,
+      maxTicks: CONFIG.simulation.maxTicks,
     },
     agent: {
       startingBalance: CONFIG.agent.startingBalance,
@@ -412,6 +415,7 @@ export async function registerConfigRoutes(server: FastifyInstance): Promise<voi
       config: buildConfigResponse(),
       runtimeModifiable: [
         'simulation.testMode',
+        'simulation.maxTicks',
         'experiment.useEmergentPrompt',
         'llmCache.enabled',
         'llmCache.ttlSeconds',
@@ -479,6 +483,7 @@ export async function registerConfigRoutes(server: FastifyInstance): Promise<voi
             properties: {
               tickIntervalMs: { type: 'number' },
               testMode: { type: 'boolean' },
+              maxTicks: { type: 'number' },
             },
           },
           agent: {
@@ -926,7 +931,7 @@ export async function registerConfigRoutes(server: FastifyInstance): Promise<voi
           type: 'object',
           properties: {
             success: { type: 'boolean' },
-            weights: { type: 'object' },
+            weights: { type: 'object', additionalProperties: { type: 'number' } },
             requiresRestart: { type: 'boolean' },
           },
         },
@@ -964,7 +969,7 @@ export async function registerConfigRoutes(server: FastifyInstance): Promise<voi
           type: 'object',
           properties: {
             success: { type: 'boolean' },
-            weights: { type: 'object' },
+            weights: { type: 'object', additionalProperties: { type: 'number' } },
           },
         },
       },

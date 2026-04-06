@@ -26,6 +26,9 @@ export {
   ErrorCode,
 } from './error-sanitizer';
 
+// Git version
+export { getGitCommitHash } from './git';
+
 // Input validation
 export {
   validateTick,

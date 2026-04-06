@@ -7,9 +7,9 @@
 import { v4 as uuid } from 'uuid';
 import type { ActionIntent, ActionResult, ConsumeParams } from '../types';
 import type { Agent } from '../../db/schema';
-import { ITEM_EFFECTS } from './buy';
 import { getInventoryItem, removeFromInventory } from '../../db/queries/inventory';
 import { storeMemory } from '../../db/queries/memories';
+import { CONFIG } from '../../config';
 
 export async function handleConsume(
   intent: ActionIntent<ConsumeParams>,
@@ -17,8 +17,7 @@ export async function handleConsume(
 ): Promise<ActionResult> {
   const { itemType } = intent.params;
 
-  // Validate item type has effects
-  const effects = ITEM_EFFECTS[itemType];
+  const effects = CONFIG.actions.consume.effects[itemType];
   if (!effects) {
     return {
       success: false,

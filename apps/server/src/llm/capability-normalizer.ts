@@ -80,6 +80,24 @@ export const MODEL_CAPABILITIES: Record<LLMType, ModelCapabilities> = {
     contextWindow: 2000000,
     charsPerToken: 4,
   },
+  mistral: {
+    maxTokens: 4096,
+    avgLatencyMs: 600,
+    contextWindow: 128000,
+    charsPerToken: 4,
+  },
+  minimax: {
+    maxTokens: 4096,
+    avgLatencyMs: 800,
+    contextWindow: 196608,
+    charsPerToken: 4,
+  },
+  kimi: {
+    maxTokens: 4096,
+    avgLatencyMs: 800,
+    contextWindow: 262144,
+    charsPerToken: 4,
+  },
   external: {
     maxTokens: 2048,
     avgLatencyMs: 1000,

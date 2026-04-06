@@ -91,14 +91,14 @@ describe('handleConsume', () => {
       );
     });
 
-    test('restores 30 hunger when consuming food', async () => {
+    test('restores 50 hunger when consuming food', async () => {
       const agent = createMockAgent({ hunger: 50 });
       const intent = createConsumeIntent('food');
 
       const result = await handleConsume(intent, agent);
 
       expect(result.success).toBe(true);
-      expect(result.changes?.hunger).toBe(80); // 50 + 30
+      expect(result.changes?.hunger).toBe(100); // 50 + 50
     });
 
     test('caps hunger at 100', async () => {
@@ -108,7 +108,7 @@ describe('handleConsume', () => {
       const result = await handleConsume(intent, agent);
 
       expect(result.success).toBe(true);
-      expect(result.changes?.hunger).toBe(100); // 85 + 30 = 115, capped to 100
+      expect(result.changes?.hunger).toBe(100); // 85 + 50 = 135, capped to 100
     });
 
     test('removes food from inventory', async () => {
@@ -130,7 +130,7 @@ describe('handleConsume', () => {
       expect(mockStoreMemory.mock.calls.length).toBeGreaterThan(0);
       const memoryCall = (mockStoreMemory.mock.calls as unknown[][])[0]?.[0] as { content: string } | undefined;
       expect(memoryCall?.content).toContain('Consumed food');
-      expect(memoryCall?.content).toContain('hunger +30');
+      expect(memoryCall?.content).toContain('hunger +50');
     });
 
     test('emits agent_consumed event with correct state changes', async () => {
@@ -143,9 +143,9 @@ describe('handleConsume', () => {
       expect(consumedEvent).toBeDefined();
       expect(consumedEvent?.payload).toMatchObject({
         itemType: 'food',
-        effects: { hunger: 30 },
+        effects: { hunger: 50 },
         previousState: { hunger: 50, energy: 60, health: 70 },
-        newState: { hunger: 80, energy: 60, health: 70 },
+        newState: { hunger: 100, energy: 60, health: 70 },
       });
     });
   });
@@ -157,14 +157,14 @@ describe('handleConsume', () => {
       );
     });
 
-    test('restores 10 energy when consuming water', async () => {
+    test('restores 15 energy when consuming water', async () => {
       const agent = createMockAgent({ energy: 50 });
       const intent = createConsumeIntent('water');
 
       const result = await handleConsume(intent, agent);
 
       expect(result.success).toBe(true);
-      expect(result.changes?.energy).toBe(60); // 50 + 10
+      expect(result.changes?.energy).toBe(65); // 50 + 15
     });
 
     test('caps energy at 100', async () => {
@@ -174,7 +174,7 @@ describe('handleConsume', () => {
       const result = await handleConsume(intent, agent);
 
       expect(result.success).toBe(true);
-      expect(result.changes?.energy).toBe(100); // 95 + 10 = 105, capped to 100
+      expect(result.changes?.energy).toBe(100); // 95 + 15 = 110, capped to 100
     });
 
     test('creates memory with energy effect', async () => {
@@ -185,7 +185,7 @@ describe('handleConsume', () => {
 
       expect(mockStoreMemory.mock.calls.length).toBeGreaterThan(0);
       const memoryCall = (mockStoreMemory.mock.calls as unknown[][])[0]?.[0] as { content: string } | undefined;
-      expect(memoryCall?.content).toContain('energy +10');
+      expect(memoryCall?.content).toContain('energy +15');
     });
   });
 
@@ -196,14 +196,14 @@ describe('handleConsume', () => {
       );
     });
 
-    test('restores 30 health when consuming medicine', async () => {
+    test('restores 40 health when consuming medicine', async () => {
       const agent = createMockAgent({ health: 50 });
       const intent = createConsumeIntent('medicine');
 
       const result = await handleConsume(intent, agent);
 
       expect(result.success).toBe(true);
-      expect(result.changes?.health).toBe(80); // 50 + 30
+      expect(result.changes?.health).toBe(90); // 50 + 40
     });
 
     test('caps health at 100', async () => {
@@ -213,7 +213,7 @@ describe('handleConsume', () => {
       const result = await handleConsume(intent, agent);
 
       expect(result.success).toBe(true);
-      expect(result.changes?.health).toBe(100); // 90 + 30 = 120, capped to 100
+      expect(result.changes?.health).toBe(100); // 90 + 40 = 130, capped to 100
     });
 
     test('creates memory with health effect', async () => {
@@ -224,7 +224,7 @@ describe('handleConsume', () => {
 
       expect(mockStoreMemory.mock.calls.length).toBeGreaterThan(0);
       const memoryCall = (mockStoreMemory.mock.calls as unknown[][])[0]?.[0] as { content: string } | undefined;
-      expect(memoryCall?.content).toContain('health +30');
+      expect(memoryCall?.content).toContain('health +40');
     });
   });
 
@@ -369,7 +369,7 @@ describe('handleConsume', () => {
       const result = await handleConsume(intent, agent);
 
       expect(result.success).toBe(true);
-      expect(result.changes?.hunger).toBe(30); // 0 + 30
+      expect(result.changes?.hunger).toBe(50); // 0 + 50
     });
   });
 });
