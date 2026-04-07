@@ -56,6 +56,9 @@ redis-data/
 # Fly.io
 .fly/
 
+# Debug scripts (temporary, not production)
+apps/server/src/scripts/debug-*.ts
+
 # Experiment results (generated output, reproducible)
 apps/server/results/
 !apps/server/results/.gitkeep
