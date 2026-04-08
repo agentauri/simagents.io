@@ -36,8 +36,22 @@ const VALID_ACTIONS: ActionType[] = [
  */
 export function parseResponse(response: string): AgentDecision | null {
   try {
+    // Strip markdown code blocks if present
+    let cleaned = response.trim();
+    if (cleaned.startsWith('```json')) cleaned = cleaned.slice(7);
+    else if (cleaned.startsWith('```')) cleaned = cleaned.slice(3);
+    if (cleaned.endsWith('```')) cleaned = cleaned.slice(0, -3);
+    cleaned = cleaned.trim();
+
     // Try to extract JSON from response
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    let jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+
+    // Recovery for truncated JSON (missing closing brace)
+    if (!jsonMatch && cleaned.includes('"action"')) {
+      const repaired = cleaned.endsWith('}') ? cleaned : cleaned + '"}';
+      jsonMatch = repaired.match(/\{[\s\S]*\}/);
+    }
+
     if (!jsonMatch) {
       console.warn('No JSON found in response:', response.slice(0, 200));
       return null;

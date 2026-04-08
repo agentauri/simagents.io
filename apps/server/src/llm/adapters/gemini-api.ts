@@ -39,10 +39,12 @@ export class GeminiAPIAdapter extends BaseLLMAdapter {
 
   protected async callLLM(prompt: string): Promise<string> {
     const client = this.getClient();
+    // Ensure at least 1024 tokens for JSON mode — structured output needs more space
+    const maxTokens = Math.max(1024, this.getDecisionMaxTokens());
     const model = client.getGenerativeModel({
       model: 'gemini-3.1-pro-preview',
       generationConfig: {
-        maxOutputTokens: this.getDecisionMaxTokens(),
+        maxOutputTokens: maxTokens,
         temperature: this.getDecisionTemperature(),
         responseMimeType: 'application/json',
       },
