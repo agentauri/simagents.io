@@ -4,6 +4,7 @@
 
 import { eq, sql, desc, and, gte } from 'drizzle-orm';
 import { db, agents, events, ledger, agentRelationships, agentKnowledge, inventory } from '../index';
+import { getBiomeForPosition } from '../../agents/spawner';
 import { agentCredentials, gossipEvents, agentLineages, reproductionStates, llmMetrics } from '../schema';
 
 // =============================================================================
@@ -96,6 +97,27 @@ export interface EmergenceMetrics {
     totalRelationships: number;
   };
   cooperationIndex: number; // 0-1 scale, higher = more cooperation
+}
+
+/**
+ * Intentional Cooperation Metrics (Phase 8: Emergent Cooperation)
+ *
+ * Designed to distinguish genuine emergent cooperation from coincidental
+ * proximity or mechanically coerced cooperation.
+ */
+export interface IntentionalCooperationMetrics {
+  /** Fraction of trades between agents from different home biomes (0-1) */
+  crossBiomeTradeRate: number;
+  /** Fraction of share_info where info was novel to recipient (0-1) */
+  infoSharingNoveltyRate: number;
+  /** Fraction of trade partners who trade back within N ticks (0-1) */
+  tradeReciprocityRate: number;
+  /** Fraction of movements toward previously-traded-with agents (0-1) */
+  voluntaryApproachRate: number;
+  /** Weighted composite index (0-1) */
+  intentionalCooperationIndex: number;
+  /** Per-tick cooperation measurements for discovery curve analysis */
+  cooperationTimeline: Array<{ tick: number; index: number }>;
 }
 
 // =============================================================================
@@ -278,6 +300,12 @@ export const SCIENTIFIC_METRIC_REGISTRY: ScientificMetricDescriptor[] = [
     tier: 'heuristic',
     formula: '(positive trust share + repeat trade rate + cluster cohesion) / 3',
     notes: 'Composite proxy; compare carefully and avoid publication-grade claims without validation.',
+  },
+  {
+    key: 'emergence.intentionalCooperationIndex',
+    tier: 'heuristic',
+    formula: '(cross-biome trade rate × 0.35) + (info novelty × 0.25) + (trade reciprocity × 0.25) + (voluntary approach × 0.15)',
+    notes: 'Designed for emergent_cooperation experiments. Distinguishes genuine from coerced cooperation via cross-biome trade and reciprocity signals.',
   },
   {
     key: 'emergence.clustering',
@@ -3222,5 +3250,146 @@ export async function getBaselineComparison(tick?: number): Promise<BaselineComp
       status: 'descriptive_only',
       note: 'Single-snapshot cohort differences are descriptive only. Use multi-run statistical tests for significance claims.',
     },
+  };
+}
+
+/**
+ * Intentional cooperation metrics — distinguishes genuine emergent cooperation
+ * from coincidental proximity or mechanically coerced cooperation.
+ */
+export async function getIntentionalCooperationMetrics(
+  fromTick = 0,
+  toTick?: number,
+): Promise<IntentionalCooperationMetrics> {
+  const tickFilter = toTick
+    ? sql`AND e.payload->>'tick' >= ${String(fromTick)} AND e.payload->>'tick' <= ${String(toTick)}`
+    : sql``;
+
+  // 1. Cross-biome trade rate
+  // Count trades where the two agents are in different biome quadrants
+  const trades = await db.execute<{
+    trader_id: string; partner_id: string; tick: string;
+    trader_x: number; trader_y: number; partner_x: number; partner_y: number;
+  }>(sql`
+    SELECT
+      e.agent_id AS trader_id,
+      e.payload->>'targetAgentId' AS partner_id,
+      e.payload->>'tick' AS tick,
+      a1.x AS trader_x, a1.y AS trader_y,
+      a2.x AS partner_x, a2.y AS partner_y
+    FROM events e
+    JOIN agents a1 ON e.agent_id = a1.id
+    JOIN agents a2 ON e.payload->>'targetAgentId' = a2.id::text
+    WHERE e.event_type = 'trade'
+    ${tickFilter}
+    ORDER BY e.created_at
+  `);
+  let crossBiomeTrades = 0;
+  const tradePairs = new Map<string, number[]>(); // "a-b" -> [ticks]
+
+  for (const trade of trades) {
+    const traderBiome = getBiomeForPosition(Number(trade.trader_x), Number(trade.trader_y));
+    const partnerBiome = getBiomeForPosition(Number(trade.partner_x), Number(trade.partner_y));
+
+    if (traderBiome !== partnerBiome) {
+      crossBiomeTrades++;
+    }
+
+    // Track trade pairs for reciprocity
+    const pairKey = [String(trade.trader_id), String(trade.partner_id)].sort().join('-');
+    const tick = Number(trade.tick) || 0;
+    if (!tradePairs.has(pairKey)) tradePairs.set(pairKey, []);
+    tradePairs.get(pairKey)!.push(tick);
+  }
+
+  const crossBiomeTradeRate = trades.length > 0 ? crossBiomeTrades / trades.length : 0;
+
+  // 2. Trade reciprocity - pairs that traded more than once
+  let reciprocalPairs = 0;
+  let totalPairs = 0;
+  for (const [, ticks] of tradePairs) {
+    totalPairs++;
+    if (ticks.length >= 2) reciprocalPairs++;
+  }
+  const tradeReciprocityRate = totalPairs > 0 ? reciprocalPairs / totalPairs : 0;
+
+  const [shareInfoRows, moveCountRows, approachTradesRows] = await Promise.all([
+    db.execute<{ total: string; unique_shares: string }>(sql`
+      SELECT
+        COUNT(*) AS total,
+        COUNT(DISTINCT payload->>'targetAgentId' || '-' || payload->>'subjectAgentId') AS unique_shares
+      FROM events
+      WHERE event_type = 'share_info'
+      ${tickFilter}
+    `),
+    db.execute<{ total_moves: string }>(sql`
+      SELECT COUNT(*) AS total_moves
+      FROM events
+      WHERE event_type = 'move'
+      ${tickFilter}
+    `),
+    db.execute<{ approach_trades: string }>(sql`
+      SELECT COUNT(DISTINCT t.id) AS approach_trades
+      FROM events t
+      JOIN events m ON m.agent_id = t.agent_id
+        AND m.event_type = 'move'
+        AND m.created_at < t.created_at
+        AND m.created_at > t.created_at - INTERVAL '3 minutes'
+      WHERE t.event_type = 'trade'
+      ${tickFilter}
+    `),
+  ]);
+
+  const totalShares = Number(shareInfoRows[0]?.total ?? 0);
+  const uniqueShares = Number(shareInfoRows[0]?.unique_shares ?? 0);
+  const infoSharingNoveltyRate = totalShares > 0 ? Math.min(1, uniqueShares / totalShares) : 0;
+
+  const totalMoves = Number(moveCountRows[0]?.total_moves ?? 0);
+  const approachCount = Number(approachTradesRows[0]?.approach_trades ?? 0);
+  // Each approach-before-trade counts for ~3 moves worth of intentionality
+  const voluntaryApproachRate = totalMoves > 0
+    ? Math.min(1, (approachCount * 3) / totalMoves)
+    : 0;
+
+  // Composite index
+  const intentionalCooperationIndex = Math.max(0, Math.min(1,
+    (crossBiomeTradeRate * 0.35) +
+    (infoSharingNoveltyRate * 0.25) +
+    (tradeReciprocityRate * 0.25) +
+    (voluntaryApproachRate * 0.15)
+  ));
+
+  // Cooperation timeline — single-pass grouping by window
+  const windowSize = 10;
+  const maxTick = toTick ?? (trades.length > 0 ? Math.max(...trades.map((t: Record<string, unknown>) => Number(t.tick) || 0)) : 0);
+  const windowCounts = new Map<number, { total: number; crossBiome: number }>();
+
+  for (const trade of trades) {
+    const tick = Number(trade.tick) || 0;
+    const windowStart = Math.floor((tick - fromTick) / windowSize) * windowSize + fromTick;
+    const counts = windowCounts.get(windowStart) ?? { total: 0, crossBiome: 0 };
+    counts.total++;
+    const tBiome = getBiomeForPosition(Number(trade.trader_x), Number(trade.trader_y));
+    const pBiome = getBiomeForPosition(Number(trade.partner_x), Number(trade.partner_y));
+    if (tBiome !== pBiome) counts.crossBiome++;
+    windowCounts.set(windowStart, counts);
+  }
+
+  const cooperationTimeline: Array<{ tick: number; index: number }> = [];
+  for (let t = fromTick; t <= maxTick; t += windowSize) {
+    const counts = windowCounts.get(t);
+    cooperationTimeline.push({
+      tick: t,
+      index: counts ? counts.crossBiome / counts.total : 0,
+    });
+  }
+
+  return {
+    crossBiomeTradeRate: Math.round(crossBiomeTradeRate * 1000) / 1000,
+    infoSharingNoveltyRate: Math.round(infoSharingNoveltyRate * 1000) / 1000,
+    tradeReciprocityRate: Math.round(tradeReciprocityRate * 1000) / 1000,
+    voluntaryApproachRate: Math.round(voluntaryApproachRate * 1000) / 1000,
+    intentionalCooperationIndex: Math.round(intentionalCooperationIndex * 1000) / 1000,
+    cooperationTimeline,
   };
 }

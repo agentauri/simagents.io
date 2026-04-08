@@ -10,7 +10,7 @@
  * - Available actions filtering
  */
 
-import { describe, expect, test, beforeAll } from 'bun:test';
+import { describe, expect, test, beforeAll, beforeEach } from 'bun:test';
 import {
   buildSystemPrompt,
   buildObservationPrompt,
@@ -46,6 +46,11 @@ function createMockObservation(overrides: Partial<AgentObservation> = {}): Agent
 
 // Disable emergent prompt mode for these tests to verify prescriptive prompt logic
 beforeAll(() => {
+  setEmergentPromptMode(false);
+});
+
+// Ensure emergent mode stays disabled even when running with other test files
+beforeEach(() => {
   setEmergentPromptMode(false);
 });
 

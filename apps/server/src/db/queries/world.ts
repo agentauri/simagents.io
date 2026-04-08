@@ -147,12 +147,103 @@ export async function harvestResource(spawnId: string, amount: number): Promise<
 /**
  * Regenerate resources at all spawn points (called each tick)
  */
-export async function regenerateResources(): Promise<void> {
-  await db.execute(sql`
-    UPDATE resource_spawns
-    SET current_amount = LEAST(current_amount + regen_rate, max_amount)
-    WHERE current_amount < max_amount
-  `);
+export async function regenerateResources(seasonalMultipliers?: {
+  food: number;
+  energy: number;
+  material: number;
+}): Promise<void> {
+  if (seasonalMultipliers) {
+    // Apply per-resource-type seasonal multipliers to regen rate
+    await db.execute(sql`
+      UPDATE resource_spawns
+      SET current_amount = LEAST(
+        current_amount + regen_rate * CASE resource_type
+          WHEN 'food' THEN ${seasonalMultipliers.food}
+          WHEN 'energy' THEN ${seasonalMultipliers.energy}
+          WHEN 'material' THEN ${seasonalMultipliers.material}
+          ELSE 1.0
+        END,
+        max_amount
+      )
+      WHERE current_amount < max_amount
+    `);
+  } else {
+    await db.execute(sql`
+      UPDATE resource_spawns
+      SET current_amount = LEAST(current_amount + regen_rate, max_amount)
+      WHERE current_amount < max_amount
+    `);
+  }
+}
+
+/**
+ * Resource depletion tracking (in-memory).
+ * Tracks consecutive ticks at zero for over-harvest degradation.
+ */
+const depletionState = new Map<string, {
+  consecutiveZeroTicks: number;
+  originalMaxAmount: number;
+}>();
+
+/**
+ * Apply resource depletion: spawns at zero for too long lose max capacity.
+ * Also applies slow recovery when spawn is not being actively harvested.
+ */
+export async function applyResourceDepletion(config: {
+  depletionThresholdTicks: number;
+  degradationRate: number;
+  minCapacityFraction: number;
+  recoveryRatePerTick: number;
+}): Promise<void> {
+  const spawns = await getAllResourceSpawns();
+  const pendingUpdates: Array<{ id: string; newMax: number }> = [];
+
+  for (const spawn of spawns) {
+    let state = depletionState.get(spawn.id);
+    if (!state) {
+      state = { consecutiveZeroTicks: 0, originalMaxAmount: spawn.maxAmount };
+      depletionState.set(spawn.id, state);
+    }
+
+    if (spawn.currentAmount <= 0) {
+      state.consecutiveZeroTicks++;
+
+      if (state.consecutiveZeroTicks >= config.depletionThresholdTicks) {
+        const minCapacity = Math.max(1, Math.floor(state.originalMaxAmount * config.minCapacityFraction));
+        const newMax = Math.max(minCapacity, Math.floor(spawn.maxAmount * (1 - config.degradationRate)));
+        if (newMax < spawn.maxAmount) pendingUpdates.push({ id: spawn.id, newMax });
+        state.consecutiveZeroTicks = 0;
+      }
+    } else {
+      state.consecutiveZeroTicks = 0;
+
+      if (spawn.maxAmount < state.originalMaxAmount) {
+        const recovery = Math.ceil(state.originalMaxAmount * config.recoveryRatePerTick);
+        const newMax = Math.min(state.originalMaxAmount, spawn.maxAmount + recovery);
+        if (newMax > spawn.maxAmount) pendingUpdates.push({ id: spawn.id, newMax });
+      }
+    }
+  }
+
+  // Prune entries for spawns that no longer exist
+  const spawnIds = new Set(spawns.map(s => s.id));
+  for (const key of depletionState.keys()) {
+    if (!spawnIds.has(key)) depletionState.delete(key);
+  }
+
+  // Batch updates
+  for (const { id, newMax } of pendingUpdates) {
+    await db.update(resourceSpawns)
+      .set({ maxAmount: newMax })
+      .where(eq(resourceSpawns.id, id));
+  }
+}
+
+/**
+ * Reset depletion tracking state (for experiments/tests).
+ */
+export function resetDepletionState(): void {
+  depletionState.clear();
 }
 
 // =============================================================================

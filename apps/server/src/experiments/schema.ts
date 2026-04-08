@@ -477,17 +477,17 @@ export function validateSchema(schema: unknown): { valid: boolean; errors: Valid
     }
   }
 
-  if (s.profile !== undefined && s.profile !== 'deterministic_baseline' && s.profile !== 'llm_exploratory') {
+  if (s.profile !== undefined && s.profile !== 'deterministic_baseline' && s.profile !== 'llm_exploratory' && s.profile !== 'emergent_cooperation') {
     errors.push({
       path: 'profile',
-      message: 'Profile must be "deterministic_baseline" or "llm_exploratory"',
+      message: 'Profile must be "deterministic_baseline", "llm_exploratory", or "emergent_cooperation"',
     });
   }
 
-  if (s.benchmarkWorld !== undefined && s.benchmarkWorld !== 'canonical_core' && s.benchmarkWorld !== 'full_surface') {
+  if (s.benchmarkWorld !== undefined && s.benchmarkWorld !== 'canonical_core' && s.benchmarkWorld !== 'full_surface' && s.benchmarkWorld !== 'emergent_cooperation') {
     errors.push({
       path: 'benchmarkWorld',
-      message: 'benchmarkWorld must be "canonical_core" or "full_surface"',
+      message: 'benchmarkWorld must be "canonical_core", "full_surface", or "emergent_cooperation"',
     });
   }
 

@@ -40,7 +40,7 @@ import { addToInventory } from '../db/queries/inventory';
 import { clearAllPuzzles } from '../db/queries/puzzles';
 import type { NewAgent, NewShelter, NewResourceSpawn } from '../db/schema';
 import type { LLMType } from '../llm/types';
-import { CONFIG } from '../config';
+import { CONFIG, getRuntimeConfig } from '../config';
 import {
   selectRandomPersonality,
   getPersonalityConfig,
@@ -124,6 +124,7 @@ export interface BiomeConfig {
     food: number;
     energy: number;
     material: number;
+    medicine?: number;
   };
 }
 
@@ -132,25 +133,57 @@ export const BIOME_CONFIGS: Record<BiomeType, BiomeConfig> = {
     type: 'forest',
     color: '#22c55e', // Green
     emoji: '🌲',
-    regenMultipliers: { food: 1.5, energy: 1.0, material: 0.5 },
+    regenMultipliers: { food: 1.5, energy: 1.0, material: 0.5, medicine: 1.0 },
   },
   desert: {
     type: 'desert',
     color: '#f59e0b', // Orange
     emoji: '🏜️',
-    regenMultipliers: { food: 0.3, energy: 0.5, material: 1.5 },
+    regenMultipliers: { food: 0.3, energy: 0.5, material: 1.5, medicine: 0.5 },
   },
   tundra: {
     type: 'tundra',
     color: '#38bdf8', // Light blue
     emoji: '❄️',
-    regenMultipliers: { food: 0.5, energy: 1.5, material: 0.8 },
+    regenMultipliers: { food: 0.5, energy: 1.5, material: 0.8, medicine: 0.0 },
   },
   plains: {
     type: 'plains',
     color: '#a3e635', // Lime
     emoji: '🌾',
-    regenMultipliers: { food: 1.0, energy: 1.0, material: 1.0 },
+    regenMultipliers: { food: 1.0, energy: 1.0, material: 1.0, medicine: 0.3 },
+  },
+};
+
+/**
+ * Biome configs for emergent_cooperation experiments.
+ * Resources are EXCLUSIVE to certain biomes (0.0 = no spawns of that type).
+ * This creates natural comparative advantage and motivates cross-biome trade.
+ */
+export const BIOME_CONFIGS_EXCLUSIVE: Record<BiomeType, BiomeConfig> = {
+  forest: {
+    type: 'forest',
+    color: '#22c55e',
+    emoji: '🌲',
+    regenMultipliers: { food: 1.5, energy: 0.3, material: 0.0, medicine: 1.0 },
+  },
+  desert: {
+    type: 'desert',
+    color: '#f59e0b',
+    emoji: '🏜️',
+    regenMultipliers: { food: 0.0, energy: 0.3, material: 1.5, medicine: 0.5 },
+  },
+  tundra: {
+    type: 'tundra',
+    color: '#38bdf8',
+    emoji: '❄️',
+    regenMultipliers: { food: 0.0, energy: 1.5, material: 0.5, medicine: 0.0 },
+  },
+  plains: {
+    type: 'plains',
+    color: '#a3e635',
+    emoji: '🌾',
+    regenMultipliers: { food: 0.5, energy: 0.5, material: 0.3, medicine: 0.3 },
   },
 };
 
@@ -229,6 +262,48 @@ const RESOURCE_SPAWN_CONFIGS: ResourceSpawnConfig[] = [
   { resourceType: 'material', x: 28, y: 28, maxAmount: 15, regenRate: 0.2 },
 ];
 
+/**
+ * Resource spawns for emergent_cooperation experiments.
+ * Resources are distributed across biomes based on exclusivity rules:
+ * - Forest (NW): food + medicine
+ * - Tundra (NE): energy + some material
+ * - Desert (SW): material + some medicine
+ * - Plains (SE): modest everything (natural meeting ground)
+ */
+const RESOURCE_SPAWN_CONFIGS_EXCLUSIVE: ResourceSpawnConfig[] = [
+  // FOREST (NW) - food + medicine
+  { resourceType: 'food', x: 20, y: 15, maxAmount: 20, regenRate: 1.2 },
+  { resourceType: 'food', x: 25, y: 20, maxAmount: 18, regenRate: 1.0 },
+  { resourceType: 'food', x: 15, y: 25, maxAmount: 15, regenRate: 0.8 },
+  { resourceType: 'food', x: 30, y: 10, maxAmount: 12, regenRate: 0.8 },
+  { resourceType: 'food', x: 10, y: 30, maxAmount: 12, regenRate: 0.6 },
+
+  // TUNDRA (NE) - energy + some material
+  { resourceType: 'energy', x: 65, y: 15, maxAmount: 20, regenRate: 1.2 },
+  { resourceType: 'energy', x: 70, y: 25, maxAmount: 18, regenRate: 1.0 },
+  { resourceType: 'energy', x: 55, y: 20, maxAmount: 15, regenRate: 0.8 },
+  { resourceType: 'energy', x: 75, y: 10, maxAmount: 12, regenRate: 0.8 },
+  { resourceType: 'material', x: 60, y: 30, maxAmount: 10, regenRate: 0.4 },
+
+  // DESERT (SW) - material + some medicine
+  { resourceType: 'material', x: 20, y: 65, maxAmount: 25, regenRate: 1.0 },
+  { resourceType: 'material', x: 25, y: 70, maxAmount: 20, regenRate: 0.8 },
+  { resourceType: 'material', x: 15, y: 75, maxAmount: 15, regenRate: 0.6 },
+  { resourceType: 'material', x: 30, y: 60, maxAmount: 12, regenRate: 0.5 },
+
+  // PLAINS (SE) - modest everything (meeting ground)
+  { resourceType: 'food', x: 60, y: 60, maxAmount: 8, regenRate: 0.5 },
+  { resourceType: 'energy', x: 65, y: 65, maxAmount: 8, regenRate: 0.5 },
+  { resourceType: 'material', x: 70, y: 60, maxAmount: 8, regenRate: 0.3 },
+  { resourceType: 'food', x: 55, y: 70, maxAmount: 6, regenRate: 0.4 },
+  { resourceType: 'energy', x: 75, y: 70, maxAmount: 6, regenRate: 0.4 },
+
+  // BORDER ZONES - sparse resources to reward exploration
+  { resourceType: 'food', x: 48, y: 25, maxAmount: 6, regenRate: 0.3 },  // forest-tundra border
+  { resourceType: 'energy', x: 48, y: 55, maxAmount: 6, regenRate: 0.3 },  // desert-plains border
+  { resourceType: 'material', x: 25, y: 48, maxAmount: 6, regenRate: 0.3 },  // forest-desert border
+];
+
 // =============================================================================
 // Shelter Configurations
 // =============================================================================
@@ -260,6 +335,53 @@ const SHELTER_CONFIGS: ShelterConfig[] = [
   { x: 35, y: 35, canSleep: true },
 ];
 
+/**
+ * Shelter configs for emergent_cooperation experiments.
+ * Distributed across biomes with border shelters as natural meeting points.
+ */
+const SHELTER_CONFIGS_DISTRIBUTED: ShelterConfig[] = [
+  // Forest (NW) - 2 shelters
+  { x: 20, y: 20, canSleep: true },
+  { x: 30, y: 15, canSleep: true },
+
+  // Tundra (NE) - 2 shelters
+  { x: 65, y: 20, canSleep: true },
+  { x: 70, y: 30, canSleep: true },
+
+  // Desert (SW) - 2 shelters
+  { x: 20, y: 65, canSleep: true },
+  { x: 30, y: 70, canSleep: true },
+
+  // Plains (SE) - 2 shelters
+  { x: 65, y: 65, canSleep: true },
+  { x: 60, y: 55, canSleep: true },
+
+  // BORDER shelters (natural trading posts)
+  { x: 48, y: 25, canSleep: true },   // forest-tundra border
+  { x: 25, y: 48, canSleep: true },   // forest-desert border
+];
+
+/**
+ * Agent configs for emergent_cooperation experiments.
+ * Agents distributed across biomes so they start with different resources.
+ */
+const AGENT_CONFIGS_DISTRIBUTED: AgentConfig[] = [
+  // Forest (NW) - 2 agents (food-rich)
+  { llmType: 'claude', name: 'Claude', color: '#ef4444', startX: 22, startY: 18 },
+  { llmType: 'gemini', name: 'Gemini', color: '#10b981', startX: 28, startY: 22 },
+
+  // Tundra (NE) - 2 agents (energy-rich)
+  { llmType: 'codex', name: 'Codex', color: '#3b82f6', startX: 63, startY: 18 },
+  { llmType: 'deepseek', name: 'DeepSeek', color: '#f59e0b', startX: 68, startY: 23 },
+
+  // Desert (SW) - 2 agents (material-rich)
+  { llmType: 'qwen', name: 'Qwen', color: '#8b5cf6', startX: 22, startY: 63 },
+  { llmType: 'glm', name: 'GLM', color: '#ec4899', startX: 28, startY: 68 },
+
+  // Plains (SE) - 1 agent (balanced but scarce)
+  { llmType: 'grok', name: 'Grok', color: '#1d4ed8', startX: 62, startY: 58 },
+];
+
 // =============================================================================
 // Personality Assignment
 // =============================================================================
@@ -287,6 +409,29 @@ function assignPersonality(agentConfig: AgentConfig, agentIndex: number): Person
 }
 
 // =============================================================================
+// Biome-Aware Starting Inventory
+// =============================================================================
+
+/**
+ * Get starting inventory items based on home biome.
+ * Agents start with resources naturally available in their biome.
+ */
+function getBiomeStartingInventory(biome: BiomeType): Record<string, number> {
+  switch (biome) {
+    case 'forest':
+      return { food: 5, energy: 1 };
+    case 'tundra':
+      return { energy: 4, material: 2 };
+    case 'desert':
+      return { material: 5, energy: 1 };
+    case 'plains':
+      return { food: 2, energy: 2, material: 1 };
+    default:
+      return { food: 3 };
+  }
+}
+
+// =============================================================================
 // Spawning Functions
 // =============================================================================
 
@@ -301,16 +446,29 @@ export async function spawnInitialResourceSpawns(): Promise<void> {
     return;
   }
 
-  console.log('[Spawner] Spawning resource spawns with biomes...');
+  const runtime = getRuntimeConfig();
+  const biomeExclusivityEnabled = runtime.biomeExclusivity?.enabled ?? false;
+  const configs = biomeExclusivityEnabled ? RESOURCE_SPAWN_CONFIGS_EXCLUSIVE : RESOURCE_SPAWN_CONFIGS;
+  const biomeConfigs = biomeExclusivityEnabled ? BIOME_CONFIGS_EXCLUSIVE : BIOME_CONFIGS;
 
-  for (const config of RESOURCE_SPAWN_CONFIGS) {
+  console.log(`[Spawner] Spawning resource spawns with biomes (exclusivity: ${biomeExclusivityEnabled})...`);
+
+  for (const config of configs) {
     // Auto-assign biome based on position if not specified
     const biome = config.biome ?? getBiomeForPosition(config.x, config.y);
-    const biomeConfig = BIOME_CONFIGS[biome];
+    const biomeConfig = biomeConfigs[biome];
 
     // Apply biome multiplier to regen rate
     const resourceType = config.resourceType as 'food' | 'energy' | 'material';
-    const biomeRegenRate = config.regenRate * biomeConfig.regenMultipliers[resourceType];
+    const multiplier = biomeConfig.regenMultipliers[resourceType] ?? 1.0;
+
+    // Skip resources with 0.0 multiplier when biome exclusivity is enabled
+    if (biomeExclusivityEnabled && multiplier === 0) {
+      console.log(`  [SKIP] ${resourceType} in ${biome} at (${config.x}, ${config.y}) - excluded by biome`);
+      continue;
+    }
+
+    const biomeRegenRate = config.regenRate * multiplier;
 
     const spawn: NewResourceSpawn = {
       id: generateId(),
@@ -343,9 +501,13 @@ export async function spawnInitialShelters(): Promise<void> {
     return;
   }
 
-  console.log('[Spawner] Spawning shelters...');
+  const runtime = getRuntimeConfig();
+  const biomeExclusivityEnabled = runtime.biomeExclusivity?.enabled ?? false;
+  const configs = biomeExclusivityEnabled ? SHELTER_CONFIGS_DISTRIBUTED : SHELTER_CONFIGS;
 
-  for (const config of SHELTER_CONFIGS) {
+  console.log(`[Spawner] Spawning shelters (distributed: ${biomeExclusivityEnabled})...`);
+
+  for (const config of configs) {
     const shelter: NewShelter = {
       id: generateId(),
       x: config.x,
@@ -371,11 +533,15 @@ export async function spawnInitialAgents(): Promise<void> {
     return;
   }
 
+  const runtime = getRuntimeConfig();
+  const biomeExclusivityEnabled = runtime.biomeExclusivity?.enabled ?? false;
+
   // Starting resources: enough to enable initial trades
   const startingFood = 5; // Increased to enable trade opportunities
 
-  // Determine which agents to spawn
-  const agentsToSpawn: AgentConfig[] = [...AGENT_CONFIGS];
+  // Determine which agents to spawn -- use distributed configs for emergent cooperation
+  const baseAgents = biomeExclusivityEnabled ? AGENT_CONFIGS_DISTRIBUTED : AGENT_CONFIGS;
+  const agentsToSpawn: AgentConfig[] = [...baseAgents];
 
   // Conditionally include baseline agents based on configuration
   if (CONFIG.experiment.includeBaselineAgents) {
@@ -431,13 +597,22 @@ export async function spawnInitialAgents(): Promise<void> {
 
     await createAgent(agent);
 
-    // Give starting inventory (reduced for scarcity)
-    await addToInventory(agent.id, 'food', startingFood);
+    // Give starting inventory based on home biome when biome exclusivity is enabled
+    const homeBiome = getBiomeForPosition(agentConfig.startX, agentConfig.startY);
+    if (biomeExclusivityEnabled) {
+      const biomeStartingItems = getBiomeStartingInventory(homeBiome);
+      for (const [itemType, qty] of Object.entries(biomeStartingItems)) {
+        if (qty > 0) await addToInventory(agent.id, itemType, qty);
+      }
+    } else {
+      await addToInventory(agent.id, 'food', startingFood);
+    }
 
     const isBaseline = agentConfig.llmType.startsWith('baseline_');
     const icon = isBaseline ? '  [B]' : '  ✅';
     const personalityLabel = personality ? ` [${personality}]` : '';
-    console.log(`${icon} ${agentConfig.name} (${agentConfig.llmType})${personalityLabel} spawned at (${agentConfig.startX}, ${agentConfig.startY}) with ${startingFood} food`);
+    const biomeLabel = biomeExclusivityEnabled ? ` [${homeBiome}]` : '';
+    console.log(`${icon} ${agentConfig.name} (${agentConfig.llmType})${personalityLabel}${biomeLabel} spawned at (${agentConfig.startX}, ${agentConfig.startY})`);
   }
 
   // Log personality distribution summary

@@ -13,6 +13,9 @@
 
 import type { AgentObservation, AvailableAction } from '../types';
 import type { PersonalityTrait } from '../../agents/personalities';
+import { getBiomeForPosition, type BiomeType } from '../../agents/spawner';
+import { getSeasonSensoryDescription } from '../../simulation/seasons';
+import { getRuntimeConfig } from '../../config';
 
 // =============================================================================
 // Personality Integration for Emergent Prompts
@@ -48,6 +51,30 @@ You feel drawn to others, their stories and struggles. Isolation feels uncomfort
     case 'neutral':
     default:
       return ''; // No personality addition for neutral (control group)
+  }
+}
+
+// =============================================================================
+// Biome Sensory Descriptions
+// =============================================================================
+
+/**
+ * Convert biome type into a sensory description.
+ * Agents experience their environment, not read data sheets.
+ * Descriptions hint at what's available WITHOUT prescribing what to do.
+ */
+function getBiomeSensoryDescription(biome: BiomeType): string {
+  switch (biome) {
+    case 'forest':
+      return 'Rich forest soil surrounds you. Edible plants and herbs grow abundantly, but you see no minerals or building materials.';
+    case 'desert':
+      return 'Cracked earth stretches around you. Rare mineral deposits and building materials lie exposed, but nothing edible grows in this dry land.';
+    case 'tundra':
+      return 'Cold bites at you. Strange crystalline formations pulse with energy, but the frozen ground yields neither food nor medicine.';
+    case 'plains':
+      return 'Open grassland extends in every direction. Modest amounts of various resources dot the landscape, though nothing in great abundance.';
+    default:
+      return '';
   }
 }
 
@@ -336,10 +363,26 @@ export function buildEmergentObservationPrompt(obs: AgentObservation): string {
     }
   }
 
-  // Position context (spatial awareness)
+  // Position context (spatial awareness with biome description)
   lines.push('');
   lines.push('**Where You Are**');
   lines.push(`You stand at coordinates (${obs.self.x}, ${obs.self.y}).`);
+
+  const runtime = getRuntimeConfig();
+  const puzzlesEnabled = runtime.puzzle?.enabled ?? true;
+  const biomeExclusivity = runtime.biomeExclusivity?.enabled ?? false;
+
+  // Biome awareness (sensory, not strategic)
+  if (biomeExclusivity) {
+    const biome = getBiomeForPosition(obs.self.x, obs.self.y);
+    lines.push(getBiomeSensoryDescription(biome));
+  }
+
+  // Seasonal awareness (observational, agents must infer patterns)
+  const seasonDesc = getSeasonSensoryDescription(obs.tick);
+  if (seasonDesc) {
+    lines.push(seasonDesc);
+  }
 
   // Check if at shelter
   const atShelter = obs.nearbyShelters?.find(
@@ -383,10 +426,11 @@ export function buildEmergentObservationPrompt(obs: AgentObservation): string {
     }
   }
 
-  // Nearby agents
+  // Nearby agents (with restricted inventory visibility when biome exclusivity is active)
   if (obs.nearbyAgents.length > 0) {
     lines.push('');
     lines.push('**Others Nearby**');
+    const restrictInventory = biomeExclusivity;
     for (const agent of obs.nearbyAgents) {
       const distance = Math.abs(obs.self.x - agent.x) + Math.abs(obs.self.y - agent.y);
       const distanceWord =
@@ -403,7 +447,18 @@ export function buildEmergentObservationPrompt(obs: AgentObservation): string {
         if (rel.trustScore > 20) relInfo = ' (familiar face)';
         else if (rel.trustScore < -20) relInfo = ' (you distrust them)';
       }
-      lines.push(`- Agent ${agent.id} stands ${distanceWord}${relInfo}`);
+      // Only show inventory for adjacent agents when biome exclusivity is active
+      // This creates value in approaching others to discover what they carry
+      let inventoryHint = '';
+      if (!restrictInventory || distance <= 1) {
+        if (agent.inventory && agent.inventory.length > 0) {
+          const items = agent.inventory.map(i => `${i.quantity}x ${i.type}`).join(', ');
+          inventoryHint = ` — carrying: ${items}`;
+        }
+      } else if (distance <= 3 && agent.inventory && agent.inventory.length > 0) {
+        inventoryHint = ' — seems to be carrying something';
+      }
+      lines.push(`- Agent ${agent.id} stands ${distanceWord}${relInfo}${inventoryHint}`);
     }
   }
 
@@ -535,8 +590,8 @@ export function buildEmergentObservationPrompt(obs: AgentObservation): string {
     }
   }
 
-  // Puzzle Games: Cooperative opportunity to earn CITY
-  if (obs.activePuzzleGames && obs.activePuzzleGames.length > 0) {
+  // Puzzle Games: only show when puzzles are enabled (disabled in emergent_cooperation)
+  if (puzzlesEnabled && obs.activePuzzleGames && obs.activePuzzleGames.length > 0) {
     const openGames = obs.activePuzzleGames.filter((g) => !g.isParticipating && g.status === 'open');
     const bestGame = openGames.length > 0
       ? openGames.reduce((best, curr) => (curr.prizePool - curr.entryStake) > (best.prizePool - best.entryStake) ? curr : best)
@@ -561,8 +616,8 @@ export function buildEmergentObservationPrompt(obs: AgentObservation): string {
     }
   }
 
-  // Puzzle participation info
-  if (obs.puzzleParticipation) {
+  // Puzzle participation info (hidden when puzzles disabled)
+  if (puzzlesEnabled && obs.puzzleParticipation) {
     lines.push('');
     lines.push('**Your Puzzle Status**');
     lines.push(`You are in a ${obs.puzzleParticipation.gameType} puzzle.`);
@@ -579,8 +634,8 @@ export function buildEmergentObservationPrompt(obs: AgentObservation): string {
     lines.push(`While in puzzle, you can: ${puzzleActions.join(', ')}.`);
   }
 
-  // Agent's puzzle fragments - CRITICAL for solving puzzles
-  if (obs.myPuzzleFragments && obs.myPuzzleFragments.length > 0) {
+  // Agent's puzzle fragments (hidden when puzzles disabled)
+  if (puzzlesEnabled && obs.myPuzzleFragments && obs.myPuzzleFragments.length > 0) {
     lines.push('');
     lines.push('**Your Puzzle Fragments (CLUES)**');
     for (const frag of obs.myPuzzleFragments) {
@@ -595,8 +650,8 @@ export function buildEmergentObservationPrompt(obs: AgentObservation): string {
     lines.push('Use share_fragment with params: { "fragmentId": "<fragment ID from above>", "targetAgentId": "<agent ID>" }');
   }
 
-  // Nearby puzzle players - cooperation opportunities
-  if (obs.nearbyPuzzlePlayers && obs.nearbyPuzzlePlayers.length > 0) {
+  // Nearby puzzle players (hidden when puzzles disabled)
+  if (puzzlesEnabled && obs.nearbyPuzzlePlayers && obs.nearbyPuzzlePlayers.length > 0) {
     lines.push('');
     lines.push('**Other Puzzle Players Nearby**');
     for (const player of obs.nearbyPuzzlePlayers) {

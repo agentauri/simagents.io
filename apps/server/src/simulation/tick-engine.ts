@@ -20,12 +20,14 @@ import {
   createTracedLogger,
 } from '../telemetry';
 import { TICK_INTERVAL_MS } from '@simagents/shared';
-import { incrementTick, getCurrentTick, getWorldState, regenerateResources } from '../db/queries/world';
+import { incrementTick, getCurrentTick, getWorldState, regenerateResources, applyResourceDepletion } from '../db/queries/world';
 import { getAliveAgents, updateAgent } from '../db/queries/agents';
 import { appendEvent } from '../db/queries/events';
 import { publishEvent, type WorldEvent } from '../cache/pubsub';
 import { setCachedTick, setCachedWorldState, setCachedAgents } from '../cache/projections';
 import { applyNeedsDecay, applyCurrencyDecay, applyItemSpoilage, cleanupOrphanedCriticalTicks } from './needs-decay';
+import { getCurrentSeason } from './seasons';
+import { getRuntimeConfig } from '../config';
 import { processAgentsTick } from '../agents/orchestrator';
 import { captureVariantSnapshot, updateVariantStatus, updateExperimentStatus, getNextPendingVariant } from '../db/queries/experiments';
 import { updateAllAgentRoles } from '../db/queries/roles';
@@ -317,8 +319,27 @@ class TickEngine {
       }
     }
 
-    // Phase 5d: RESOURCE REGENERATION - Replenish resource spawns
-    await regenerateResources();
+    // Phase 5d: RESOURCE REGENERATION - Replenish resource spawns (with seasonal multipliers)
+    const runtimeConfig = getRuntimeConfig();
+    if (runtimeConfig.seasons?.enabled) {
+      const season = getCurrentSeason(tick);
+      await regenerateResources(season.multipliers);
+      if (tick % 25 === 0) {
+        logger.info(`Season: ${season.name} (tick ${season.tickInCycle}/${season.cycleLength}) - food: ${season.multipliers.food}x, energy: ${season.multipliers.energy}x, material: ${season.multipliers.material}x`);
+      }
+    } else {
+      await regenerateResources();
+    }
+
+    // Phase 5d.2: RESOURCE DEPLETION - Over-harvest degradation
+    if (runtimeConfig.resourceDepletion?.enabled) {
+      await applyResourceDepletion({
+        depletionThresholdTicks: runtimeConfig.resourceDepletion.depletionThresholdTicks ?? 10,
+        degradationRate: runtimeConfig.resourceDepletion.degradationRate ?? 0.2,
+        minCapacityFraction: runtimeConfig.resourceDepletion.minCapacityFraction ?? 0.2,
+        recoveryRatePerTick: runtimeConfig.resourceDepletion.recoveryRatePerTick ?? 0.005,
+      });
+    }
 
     // Phase 5e: MEMORY CLEANUP - Periodically clean up orphaned critical ticks map entries
     if (tick % 100 === 0) {

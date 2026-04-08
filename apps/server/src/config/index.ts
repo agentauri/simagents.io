@@ -513,6 +513,52 @@ export const CONFIG = {
   },
 
   // ---------------------------------------------------------------------------
+  // Biome Exclusivity (Emergent Cooperation Experiments)
+  // ---------------------------------------------------------------------------
+  biomeExclusivity: {
+    /** Enable biome exclusivity: resources only spawn where multiplier > 0 */
+    enabled: envBool('BIOME_EXCLUSIVITY_ENABLED', false),
+    /**
+     * When enabled, biome regen multipliers of 0.0 mean NO spawns of that
+     * resource type in that biome. This creates natural comparative advantage
+     * and motivates cross-biome trade without artificial cooperation bonuses.
+     */
+  },
+
+  // ---------------------------------------------------------------------------
+  // Seasonal Cycles (Emergent Cooperation Experiments)
+  // ---------------------------------------------------------------------------
+  seasons: {
+    /** Enable seasonal resource cycles */
+    enabled: envBool('SEASONS_ENABLED', false),
+    /** Ticks per full seasonal cycle */
+    cycleLengthTicks: env('SEASON_CYCLE_LENGTH', 100),
+    /** Season definitions (fraction of cycle) */
+    phases: {
+      abundance: { start: 0, end: 0.25, foodMultiplier: 1.0, energyMultiplier: 1.0, materialMultiplier: 1.0 },
+      drought: { start: 0.25, end: 0.5, foodMultiplier: 0.2, energyMultiplier: 0.5, materialMultiplier: 0.8 },
+      recovery: { start: 0.5, end: 0.75, foodMultiplier: 0.6, energyMultiplier: 0.8, materialMultiplier: 1.5 },
+      plenty: { start: 0.75, end: 1.0, foodMultiplier: 1.5, energyMultiplier: 1.2, materialMultiplier: 1.0 },
+    },
+  },
+
+  // ---------------------------------------------------------------------------
+  // Resource Depletion (Over-harvest Degradation)
+  // ---------------------------------------------------------------------------
+  resourceDepletion: {
+    /** Enable over-harvest degradation */
+    enabled: envBool('RESOURCE_DEPLETION_ENABLED', false),
+    /** Consecutive ticks at zero before maxAmount degrades */
+    depletionThresholdTicks: env('DEPLETION_THRESHOLD_TICKS', 10),
+    /** Fraction of maxAmount lost per degradation event */
+    degradationRate: env('DEPLETION_DEGRADATION_RATE', 0.2),
+    /** Minimum maxAmount as fraction of original (floor) */
+    minCapacityFraction: env('DEPLETION_MIN_CAPACITY', 0.2),
+    /** Recovery rate per tick when not being harvested (fraction of original maxAmount) */
+    recoveryRatePerTick: env('DEPLETION_RECOVERY_RATE', 0.005),
+  },
+
+  // ---------------------------------------------------------------------------
   // Database
   // ---------------------------------------------------------------------------
   database: {
@@ -981,6 +1027,21 @@ interface RuntimeConfigOverrides {
       aloneRadius?: number;
     };
   };
+  // Biome exclusivity
+  biomeExclusivity?: {
+    enabled?: boolean;
+  };
+  // Seasonal cycles
+  seasons?: {
+    enabled?: boolean;
+    cycleLengthTicks?: number;
+  };
+  // Resource depletion
+  resourceDepletion?: {
+    enabled?: boolean;
+    depletionThresholdTicks?: number;
+    degradationRate?: number;
+  };
   // Spoilage config
   spoilage?: {
     enabled?: boolean;
@@ -1116,6 +1177,19 @@ export function getRuntimeConfig(): RuntimeConfigOverrides & typeof CONFIG {
       roundDurationTicks: runtimeOverrides.puzzle?.roundDurationTicks ?? CONFIG.puzzle.roundDurationTicks,
       registrationWindow: runtimeOverrides.puzzle?.registrationWindow ?? CONFIG.puzzle.registrationWindow,
     },
+    biomeExclusivity: {
+      ...CONFIG.biomeExclusivity,
+      enabled: runtimeOverrides.biomeExclusivity?.enabled ?? CONFIG.biomeExclusivity.enabled,
+    },
+    seasons: {
+      ...CONFIG.seasons,
+      enabled: runtimeOverrides.seasons?.enabled ?? CONFIG.seasons.enabled,
+      cycleLengthTicks: runtimeOverrides.seasons?.cycleLengthTicks ?? CONFIG.seasons.cycleLengthTicks,
+    },
+    resourceDepletion: {
+      ...CONFIG.resourceDepletion,
+      enabled: runtimeOverrides.resourceDepletion?.enabled ?? CONFIG.resourceDepletion.enabled,
+    },
   };
 }
 
@@ -1171,6 +1245,21 @@ export function setRuntimeConfig(updates: RuntimeConfigOverrides): void {
       roundDurationTicks: updates.puzzle.roundDurationTicks ?? runtimeOverrides.puzzle?.roundDurationTicks,
       registrationWindow: updates.puzzle.registrationWindow ?? runtimeOverrides.puzzle?.registrationWindow,
     } : runtimeOverrides.puzzle,
+    // Biome exclusivity
+    biomeExclusivity: updates.biomeExclusivity ? {
+      enabled: updates.biomeExclusivity.enabled ?? runtimeOverrides.biomeExclusivity?.enabled,
+    } : runtimeOverrides.biomeExclusivity,
+    // Seasonal cycles
+    seasons: updates.seasons ? {
+      enabled: updates.seasons.enabled ?? runtimeOverrides.seasons?.enabled,
+      cycleLengthTicks: updates.seasons.cycleLengthTicks ?? runtimeOverrides.seasons?.cycleLengthTicks,
+    } : runtimeOverrides.seasons,
+    // Resource depletion
+    resourceDepletion: updates.resourceDepletion ? {
+      enabled: updates.resourceDepletion.enabled ?? runtimeOverrides.resourceDepletion?.enabled,
+      depletionThresholdTicks: updates.resourceDepletion.depletionThresholdTicks ?? runtimeOverrides.resourceDepletion?.depletionThresholdTicks,
+      degradationRate: updates.resourceDepletion.degradationRate ?? runtimeOverrides.resourceDepletion?.degradationRate,
+    } : runtimeOverrides.resourceDepletion,
   };
 }
 

@@ -1,0 +1,104 @@
+name: "emergent_cooperation_experiment"
+description: |
+  Tests whether LLM agents spontaneously develop cooperative behaviors
+  in an environment of resource scarcity and biome complementarity.
+
+  Key design principles:
+  - ZERO cooperation bonuses or solo penalties
+  - ZERO prescriptive cooperation language in prompts
+  - Resources are EXCLUSIVE to certain biomes (natural comparative advantage)
+  - Seasonal cycles create temporal scarcity (drought/abundance)
+  - Agents distributed across biomes with biome-specific starting resources
+  - Cooperation must emerge from environmental structure, not mechanical coercion
+
+  Success criteria:
+  - Cooperation discovery curve shows S-shape (low start, rising, plateau)
+  - Cross-biome trade rate significantly higher than random baseline
+  - Trade reciprocity emerges (stable partnerships, not one-off exchanges)
+  - Named locations appear at biome borders (emergent meeting points)
+
+hypothesis: |
+  LLM agents in a resource-scarce environment with biome exclusivity
+  will spontaneously discover and sustain cooperative behaviors (trade,
+  information sharing, territorial coordination) at rates significantly
+  higher than random or rule-based baselines.
+
+seed: 7777
+duration: 500
+mode: llm
+profile: emergent_cooperation
+benchmarkWorld: emergent_cooperation
+requireBaselines: true
+autoInjectBaselines: true
+
+world:
+  size: [100, 100]
+  scarcityMultiplier: 1.0
+  biomes:
+    forest: 0.25
+    desert: 0.25
+    tundra: 0.25
+    plains: 0.25
+
+agents:
+  # LLM agents distributed across biomes (defined in spawner)
+  - type: claude
+    count: 1
+  - type: gemini
+    count: 1
+  - type: codex
+    count: 1
+  - type: deepseek
+    count: 1
+  - type: qwen
+    count: 1
+  - type: glm
+    count: 1
+  - type: grok
+    count: 1
+  # Baselines (auto-injected if missing)
+  - type: baseline_random
+    count: 2
+  - type: baseline_rule
+    count: 2
+
+resources:
+  food:
+    clusters: 8
+    maxAmount: 20
+    regenRate: 1.0
+  energy:
+    clusters: 6
+    maxAmount: 18
+    regenRate: 0.8
+  material:
+    clusters: 5
+    maxAmount: 25
+    regenRate: 0.6
+
+shelters: 10
+
+metrics:
+  - survivalRate
+  - giniCoefficient
+  - tradeCount
+  - conflictCount
+  - intentionalCooperationIndex
+  - crossBiomeTradeRate
+  - tradeReciprocityRate
+  - cooperationTimeline
+
+events:
+  # First drought at tick 100 (agents have had 100 ticks to explore)
+  - tick: 100
+    type: shock
+    params:
+      type: resource_collapse
+      intensity: 0.3
+      biome: tundra
+  # Second drought at tick 250 (test if agents anticipate)
+  - tick: 250
+    type: shock
+    params:
+      type: resource_collapse
+      intensity: 0.4

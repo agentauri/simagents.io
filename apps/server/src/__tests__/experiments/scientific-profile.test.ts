@@ -57,6 +57,9 @@ describe('resolveScientificProfile', () => {
       personalitiesEnabled: false,
       llmCacheEnabled: false,
       cacheSharingEnabled: false,
+      biomeExclusivityEnabled: false,
+      seasonsEnabled: false,
+      resourceDepletionEnabled: false,
     });
   });
 
