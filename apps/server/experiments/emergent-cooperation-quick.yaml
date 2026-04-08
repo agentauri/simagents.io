@@ -1,0 +1,57 @@
+name: "emergent_cooperation_quick"
+description: "Quick 100-tick test of emergent cooperation with all LLM agents"
+hypothesis: "LLM agents in a resource-scarce environment with biome exclusivity will begin trading across biomes within 100 ticks"
+seed: 42
+duration: 100
+mode: llm
+profile: emergent_cooperation
+benchmarkWorld: emergent_cooperation
+requireBaselines: false
+autoInjectBaselines: false
+
+world:
+  size: [100, 100]
+  scarcityMultiplier: 1.0
+  biomes:
+    forest: 0.25
+    desert: 0.25
+    tundra: 0.25
+    plains: 0.25
+
+agents:
+  - type: claude
+    count: 1
+  - type: gemini
+    count: 1
+  - type: codex
+    count: 1
+  - type: deepseek
+    count: 1
+  - type: qwen
+    count: 1
+  - type: glm
+    count: 1
+  - type: grok
+    count: 1
+
+resources:
+  food:
+    clusters: 8
+    maxAmount: 20
+    regenRate: 1.0
+  energy:
+    clusters: 6
+    maxAmount: 18
+    regenRate: 0.8
+  material:
+    clusters: 5
+    maxAmount: 25
+    regenRate: 0.6
+
+shelters: 10
+
+metrics:
+  - survivalRate
+  - giniCoefficient
+  - tradeCount
+  - conflictCount

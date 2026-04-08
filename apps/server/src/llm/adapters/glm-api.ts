@@ -13,7 +13,7 @@ export class GLMAPIAdapter extends BaseLLMAdapter {
   readonly method: LLMMethod = 'api';
   readonly name = 'GLM-5.1 (API)';
 
-  private readonly endpoint = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+  private readonly endpoint = 'https://api.z.ai/api/coding/paas/v4/chat/completions';
   private readonly model = 'glm-5.1';
   private readonly timeout: number;
 

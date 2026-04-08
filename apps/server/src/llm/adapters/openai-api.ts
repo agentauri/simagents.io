@@ -43,7 +43,7 @@ export class OpenAIAPIAdapter extends BaseLLMAdapter {
 
     const response = await client.chat.completions.create({
       model: 'gpt-5.4',
-      max_tokens: this.getDecisionMaxTokens(),
+      max_completion_tokens: this.getDecisionMaxTokens(),
       temperature: this.getDecisionTemperature(),
       messages: [{ role: 'user', content: prompt }],
     });
@@ -63,7 +63,7 @@ export class OpenAIAPIAdapter extends BaseLLMAdapter {
 
     const response = await client.chat.completions.create({
       model: 'gpt-5.4',
-      max_tokens: options?.maxTokens ?? 4096,
+      max_completion_tokens: options?.maxTokens ?? 4096,
       temperature: options?.temperature ?? 0.8,
       messages: [{ role: 'user', content: prompt }],
     });
