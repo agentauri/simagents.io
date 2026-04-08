@@ -20,6 +20,10 @@ Metric claims in SimAgents must identify the metric tier and the failure mode be
 | Conflict count | descriptive | final cumulative harm/steal count | Good for incident volume | Does not capture severity distribution |
 | Cooperation index | heuristic | `(positive trust share + repeat trade rate + cluster cohesion) / 3` | Proxy only | Overstates “cooperation” if trust or clustering are noisy |
 | Clustering metrics | heuristic | connected components under fixed Manhattan radius | Topology proxy | Highly sensitive to radius choice |
+| Intentional cooperation index | heuristic | `(cross-biome trade × 0.35) + (info novelty × 0.25) + (trade reciprocity × 0.25) + (voluntary approach × 0.15)` | Emergent cooperation experiments | Designed for `emergent_cooperation` profile; cross-biome trade is meaningful only with biome exclusivity enabled |
+| Cross-biome trade rate | descriptive | fraction of trades between agents from different biomes | Measures complementarity-driven trade | Meaningless without biome exclusivity |
+| Trade reciprocity rate | descriptive | fraction of trade partners who trade back | Sustained relationships vs one-offs | Does not measure trade quality |
+| Cooperation timeline | experimental | per-tick cooperation index for discovery curve analysis | Observing S-curve emergence | Noisy at small window sizes |
 | Phase 2 social graph metrics | experimental | graph statistics over knowledge/trust relations | Exploratory diagnostics | Null model still evolving |
 
 ## Null-Model Rule

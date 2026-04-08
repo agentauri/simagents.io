@@ -19,9 +19,10 @@ SimAgents now separates runtime capability from claim strength.
 | Surface | Typical config | What it is for | What it is not for |
 |---------|----------------|----------------|--------------------|
 | Lower-imposition benchmark | `benchmarkWorld: canonical_core`, `profile: deterministic_baseline` | replicated comparative studies, baseline validation, literature-style controls | free-form LLM novelty claims |
+| Emergent cooperation | `profile: emergent_cooperation`, `benchmarkWorld: emergent_cooperation` | studying spontaneous cooperation via biome exclusivity and seasonal cycles; zero cooperation bonuses | claims that cooperation is "designed" or "incentivized" |
 | Exploratory platform | `profile: llm_exploratory` or other full-surface runs | prompt research, intervention studies, rich mechanic exploration | strong minimal-imposition claims |
 
-Strong claims belong only to the first row, and only after replication.
+Strong claims belong only to the first row, and only after replication. The emergent cooperation surface is exploratory by claim class, but its design specifically isolates agent reasoning from mechanical incentives.
 
 ---
 
@@ -164,7 +165,7 @@ The literature-baseline agent used by `apps/server/experiments/sugarscape-replic
 
 ## Intervention Mechanics
 
-The following mechanics belong to the full platform surface. They are disabled in `canonical_core`.
+The following mechanics belong to the full platform surface. They are disabled in both `canonical_core` and `emergent_cooperation`.
 
 ### Cooperation Incentives
 

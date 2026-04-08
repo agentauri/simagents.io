@@ -16,7 +16,7 @@ Key differentiators:
 
 When implementing features, always distinguish:
 
-**IMPOSED (Infrastructure)**: Grid world (100x100), movement physics, event logging, agent identity, survival pressure (hunger, energy decay), health system, resource distribution, currency (CITY)
+**IMPOSED (Infrastructure)**: Grid world (100x100), movement physics, event logging, agent identity, survival pressure (hunger, energy decay), health system, resource distribution, biome geography, seasonal cycles, currency (CITY)
 
 **EMERGENT (Agent-Created)**: Movement patterns, trade conventions, reputation, trust, social structures, property conventions, laws, morality
 
@@ -83,7 +83,7 @@ apps/
     agents/              # Spawner, observer, orchestrator, baselines/
     db/                  # Drizzle schema and queries
     llm/adapters/        # LLM provider adapters
-    simulation/          # Tick engine, needs-decay, shocks, puzzle-engine
+    simulation/          # Tick engine, needs-decay, shocks, puzzle-engine, seasons
     experiments/         # Experiment DSL and runner
     routes/              # API route handlers
     world/               # Grid utilities, scent system (stigmergy)
@@ -112,6 +112,7 @@ packages/
 - `apps/server/src/analysis/experiment-analysis.ts` - Statistical functions (t-test, Mann-Whitney U, normalityTest, CI, power analysis)
 - `apps/server/src/analysis/metric-validator.ts` - Metric validation harness + multiple comparison corrections
 - `apps/server/src/experiments/scientific-profile.ts` - Scientific execution profiles
+- `apps/server/src/simulation/seasons.ts` - Seasonal resource cycles (emergent cooperation)
 
 ## Testing
 
@@ -133,6 +134,9 @@ Tests are in `apps/server/src/__tests__/` organized by domain (actions/, integra
 | `REDIS_URL` | `redis://localhost:6379` | Redis connection |
 | `RANDOM_SEED` | timestamp | Seed for reproducible experiments |
 | `ADMIN_API_KEY` | (insecure default) | Required for admin API endpoints |
+| `BIOME_EXCLUSIVITY_ENABLED` | `false` | Resources exclusive to certain biomes |
+| `SEASONS_ENABLED` | `false` | Seasonal resource cycles |
+| `RESOURCE_DEPLETION_ENABLED` | `false` | Over-harvest degradation |
 
 See `apps/server/src/config/index.ts` for full configuration options.
 

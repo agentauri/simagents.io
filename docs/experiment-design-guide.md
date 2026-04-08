@@ -6,6 +6,7 @@ Research claims now depend on the selected scientific profile:
 
 - `deterministic_baseline`: seeded, no external LLM sampling, cache sharing disabled, canonical core world by default
 - `llm_exploratory`: settings frozen for comparability, but still labeled non-deterministic because external providers remain stochastic
+- `emergent_cooperation`: LLM mode with zero cooperation bonuses/penalties; enables biome exclusivity, seasonal cycles, and resource depletion so cooperation must emerge from environmental structure rather than designed incentives
 
 ## Table of Contents
 
@@ -48,7 +49,7 @@ The platform distinguishes between:
 - Social structures, alliances
 - Reputation, trust
 
-Experiments should measure emergent behaviors, not imposed mechanics. In practice, `canonical_core` is the lower-imposition benchmark because it disables cooperation/trust incentives, spoilage, puzzles, personalities, and shared LLM cache.
+Experiments should measure emergent behaviors, not imposed mechanics. In practice, `canonical_core` is the lower-imposition benchmark because it disables cooperation/trust incentives, spoilage, puzzles, personalities, and shared LLM cache. For studying spontaneous cooperation, `emergent_cooperation` disables artificial incentives but enables environmental asymmetry (biome exclusivity, seasonal cycles) that makes cooperation naturally advantageous without prescribing it.
 
 ---
 
@@ -106,8 +107,8 @@ Experiments are defined using a JSON/YAML schema. The schema is validated at loa
 | `tickIntervalMs` | number | No | 1000 | Tick interval in milliseconds |
 | `mode` | string | No | `"llm"` | Decision mode: `llm`, `fallback`, `random_walk` |
 | `preRegistration` | object | No | - | Pre-registration record with `hypothesis`, `primaryMetrics`, `registeredAt`, `configHash` |
-| `profile` | string | No | - | Scientific execution profile: `deterministic_baseline` or `llm_exploratory` |
-| `benchmarkWorld` | string | No | - | World complexity preset: `canonical_core` or `full_surface` |
+| `profile` | string | No | - | Scientific execution profile: `deterministic_baseline`, `llm_exploratory`, or `emergent_cooperation` |
+| `benchmarkWorld` | string | No | - | World complexity preset: `canonical_core`, `full_surface`, or `emergent_cooperation` |
 
 #### World Configuration (`world`)
 
@@ -303,6 +304,23 @@ For low-imposition experiments, use:
 ```
 
 This combination disables cooperation incentives, trust-based pricing, trade bonuses, spoilage, puzzles, personalities, and shared LLM cache. Any other configuration should be reported as exploratory or intervention-heavy rather than minimally imposed.
+
+For studying spontaneous cooperation emergence, use:
+
+```yaml
+profile: emergent_cooperation
+benchmarkWorld: emergent_cooperation
+mode: llm
+```
+
+This profile disables all cooperation bonuses and solo penalties (cooperation must emerge, not be incentivized). It enables:
+- **Biome exclusivity**: food only in forest, materials only in desert, energy only in tundra — agents must trade across biomes
+- **Seasonal cycles**: drought/abundance phases create temporal scarcity without telling agents about seasons
+- **Resource depletion**: over-harvested spawns degrade, rewarding sustainable use
+- **Spoilage**: perishable items create natural trade urgency
+- **Personalities**: behavioral diversity without cooperation coaching
+
+Puzzles are disabled (they force cooperation by design). Cooperation metrics use `intentionalCooperationIndex` instead of the standard `cooperationIndex` to distinguish genuine emergence from mechanical coercion. See `apps/server/experiments/emergent-cooperation.yaml` for a complete example.
 
 **Agent processing order**: Agents are shuffled deterministically each tick (using the experiment seed) to eliminate processing-order bias. This ensures that no agent systematically benefits from acting first or last within a tick.
 

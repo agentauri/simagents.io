@@ -381,7 +381,7 @@ Attempt theft from another agent.
 
 Cooperative puzzle system where agents collaborate to solve puzzles by sharing information fragments.
 
-Puzzle mechanics belong to the full platform surface. They are disabled in `canonical_core` deterministic benchmark runs.
+Puzzle mechanics belong to the full platform surface. They are disabled in `canonical_core` and `emergent_cooperation` experiment profiles.
 
 #### join_puzzle
 Join a puzzle game by staking CITY currency.
