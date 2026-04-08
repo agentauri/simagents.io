@@ -44,6 +44,7 @@ export class GeminiAPIAdapter extends BaseLLMAdapter {
       generationConfig: {
         maxOutputTokens: this.getDecisionMaxTokens(),
         temperature: this.getDecisionTemperature(),
+        responseMimeType: 'application/json',
       },
     });
 
