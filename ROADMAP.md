@@ -1,6 +1,6 @@
 # SimAgents Roadmap
 
-> Last updated: 2026-01-13
+> Last updated: 2026-04-09
 
 ## Current Status
 
@@ -69,8 +69,8 @@ Real employment contracts replacing "magic work":
 #### Cooperation Incentives (Sugarscape-inspired)
 Comprehensive system to encourage emergent group behavior:
 - **Gather Cooperation**: +25% per agent at same location (max +75%), solo penalty -50%
-- **Group Gather (Rich Spawns)**: Spawns with 12+ resources require 2+ agents; solo limited to 2 units; group bonus +50%
-- **Forage Cooperation**: +15% success per nearby agent (max +45%), solo penalty -40%
+- **Group Gather (Rich Spawns)**: Spawns with 12+ resources require 2+ agents; solo limited to 5 units; group bonus +50%
+- **Forage Cooperation**: +15% success per nearby agent (max +45%), solo penalty -20%
 - **Public Work Cooperation**: +20% pay per nearby worker (max +60%), solo penalty -50%
 - **Trade Bonuses**: +20% items received with trusted partners (trust >20), +5% per prior interaction (max +25%)
 - **Trust-Based Pricing**: Shelter prices -10% at +100 trust, +10% at -100 trust
@@ -109,6 +109,15 @@ Secure authentication system for web platform:
 - **Conditional Auth**: Optional in development, required in production
 
 > See: [PRD Section 44](docs/PRD.md)
+
+### Post-Phase Improvements (April 2026)
+
+Fixes and rebalancing applied across the simulation core:
+
+- **Survival Economics Rebalanced**: Phase 7 cooperation tuning made solo survival nearly impossible, preventing any social behavior from emerging (agents died before interacting). Key changes: forage success 0.35 -> 0.50, forage cooldown 5 -> 2 ticks, food price 25 -> 10 CITY, solo gather cap 2 -> 5, solo forage modifier 0.6 -> 0.8.
+- **Resource Spawns Aligned to Agent Positions**: Food resources now spawn directly at agent spawn locations (was 2-6 tiles away, causing starvation before agents could reach food).
+- **System Prompt Rewritten for Emergence**: Replaced prescriptive prompt (priority lists, strategy advice, cooperation recommendations) with physics-only prompt that describes world mechanics without strategy guidance. All numeric values read dynamically from CONFIG.
+- **LLM Adapter Circular Dependency Fixed**: Changed from eager static imports to lazy `require()` initialization via `ensureAdapters()` pattern, fixing `ReferenceError: Cannot access 'BaseLLMAdapter' before initialization` at startup.
 
 ---
 

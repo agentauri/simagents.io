@@ -220,10 +220,14 @@ export interface ResourceSpawnConfig {
 // Resources distributed geographically - more dense and accessible to encourage gathering
 // Increased spawn count and placed closer to central shelters (around 30,20)
 const RESOURCE_SPAWN_CONFIGS: ResourceSpawnConfig[] = [
-  // CENTRAL FOOD CLUSTER (near starting shelters - high priority!)
-  { resourceType: 'food', x: 28, y: 18, maxAmount: 20, regenRate: 1.2 },
-  { resourceType: 'food', x: 32, y: 18, maxAmount: 20, regenRate: 1.2 },
-  { resourceType: 'food', x: 30, y: 22, maxAmount: 15, regenRate: 1.0 },
+  // CENTRAL FOOD CLUSTER (at agent spawn positions for immediate access)
+  ...AGENT_CONFIGS.map(a => ({
+    resourceType: 'food' as const,
+    x: a.startX,
+    y: a.startY,
+    maxAmount: 20,
+    regenRate: 1.5,
+  })),
   { resourceType: 'food', x: 26, y: 20, maxAmount: 15, regenRate: 1.0 },
   { resourceType: 'food', x: 34, y: 20, maxAmount: 15, regenRate: 1.0 },
 

@@ -100,7 +100,8 @@ packages/
 
 - `apps/server/src/simulation/tick-engine.ts` - Main simulation loop
 - `apps/server/src/agents/orchestrator.ts` - Agent decision coordination
-- `apps/server/src/llm/prompt-builder.ts` - LLM prompt construction
+- `apps/server/src/llm/prompt-builder.ts` - LLM prompt construction (physics-only, reads values from CONFIG)
+- `apps/server/src/llm/index.ts` - LLM adapter registry (lazy-loaded to avoid circular deps)
 - `apps/server/src/db/schema.ts` - Database schema (Drizzle)
 - `apps/server/src/config/index.ts` - Centralized configuration
 - `apps/server/src/world/grid.ts` - Grid utilities (positions, movement, visibility)
@@ -174,7 +175,7 @@ Set `ADMIN_API_KEY` env var in production. Default is insecure for development o
 
 1. Create adapter in `apps/server/src/llm/adapters/`
 2. Add type to shared types
-3. Register in LLM factory
+3. Register in LLM factory (`apps/server/src/llm/index.ts` uses lazy `require()` initialization via `ensureAdapters()` to avoid circular dependency issues with `BaseLLMAdapter`)
 
 ## Documentation
 

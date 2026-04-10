@@ -3,27 +3,31 @@
  */
 
 import type { LLMAdapter, LLMType } from './types';
-// API adapters (reliable, controllable)
-import { ClaudeAPIAdapter } from './adapters/claude-api';
-import { OpenAIAPIAdapter } from './adapters/openai-api';
-import { GeminiAPIAdapter } from './adapters/gemini-api';
-import { DeepSeekAPIAdapter } from './adapters/deepseek-api';
-import { QwenAPIAdapter } from './adapters/qwen-api';
-import { GLMAPIAdapter } from './adapters/glm-api';
-import { GrokAPIAdapter } from './adapters/grok-api';
-import { MistralAPIAdapter } from './adapters/mistral-api';
-import { MiniMaxAPIAdapter } from './adapters/minimax-api';
-import { KimiAPIAdapter } from './adapters/kimi-api';
 import { CONFIG } from '../config';
 
-// Adapter registry
+// Adapter registry (lazy-initialized to break circular dependency at module load)
 const adapters: Map<LLMType, LLMAdapter> = new Map();
+let initialized = false;
 
-// Initialize adapters with configurable timeout
-function initAdapters(): void {
+// Initialize adapters lazily - dynamic requires break the circular import cycle
+function ensureAdapters(): void {
+  if (initialized) return;
+  initialized = true;
+
   const timeout = CONFIG.llm.defaultTimeoutMs;
   // Extended timeout for China-based API providers (GLM, MiniMax, Kimi)
   const extendedTimeout = Math.max(timeout, 60000);
+
+  const { ClaudeAPIAdapter } = require('./adapters/claude-api');
+  const { OpenAIAPIAdapter } = require('./adapters/openai-api');
+  const { GeminiAPIAdapter } = require('./adapters/gemini-api');
+  const { DeepSeekAPIAdapter } = require('./adapters/deepseek-api');
+  const { QwenAPIAdapter } = require('./adapters/qwen-api');
+  const { GLMAPIAdapter } = require('./adapters/glm-api');
+  const { GrokAPIAdapter } = require('./adapters/grok-api');
+  const { MistralAPIAdapter } = require('./adapters/mistral-api');
+  const { MiniMaxAPIAdapter } = require('./adapters/minimax-api');
+  const { KimiAPIAdapter } = require('./adapters/kimi-api');
 
   // Primary LLMs via API (reliable)
   adapters.set('claude', new ClaudeAPIAdapter(timeout));
@@ -39,13 +43,11 @@ function initAdapters(): void {
   adapters.set('kimi', new KimiAPIAdapter(extendedTimeout));
 }
 
-// Initialize on module load
-initAdapters();
-
 /**
  * Get adapter by type
  */
 export function getAdapter(type: LLMType): LLMAdapter | undefined {
+  ensureAdapters();
   return adapters.get(type);
 }
 
@@ -53,6 +55,7 @@ export function getAdapter(type: LLMType): LLMAdapter | undefined {
  * Get all adapters
  */
 export function getAllAdapters(): LLMAdapter[] {
+  ensureAdapters();
   return Array.from(adapters.values());
 }
 
@@ -60,6 +63,7 @@ export function getAllAdapters(): LLMAdapter[] {
  * Check which adapters are available
  */
 export async function getAvailableAdapters(): Promise<LLMAdapter[]> {
+  ensureAdapters();
   const results = await Promise.all(
     Array.from(adapters.values()).map(async (adapter) => ({
       adapter,
@@ -74,6 +78,7 @@ export async function getAvailableAdapters(): Promise<LLMAdapter[]> {
  * Log adapter availability
  */
 export async function logAdapterStatus(): Promise<void> {
+  ensureAdapters();
   console.log('\n📡 LLM Adapter Status:');
 
   for (const [type, adapter] of adapters) {

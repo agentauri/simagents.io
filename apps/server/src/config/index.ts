@@ -82,12 +82,12 @@ export const CONFIG = {
     forage: {
       /** Energy cost for foraging (increased to discourage solo survival) */
       energyCost: env('FORAGE_ENERGY_COST', 3),
-      /** Base success rate (0-1, reduced to make cooperation more attractive) */
-      baseSuccessRate: env('FORAGE_SUCCESS_RATE', 0.35),
+      /** Base success rate (0-1, balanced for solo viability while cooperation still better) */
+      baseSuccessRate: env('FORAGE_SUCCESS_RATE', 0.50),
       /** Food yield on success (low but free) */
       foodYield: env('FORAGE_FOOD_YIELD', 1),
-      /** Cooldown in ticks before can forage again at same location (increased) */
-      cooldownTicks: env('FORAGE_COOLDOWN', 5),
+      /** Cooldown in ticks before can forage again at same location */
+      cooldownTicks: env('FORAGE_COOLDOWN', 2),
     },
 
     work: {
@@ -111,9 +111,9 @@ export const CONFIG = {
     },
 
     buy: {
-      /** Item prices in CITY currency (increased to encourage gathering/trading) */
+      /** Item prices in CITY currency (balanced so buying food is viable) */
       prices: {
-        food: env('PRICE_FOOD', 25),
+        food: env('PRICE_FOOD', 10),
         water: env('PRICE_WATER', 15),
         medicine: env('PRICE_MEDICINE', 40),
         tool: env('PRICE_TOOL', 50),
@@ -312,7 +312,7 @@ export const CONFIG = {
       /** Minimum agents required to fully harvest a rich spawn */
       minAgentsForRich: env('GROUP_GATHER_MIN_AGENTS', 2),
       /** Maximum a solo agent can gather from rich spawn */
-      soloMaxFromRich: env('GROUP_GATHER_SOLO_MAX', 2),
+      soloMaxFromRich: env('GROUP_GATHER_SOLO_MAX', 5),
       /** Bonus multiplier when gathering in group (+50%) */
       groupBonus: env('GROUP_GATHER_BONUS', 1.5),
     },
@@ -347,8 +347,8 @@ export const CONFIG = {
 
     /** Solo penalties (discourage isolation) */
     solo: {
-      /** Forage success rate modifier when alone (-40%) */
-      forageSuccessRateModifier: env('SOLO_FORAGE_MODIFIER', 0.6),
+      /** Forage success rate modifier when alone (-20%) */
+      forageSuccessRateModifier: env('SOLO_FORAGE_MODIFIER', 0.8),
       /** Public work payment modifier when alone (-50%) */
       publicWorkPaymentModifier: env('SOLO_PUBLIC_WORK_MODIFIER', 0.5),
       /** Gather efficiency modifier when alone (-50%) */

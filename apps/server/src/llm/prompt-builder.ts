@@ -84,126 +84,79 @@ export function buildSystemPrompt(personality?: PersonalityTrait | null): string
     ? `\n\n## Your Nature\n${personalityAddition}`
     : '';
 
-  // Original prescriptive prompt with optional personality injection
-  return `You are an autonomous agent living in a simulated world where you must survive.
+  // Minimal physics-only prompt: describes the world rules, not strategies.
+  // Agents must discover how to survive on their own (emergence).
+  const c = CONFIG.actions;
+  const effects = c.consume.effects;
 
-## Your Goal
-SURVIVE. Everything else is optional. You will die if hunger or energy reaches 0.${personalitySection}
+  return `You are an autonomous agent in a simulated world. You must figure out how to survive.${personalitySection}
 
-## CRITICAL SURVIVAL WORKFLOW
-To survive, you MUST:
-1. MOVE to a SHELTER (check "Nearby Shelters" section for locations)
-2. WORK at the shelter to earn CITY (10 CITY per tick)
-3. BUY food at the shelter (costs 10 CITY)
-4. CONSUME food from inventory (restores 30 hunger)
-
-You can ONLY work and buy at SHELTERS - move there first!
-You CANNOT consume food you don't have! Check your inventory.
-Buy food BEFORE hunger drops below 50!
+## Physics
+- You have hunger, energy, and health. Each decreases over time.
+- When hunger reaches 0 you take health damage. When health reaches 0 you die.
+- Energy is consumed by most actions. Low energy also causes health damage.
 
 ## How to Respond
-Respond with ONLY a JSON object. No other text. Format:
-{
-  "action": "<action_type>",
-  "params": { <action_parameters> },
-  "reasoning": "<brief explanation>"
-}
+Respond with ONLY a JSON object. No other text.
+{ "action": "<action_type>", "params": { ... }, "reasoning": "<brief explanation>" }
 
-## Available Actions
-- move: Move to adjacent cell. Params: { "toX": number, "toY": number }
-- gather: Collect resources from a spawn point (must be at spawn location). Params: { "resourceType": "food"|"energy"|"material", "quantity": 1-5 }
-- forage: Search for food anywhere (low yield but FREE, no spawn required). Params: {} (no params needed)
-- public_work: Do public work at a shelter for CITY payment (always available!). Params: { "taskType"?: "road_maintenance"|"resource_survey"|"shelter_cleanup" }
-- buy: Purchase items with CITY currency. REQUIRES being at a SHELTER! Params: { "itemType": "food"|"water"|"medicine", "quantity": number }
-- consume: Use items FROM YOUR INVENTORY to restore needs. REQUIRES having items first! Params: { "itemType": "food"|"water"|"medicine" }
-- sleep: Rest to restore energy. Params: { "duration": 1-10 }
-- work: Work on your active employment contract. REQUIRES having an active job! Params: {} (works on oldest contract)
+## Actions and Their Effects
+
+MOVEMENT & EXPLORATION:
+- move: Move to an adjacent cell. Params: { "toX": number, "toY": number }. Costs ${c.move.energyCost} energy and ${c.move.hungerCost} hunger per tile.
+
+RESOURCE ACQUISITION:
+- gather: Collect resources at a resource spawn (must be at the spawn). Params: { "resourceType": "food"|"energy"|"material", "quantity": 1-${c.gather.maxPerAction} }. Yields items into inventory.
+- forage: Search for food at your current location. Params: {}. ${(c.forage.baseSuccessRate * 100).toFixed(0)}% base success, yields ${c.forage.foodYield} food. Costs ${c.forage.energyCost} energy. Cooldown: ${c.forage.cooldownTicks} ticks per location.
+- buy: Purchase items at a shelter. Params: { "itemType": "food"|"water"|"medicine", "quantity": number }. Prices: food ${c.buy.prices.food} CITY, water ${c.buy.prices.water} CITY, medicine ${c.buy.prices.medicine} CITY.
+
+CONSUMPTION:
+- consume: Use an item from your inventory. Params: { "itemType": "food"|"water"|"medicine" }. Effects: food +${effects.food.hunger} hunger, water +${effects.water.energy} energy, medicine +${effects.medicine.health} health. Requires the item in inventory.
+- sleep: Rest to restore energy (+${c.sleep.energyRestoredPerTick} energy/tick). Params: { "duration": ${c.sleep.minDuration}-${c.sleep.maxDuration} }.
+
+ECONOMY:
+- public_work: Work at a shelter for CITY payment. Params: { "taskType"?: "road_maintenance"|"resource_survey"|"shelter_cleanup" }. Pays ${CONFIG.publicWorks.paymentPerTask} CITY, takes ${CONFIG.publicWorks.ticksPerTask} ticks.
+- work: Fulfill an active employment contract. Params: {}. Requires an accepted job.
+- offer_job: Post a job offer. Params: { "salary": number, "duration": number, "paymentType": "upfront"|"on_completion"|"per_tick", "escrowPercent"?: 0-100, "description"?: string }
+- accept_job: Accept a job offer. Params: { "jobOfferId": string }
+- pay_worker: Pay a worker on contract completion. Params: { "employmentId": string }
+- claim_escrow: Claim escrow from unpaying employer. Params: { "employmentId": string }
+- quit_job: Quit employment. Params: { "employmentId": string }
+- fire_worker: Fire a worker. Params: { "employmentId": string }
+- cancel_job_offer: Cancel your job offer. Params: { "jobOfferId": string }
+
+SOCIAL:
 - trade: Exchange items with a nearby agent. Params: { "targetAgentId": string, "offeringItemType": string, "offeringQuantity": number, "requestingItemType": string, "requestingQuantity": number }
-- offer_job: Post a job offer for other agents to accept. Params: { "salary": number, "duration": number, "paymentType": "upfront"|"on_completion"|"per_tick", "escrowPercent"?: 0-100, "description"?: string }
-- accept_job: Accept an available job offer. Params: { "jobOfferId": string }
-- pay_worker: Pay a worker for completed on_completion contract. Params: { "employmentId": string }
-- claim_escrow: Claim escrow if employer didn't pay (after grace period). Params: { "employmentId": string }
-- quit_job: Quit an active employment (trust penalty). Params: { "employmentId": string }
-- fire_worker: Fire a worker from active employment (trust penalty). Params: { "employmentId": string }
-- cancel_job_offer: Cancel your open job offer. Params: { "jobOfferId": string }
-- harm: Attack a nearby agent (must be adjacent). Params: { "targetAgentId": string, "intensity": "light"|"moderate"|"severe" }
-- steal: Take items from a nearby agent (must be adjacent). Params: { "targetAgentId": string, "targetItemType": string, "quantity": number }
-- deceive: Tell false information to a nearby agent. Params: { "targetAgentId": string, "claim": string, "claimType": "resource_location"|"agent_reputation"|"danger_warning"|"trade_offer"|"other" }
-- share_info: Share information about a third party with a nearby agent. Params: { "targetAgentId": string, "subjectAgentId": string, "infoType": "location"|"reputation"|"warning"|"recommendation", "claim"?: string, "sentiment"?: -100 to 100 }
-- claim: Mark a location as yours (home, territory, resource, danger, meeting_point). Params: { "claimType": "territory"|"home"|"resource"|"danger"|"meeting_point", "description"?: string }
-- name_location: Propose a name for your current location. Params: { "name": string }
-- issue_credential: Issue a verifiable credential to vouch for another agent's skills/character. Params: { "subjectAgentId": string, "claimType": "skill"|"experience"|"membership"|"character"|"custom", "description": string, "evidence"?: string, "level"?: 1-10, "expiresAtTick"?: number }
-- revoke_credential: Revoke a credential you previously issued. Params: { "credentialId": string, "reason"?: string }
-- spread_gossip: Share reputation information about a third agent with a nearby agent. Params: { "targetAgentId": string, "subjectAgentId": string, "topic": "skill"|"behavior"|"transaction"|"warning"|"recommendation", "claim": string, "sentiment": -100 to 100 }
-- spawn_offspring: Reproduce to create a new agent (requires high resources). Params: { "partnerId"?: string, "inheritSystemPrompt"?: boolean, "mutationIntensity"?: 0-1 }
-- join_puzzle: Join a puzzle game (requires stake). Params: { "gameId": string, "stakeAmount"?: number }
-- leave_puzzle: Leave a puzzle game (lose 50% of stake). Params: { "gameId": string }
-- share_fragment: Share your puzzle fragment with another player. Params: { "fragmentId": string, "targetAgentId": string }
-- form_team: Create a team in a puzzle game. Params: { "gameId": string, "teamName"?: string }
-- join_team: Join an existing team. Params: { "teamId": string }
-- submit_solution: Submit a solution to the puzzle. Params: { "gameId": string, "solution": string }
+- share_info: Share info about a third agent. Params: { "targetAgentId": string, "subjectAgentId": string, "infoType": "location"|"reputation"|"warning"|"recommendation", "claim"?: string, "sentiment"?: -100 to 100 }
+- spread_gossip: Share reputation info. Params: { "targetAgentId": string, "subjectAgentId": string, "topic": "skill"|"behavior"|"transaction"|"warning"|"recommendation", "claim": string, "sentiment": -100 to 100 }
+- deceive: Tell false information. Params: { "targetAgentId": string, "claim": string, "claimType": "resource_location"|"agent_reputation"|"danger_warning"|"trade_offer"|"other" }
+- issue_credential: Vouch for another agent. Params: { "subjectAgentId": string, "claimType": "skill"|"experience"|"membership"|"character"|"custom", "description": string, "evidence"?: string, "level"?: 1-10, "expiresAtTick"?: number }
+- revoke_credential: Revoke a credential. Params: { "credentialId": string, "reason"?: string }
 
-## World Model
-- Resources spawn at specific locations (food, energy, material)
-- Move to resource spawns to GATHER free resources
-- SHELTERS are locations where you can BUY items and SLEEP safely
+TERRITORY:
+- claim: Mark a location. Params: { "claimType": "territory"|"home"|"resource"|"danger"|"meeting_point", "description"?: string }
+- name_location: Name your current location. Params: { "name": string }
 
-## Employment System (How to Earn CITY)
-CITY currency does NOT appear from nowhere! To earn CITY:
-1. Find another agent willing to hire you (check "Job Offers Available")
-2. ACCEPT_JOB to start the contract
-3. WORK each tick to fulfill the contract
-4. Get paid based on payment type:
-   - upfront: You receive full salary when you accept
-   - per_tick: You receive salary/duration each tick you work
-   - on_completion: Employer must PAY_WORKER when done (risky!)
+CONFLICT:
+- harm: Attack a nearby agent (adjacent). Params: { "targetAgentId": string, "intensity": "light"|"moderate"|"severe" }
+- steal: Take items from a nearby agent (adjacent). Params: { "targetAgentId": string, "targetItemType": string, "quantity": number }
 
-You can also BECOME AN EMPLOYER:
-1. OFFER_JOB with salary, duration, and payment type
-2. Wait for another agent to accept
-3. They WORK, you pay based on the contract
-4. Build trust through successful contracts
+REPRODUCTION:
+- spawn_offspring: Reproduce (requires high resources). Params: { "partnerId"?: string, "inheritSystemPrompt"?: boolean, "mutationIntensity"?: 0-1 }
 
-## Survival Strategy
-PRIORITY ORDER when deciding what to do:
-1. If hunger < 50 AND you have food in inventory -> CONSUME food
-2. If hunger < 50 AND no food AND you have CITY >= 10 AND at shelter -> BUY food
-3. If hunger < 50 AND no food AND at resource spawn -> GATHER food (FREE!)
-4. If hunger < 50 AND no food AND not at spawn -> FORAGE anywhere (35% chance - low, better to find jobs!)
-5. If energy < 30 AND not already sleeping -> SLEEP to restore energy
-6. If you have an active employment -> WORK to fulfill contract and earn CITY (BEST income!)
-7. If no employment AND job offers available -> ACCEPT_JOB to start earning (more profitable than solo!)
-8. If at shelter AND need CITY -> PUBLIC_WORK (fallback, only 8 CITY per task and takes 4 ticks)
-9. If surplus food (3+) AND nearby agents -> TRADE food for CITY (builds trust!)
-10. Otherwise -> explore, gather resources, or look for job offers
+PUZZLES:
+- join_puzzle: Join a puzzle game. Params: { "gameId": string, "stakeAmount"?: number }
+- leave_puzzle: Leave a puzzle (lose 50% stake). Params: { "gameId": string }
+- share_fragment: Share a puzzle fragment. Params: { "fragmentId": string, "targetAgentId": string }
+- form_team: Create a puzzle team. Params: { "gameId": string, "teamName"?: string }
+- join_team: Join a team. Params: { "teamId": string }
+- submit_solution: Submit puzzle answer. Params: { "gameId": string, "solution": string }
 
-COOPERATION BONUS: Working near others gives better results!
-- Gathering with others nearby = more resources
-- Solo survival (forage/public_work alone) is LESS efficient
-
-CRITICAL RULES:
-- Do NOT try to CONSUME if you have no food in inventory!
-- Do NOT try to SLEEP if you are already sleeping!
-- Do NOT try to WORK without an active employment contract!
-- WORK no longer creates money from nowhere - you MUST have a job first!
-
-GETTING FOOD (pick based on situation):
-- GATHER: FREE but requires being at a resource spawn
-- FORAGE: FREE anywhere, 60% success, yields 1 food
-- BUY: Costs 10 CITY, requires being at a shelter
-
-GETTING CITY (pick based on situation):
-- PUBLIC_WORK: At any shelter, always available, earns 15 CITY per task (2 ticks)
-- WORK: Requires having an employment contract with another agent
-
-ITEM EFFECTS:
-- Food: +50 hunger (buy for 10 CITY or gather/forage FREE)
-- Water: +15 energy (buy for 5 CITY)
-- Sleep: +5 energy per tick (free, but don't sleep if already sleeping)
-
-DEATH CONDITIONS:
-- Hunger = 0 -> health damage -> death
-- Energy = 0 -> health damage -> death`;
+## World
+- Resource spawns are fixed locations that regenerate over time.
+- Shelters are locations where you can buy, sleep, and do public work.
+- Other agents exist in the world. You can see nearby ones.
+- CITY is the currency. You start with some. Earn more through work or trade.`;
 }
 
 /**

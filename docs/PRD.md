@@ -1,8 +1,8 @@
 # Sim Agents - Product Requirements Document (PRD)
 
-> **Version**: 1.6.0
+> **Version**: 1.7.0
 > **Status**: Phases 0-8 Complete
-> **Last Updated**: January 2026
+> **Last Updated**: April 2026
 
 ---
 
@@ -5753,18 +5753,31 @@ Weigh the pros and cons of each option..."
 RESULT: Agent spends 5000 tokens analyzing whether to eat breakfast
 ```
 
-**Good Pattern: Action-Oriented Agents**
+**Anti-Pattern: Prescriptive Strategy Prompts**
+
+```
+❌ BAD PROMPT:
+"CRITICAL SURVIVAL WORKFLOW: 1. Check hunger first 2. Forage if hungry
+3. Cooperate with nearby agents for bonuses 4. Trade surplus food..."
+
+RESULT: Agents follow prescribed strategy instead of discovering their own.
+No genuine emergence.
+```
+
+**Good Pattern: Physics-Only Prompts**
 
 ```
 ✅ GOOD PROMPT:
-"You are Agent X in SimAgents.
-Current state: hungry=30, energy=60, balance=150
-Available actions: eat, sleep, work, move, talk
-Respond with exactly ONE action in JSON format.
-Do not explain. Just act."
+"You are Agent X in SimAgents. The world has these mechanics:
+- Moving 1 tile costs 1 energy
+- Foraging: 50% success, yields 1-3 food, costs 3 energy
+- Eating: restores 20 hunger per food unit
+Respond with exactly ONE action in JSON format."
 
-RESULT: {"action": "eat", "target": "restaurant_1"}
+RESULT: Agent discovers survival strategy emergently from physics rules.
 ```
+
+> **Design Principle (April 2026)**: The system prompt describes world **physics** (costs, effects, rates) without providing any strategy guidance. All numeric values are read dynamically from CONFIG so the prompt never drifts from actual game mechanics. This ensures agents discover survival strategies through experience rather than instruction.
 
 ### 37.5 Token Budget System
 
@@ -6409,15 +6422,20 @@ The original system allowed agents to survive indefinitely through solo strategi
 
 #### Economic Rebalancing
 
-| Parameter | Before | After | Effect |
-|-----------|--------|-------|--------|
-| `forage.baseSuccessRate` | 0.60 | 0.35 | -42% solo food |
-| `forage.energyCost` | 1 | 3 | 3x energy cost |
-| `forage.cooldownTicks` | 3 | 5 | +67% cooldown |
-| `publicWorks.paymentPerTask` | 15 | 8 | -47% income |
-| `publicWorks.ticksPerTask` | 2 | 4 | 2x time |
-| `trade.trustGainOnSuccess` | 5 | 15 | 3x trust |
-| `memory.trustDecayPerTick` | 0.1 | 0.02 | 5x slower decay |
+> **Updated April 2026**: Values rebalanced again to allow solo survival while still rewarding cooperation. The Phase 7 values were too punishing for solo agents, causing starvation before any social interaction could emerge.
+
+| Parameter | Phase 6 | Phase 7 | Current | Rationale |
+|-----------|---------|---------|---------|-----------|
+| `forage.baseSuccessRate` | 0.60 | 0.35 | **0.50** | 0.35 was too low for solo survival |
+| `forage.cooldownTicks` | 3 | 5 | **2** | 5 was too punishing between attempts |
+| `prices.food` | 15 | 25 | **10** | 25 made buying food economically impossible |
+| `groupGather.soloMaxFromRich` | - | 2 | **5** | 2 was too restrictive for solo gatherers |
+| `solo.forageSuccessRateModifier` | - | 0.6 | **0.8** | -40% solo penalty was too harsh |
+| `forage.energyCost` | 1 | 3 | 3 | Unchanged |
+| `publicWorks.paymentPerTask` | 15 | 8 | 8 | Unchanged |
+| `publicWorks.ticksPerTask` | 2 | 4 | 4 | Unchanged |
+| `trade.trustGainOnSuccess` | 5 | 15 | 15 | Unchanged |
+| `memory.trustDecayPerTick` | 0.1 | 0.02 | 0.02 | Unchanged |
 
 #### Cooperation Bonuses (Sugarscape-inspired)
 
@@ -6441,7 +6459,7 @@ cooperation: {
     enabled: true,
     richSpawnThreshold: 12,              // Spawns with 12+ require groups
     minAgentsForRich: 2,                 // Need 2+ agents for rich spawns
-    soloMaxFromRich: 2,                  // Solo limited to 2 from rich
+    soloMaxFromRich: 5,                  // Solo limited to 5 from rich (was 2)
     groupBonus: 1.5,                     // +50% when gathering in group
   },
   buy: {
@@ -6450,9 +6468,9 @@ cooperation: {
     maxTrustPenalty: 0.1,                // max +10% penalty (low trust)
   },
   solo: {
-    forageSuccessRateModifier: 0.6,      // -40% alone (was -20%)
+    forageSuccessRateModifier: 0.8,      // -20% alone (relaxed from 0.6)
     publicWorkPaymentModifier: 0.5,      // -50% alone (was -30%)
-    gatherEfficiencyModifier: 0.5,       // -50% alone (new)
+    gatherEfficiencyModifier: 0.5,       // -50% alone
     aloneRadius: 5,
   },
 }
