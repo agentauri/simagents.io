@@ -67,6 +67,7 @@ bun run dev:setup                # Full setup (infra + db + install)
 bun run apps/server/src/evolution/orchestrator.ts --generations 10   # All agents
 bun run apps/server/src/evolution/orchestrator.ts --agent claude     # Single agent
 bun run apps/server/src/evolution/orchestrator.ts --status           # Survival table
+bun run apps/server/src/evolution/orchestrator.ts --seed 42         # Reproducible run
 
 ```
 
@@ -147,6 +148,9 @@ Tests are in `apps/server/src/__tests__/` organized by domain (actions/, integra
 | `SEASONS_ENABLED` | `false` | Seasonal resource cycles |
 | `RESOURCE_DEPLETION_ENABLED` | `false` | Over-harvest degradation |
 | `EVOLUTION_POPULATION_SIZE` | `20` | Genomes per agent in evolution |
+| `EVOLUTION_MUTATION_RATE` | `0.25` | Genome mutation rate (0-1) |
+| `EVOLUTION_CROSSOVER_RATE` | `0.5` | Genome crossover rate (0-1) |
+| `EVOLUTION_ELITE_COUNT` | `3` | Elite genomes preserved per generation |
 | `EVOLUTION_TICKS_PER_EVAL` | `100` | Ticks per fitness evaluation |
 | `EVOLUTION_MIN_FITNESS` | `0.55` | Min fitness to earn survival |
 | `EVOLUTION_MIN_GENERATIONS` | `5` | Min generations before judging |
