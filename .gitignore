@@ -53,6 +53,9 @@ docker-data/
 postgres-data/
 redis-data/
 
+# Evolution state (generated locally)
+data/
+
 # Fly.io
 .fly/
 
