@@ -597,6 +597,26 @@ export const CONFIG = {
   },
 
   // ---------------------------------------------------------------------------
+  // Per-Agent Evolution (autoresearch-style)
+  // ---------------------------------------------------------------------------
+  evolution: {
+    /** Population size per agent type */
+    populationSize: env('EVOLUTION_POPULATION_SIZE', 20),
+    /** Mutation rate (0-1) */
+    mutationRate: env('EVOLUTION_MUTATION_RATE', 0.25),
+    /** Crossover rate (0-1) */
+    crossoverRate: env('EVOLUTION_CROSSOVER_RATE', 0.5),
+    /** Elite genomes preserved each generation */
+    eliteCount: env('EVOLUTION_ELITE_COUNT', 3),
+    /** Ticks per fitness evaluation */
+    ticksPerEvaluation: env('EVOLUTION_TICKS_PER_EVAL', 100),
+    /** Minimum composite fitness to earn survival (0-1) */
+    minFitnessThreshold: env('EVOLUTION_MIN_FITNESS', 0.55),
+    /** Minimum generations before judging survival */
+    minGenerations: env('EVOLUTION_MIN_GENERATIONS', 5),
+  },
+
+  // ---------------------------------------------------------------------------
   // Experiments (A/B Testing)
   // ---------------------------------------------------------------------------
   experiment: {
