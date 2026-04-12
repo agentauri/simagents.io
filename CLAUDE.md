@@ -63,6 +63,11 @@ bun run infra:up                 # Start Docker (PostgreSQL + Redis)
 bun run db:push                  # Apply schema changes
 bun run dev:setup                # Full setup (infra + db + install)
 
+# Per-agent evolution (autoresearch-style, no LLM calls)
+bun run apps/server/src/evolution/orchestrator.ts --generations 10   # All agents
+bun run apps/server/src/evolution/orchestrator.ts --agent claude     # Single agent
+bun run apps/server/src/evolution/orchestrator.ts --status           # Survival table
+
 ```
 
 ## Initial Setup
@@ -84,6 +89,7 @@ apps/
     db/                  # Drizzle schema and queries
     llm/adapters/        # LLM provider adapters
     simulation/          # Tick engine, needs-decay, shocks, puzzle-engine, seasons
+    evolution/           # Per-agent autonomous evolution (autoresearch-style)
     experiments/         # Experiment DSL and runner
     routes/              # API route handlers
     world/               # Grid utilities, scent system (stigmergy)
@@ -114,6 +120,8 @@ packages/
 - `apps/server/src/analysis/metric-validator.ts` - Metric validation harness + multiple comparison corrections
 - `apps/server/src/experiments/scientific-profile.ts` - Scientific execution profiles
 - `apps/server/src/simulation/seasons.ts` - Seasonal resource cycles (emergent cooperation)
+- `apps/server/src/evolution/runner.ts` - Per-agent evolution runner (mini-sim + fitness)
+- `apps/server/src/evolution/orchestrator.ts` - Multi-agent evolution orchestrator + CLI
 
 ## Testing
 
@@ -138,6 +146,10 @@ Tests are in `apps/server/src/__tests__/` organized by domain (actions/, integra
 | `BIOME_EXCLUSIVITY_ENABLED` | `false` | Resources exclusive to certain biomes |
 | `SEASONS_ENABLED` | `false` | Seasonal resource cycles |
 | `RESOURCE_DEPLETION_ENABLED` | `false` | Over-harvest degradation |
+| `EVOLUTION_POPULATION_SIZE` | `20` | Genomes per agent in evolution |
+| `EVOLUTION_TICKS_PER_EVAL` | `100` | Ticks per fitness evaluation |
+| `EVOLUTION_MIN_FITNESS` | `0.55` | Min fitness to earn survival |
+| `EVOLUTION_MIN_GENERATIONS` | `5` | Min generations before judging |
 
 See `apps/server/src/config/index.ts` for full configuration options.
 

@@ -6774,6 +6774,65 @@ user_llm_keys (
 
 ---
 
+## 45. Per-Agent Autonomous Evolution
+
+### 45.1 Overview
+
+Inspired by Karpathy's autoresearch methodology, each LLM agent type independently evolves its own strategy genome. The system runs fast in-memory mini-simulations (no LLM calls, no database) to evaluate fitness, then applies evolutionary operators (mutation, crossover, elitism) to improve each agent's survival strategy.
+
+**Core loop**: mutate genome → simulate N ticks → evaluate fitness → keep/discard (autoresearch-style)
+
+### 45.2 Architecture
+
+Each agent type (claude, codex, gemini, etc.) gets:
+- Its own isolated population of `AgentGenome` instances
+- Its own `data/evolution/{agentType}/state.json` persistence
+- Its own fitness history and hall of fame
+- Complete independence — no genome crosses between agent types
+
+### 45.3 Genome (StrategyParams)
+
+| Parameter | Range | Description |
+|-----------|-------|-------------|
+| `hungerThreshold` | 10-80 | Below this hunger, prioritize eating |
+| `energyThreshold` | 10-60 | Below this energy, prioritize resting |
+| `gatherBias` | 0-1 | Preference for gather vs forage |
+| `exploitDuration` | 1-20 | Ticks to stay at a resource before exploring |
+| `exploreRadius` | 1-15 | How far to move when exploring |
+| `socialBias` | 0-1 | Willingness to trade with nearby agents |
+| `riskBias` | 0-1 | Willingness to take aggressive actions |
+| `resourceFocus` | 0-1 | Preference: food vs energy vs material |
+
+### 45.4 Fitness Evaluation
+
+Composite score (0-1): `survival × 0.40 + health × 0.25 + hunger × 0.20 + energy × 0.15`
+
+Evaluated via a mini-simulation that models the same physics as the real tick engine (hunger/energy decay, gather, forage, consume, move, sleep, health damage) but runs entirely in-memory for speed.
+
+### 45.5 Survival Criterion
+
+An agent type earns "alive" status when:
+- Incumbent fitness exceeds `EVOLUTION_MIN_FITNESS` (default: 0.55)
+- At least `EVOLUTION_MIN_GENERATIONS` completed (default: 5)
+- Incumbent is 5% better than a random baseline genome
+
+### 45.6 CLI
+
+```bash
+bun run apps/server/src/evolution/orchestrator.ts --generations 10       # All agents
+bun run apps/server/src/evolution/orchestrator.ts --agent claude --once  # Single agent
+bun run apps/server/src/evolution/orchestrator.ts --status               # Survival table
+```
+
+### 45.7 Scientific Value
+
+- Each agent discovers strategies autonomously — no prescribed behavior
+- Emergent diversity: agents evolve different profiles (gatherers, explorers, traders)
+- Reproducible via seeded RNG (`--seed` flag)
+- Evolved genomes can inform personality/strategic context in live simulations
+
+---
+
 ## Conclusion
 
 Sim Agents v2.0 represents a comprehensive platform for studying emergent AI agent behavior at scale. The additions in this version provide:
@@ -6796,6 +6855,7 @@ Sim Agents v2.0 represents a comprehensive platform for studying emergent AI age
 16. **Social Interactions**: Cooperation incentives making social behavior more rewarding (§42)
 17. **Cooperative Puzzle Game**: Fragment Chase - information sharing puzzles for emergent cooperation (§43)
 18. **User Authentication**: OAuth-based auth with encrypted API key storage (§44)
+19. **Per-Agent Evolution**: Autoresearch-style autonomous strategy discovery per agent type (§45)
 
 > **Core Philosophy Reminder**: *"From City Simulation to Digital Darwinism Laboratory"*
 >

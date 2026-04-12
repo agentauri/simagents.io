@@ -118,6 +118,7 @@ Fixes and rebalancing applied across the simulation core:
 - **Resource Spawns Aligned to Agent Positions**: Food resources now spawn directly at agent spawn locations (was 2-6 tiles away, causing starvation before agents could reach food).
 - **System Prompt Rewritten for Emergence**: Replaced prescriptive prompt (priority lists, strategy advice, cooperation recommendations) with physics-only prompt that describes world mechanics without strategy guidance. All numeric values read dynamically from CONFIG.
 - **LLM Adapter Circular Dependency Fixed**: Changed from eager static imports to lazy `require()` initialization via `ensureAdapters()` pattern, fixing `ReferenceError: Cannot access 'BaseLLMAdapter' before initialization` at startup.
+- **Per-Agent Autonomous Evolution** (autoresearch-style): Each LLM agent type independently evolves its own strategy genome through fast in-memory mini-simulations (no LLM calls). Genome parameterizes decision thresholds (hunger/energy triggers, gather vs forage preference, exploration radius, social/risk biases). Fitness measured by composite survival score. Each agent discovers its own optimal strategy — quality emerges from data. CLI: `bun run apps/server/src/evolution/orchestrator.ts --generations 10`.
 
 ---
 
