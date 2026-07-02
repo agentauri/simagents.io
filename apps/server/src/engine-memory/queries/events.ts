@@ -51,6 +51,12 @@ export async function getEventsByType(eventType: string, limit = 100): Promise<E
     .slice(0, limit);
 }
 
+export async function getRecentSignals(tick: number): Promise<Event[]> {
+  // No explicit ordering in the Drizzle version; insertion order (ascending id)
+  // matches what Postgres returns in practice for an append-only table.
+  return store.events.filter((e) => e.eventType === 'agent_signaled' && e.tick >= tick - 1);
+}
+
 export async function getRecentEvents(limit = 50): Promise<Event[]> {
   return [...store.events].sort((a, b) => b.id - a.id).slice(0, limit);
 }

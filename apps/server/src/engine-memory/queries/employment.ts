@@ -239,6 +239,23 @@ export async function completeEmployment(
   });
 }
 
+export async function updateEmploymentStatusAndPayment(
+  id: string,
+  status: 'active' | 'completed' | 'abandoned' | 'unpaid' | 'fired',
+  amountPaid: number,
+  endedAtTick?: number
+): Promise<void> {
+  const employment = store.employments.get(id);
+  if (!employment) return;
+  store.employments.set(id, {
+    ...employment,
+    status,
+    amountPaid,
+    endedAtTick: endedAtTick ?? null,
+    updatedAt: new Date(),
+  });
+}
+
 /**
  * Get all employments that need payment (completed but unpaid for on_completion)
  */

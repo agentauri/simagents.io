@@ -17,6 +17,14 @@ import { storeMemory } from '../../db/queries/memories';
 import { getAliveAgents } from '../../db/queries/agents';
 import { CONFIG, getRuntimeConfig } from '../../config';
 import { random } from '../../utils/random';
+import {
+  entries as forageCooldownEntries,
+  get as getForageCooldown,
+  remove as removeForageCooldown,
+  reset as resetForageCooldowns,
+  set as setForageCooldown,
+  size as forageCooldownSize,
+} from '../state/forage-cooldowns';
 
 /**
  * Check if agent is alone (no other agents within solo radius)
@@ -55,11 +63,8 @@ async function countNearbyForagers(agentId: string, x: number, y: number): Promi
   return nearbyForagers.length;
 }
 
-// Track forage cooldowns per location per agent
-const forageCooldowns = new Map<string, number>();
-
 export function clearForageCooldowns(): void {
-  forageCooldowns.clear();
+  resetForageCooldowns();
 }
 
 function getCooldownKey(agentId: string, x: number, y: number): string {
@@ -87,7 +92,7 @@ export async function handleForage(
 
   // Check cooldown at this location
   const cooldownKey = getCooldownKey(agent.id, agent.x, agent.y);
-  const lastForageTick = forageCooldowns.get(cooldownKey) || 0;
+  const lastForageTick = getForageCooldown(cooldownKey) || 0;
 
   if (intent.tick - lastForageTick < config.cooldownTicks) {
     const ticksRemaining = config.cooldownTicks - (intent.tick - lastForageTick);
@@ -98,14 +103,14 @@ export async function handleForage(
   }
 
   // Set cooldown
-  forageCooldowns.set(cooldownKey, intent.tick);
+  setForageCooldown(cooldownKey, intent.tick);
 
   // Clean up old cooldowns (memory management)
-  if (forageCooldowns.size > 1000) {
+  if (forageCooldownSize() > 1000) {
     const oldTicks = intent.tick - 100;
-    for (const [key, tick] of forageCooldowns) {
+    for (const [key, tick] of forageCooldownEntries()) {
       if (tick < oldTicks) {
-        forageCooldowns.delete(key);
+        removeForageCooldown(key);
       }
     }
   }

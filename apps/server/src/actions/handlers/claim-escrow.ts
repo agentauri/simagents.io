@@ -22,8 +22,6 @@ import {
 } from '../../db/queries/employment';
 import { getAgentById, updateAgentBalance } from '../../db/queries/agents';
 import { storeMemory, updateRelationshipTrust } from '../../db/queries/memories';
-import { db } from '../../db';
-import { sql } from 'drizzle-orm';
 
 // How many ticks after work completion before worker can claim escrow
 const PAYMENT_GRACE_PERIOD = 10;
@@ -103,13 +101,7 @@ export async function handleClaimEscrow(
   await updateAgentBalance(agent.id, newWorkerBalance);
 
   // Mark employment as unpaid
-  await db.execute(sql`
-    UPDATE employments
-    SET status = 'unpaid',
-        ended_at_tick = ${intent.tick},
-        updated_at = NOW()
-    WHERE id = ${employmentId}
-  `);
+  await updateEmploymentStatus(employmentId, 'unpaid', intent.tick);
 
   // Severe trust penalty for employer
   if (employer) {

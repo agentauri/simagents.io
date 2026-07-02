@@ -145,7 +145,7 @@ export async function handleShareFragment(
   }
 
   // Mark fragment as shared
-  await markFragmentShared(fragmentId, targetAgentId);
+  await markFragmentShared(fragment.id, targetAgentId);
 
   // Update contribution score for sharer
   await incrementFragmentsShared(agentParticipant.id);
@@ -197,7 +197,7 @@ export async function handleShareFragment(
         payload: {
           gameId: fragment.gameId,
           gameType: game.gameType,
-          fragmentId,
+          fragmentId: fragment.id,
           fragmentIndex: fragment.fragmentIndex,
           fromAgentId: agent.id,
           toAgentId: targetAgentId,

@@ -61,9 +61,11 @@ describe('buildSystemPrompt', () => {
     expect(prompt.length).toBeGreaterThan(100);
   });
 
-  test('contains survival goal', () => {
+  test('contains survival premise without prescriptive command text', () => {
     const prompt = buildSystemPrompt();
-    expect(prompt).toContain('SURVIVE');
+    expect(prompt).toContain('figure out how to survive');
+    expect(prompt).toContain('## Physics');
+    expect(prompt).not.toContain('SURVIVE');
   });
 
   test('contains JSON response format', () => {
@@ -82,23 +84,27 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('work:');
   });
 
-  test('contains world model explanation', () => {
+  test('contains world physics explanation', () => {
     const prompt = buildSystemPrompt();
-    expect(prompt).toContain('World Model');
-    expect(prompt).toContain('SHELTER');
+    expect(prompt).toContain('## World');
+    expect(prompt).toContain('Resource spawns are fixed locations');
+    expect(prompt).toContain('Shelters are locations');
   });
 
-  test('contains survival strategy', () => {
+  test('contains action effects without prescriptive survival strategy', () => {
     const prompt = buildSystemPrompt();
-    expect(prompt).toContain('CRITICAL SURVIVAL WORKFLOW');
-    expect(prompt).toContain('PRIORITY ORDER');
+    expect(prompt).toContain('## Actions and Their Effects');
+    expect(prompt).toContain('gather:');
+    expect(prompt).toContain('consume:');
+    expect(prompt).not.toContain('CRITICAL SURVIVAL WORKFLOW');
+    expect(prompt).not.toContain('PRIORITY ORDER');
   });
 
-  test('contains death conditions', () => {
+  test('contains death physics', () => {
     const prompt = buildSystemPrompt();
-    expect(prompt).toContain('DEATH CONDITIONS');
-    expect(prompt).toContain('Hunger = 0');
-    expect(prompt).toContain('Energy = 0');
+    expect(prompt).toContain('When hunger reaches 0 you take health damage');
+    expect(prompt).toContain('When health reaches 0 you die');
+    expect(prompt).toContain('Low energy also causes health damage');
   });
 });
 
@@ -641,7 +647,7 @@ describe('buildFullPrompt', () => {
     const systemPrompt = buildSystemPrompt();
     const observationPrompt = buildObservationPrompt(obs);
 
-    expect(fullPrompt).toContain('SURVIVE');
+    expect(fullPrompt).toContain('figure out how to survive');
     expect(fullPrompt).toContain('Current State');
     expect(fullPrompt).toBe(`${systemPrompt}\n\n${observationPrompt}`);
   });

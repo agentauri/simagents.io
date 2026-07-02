@@ -250,6 +250,23 @@ export async function completeEmployment(
   `);
 }
 
+export async function updateEmploymentStatusAndPayment(
+  id: string,
+  status: 'active' | 'completed' | 'abandoned' | 'unpaid' | 'fired',
+  amountPaid: number,
+  endedAtTick?: number
+): Promise<void> {
+  await db
+    .update(employments)
+    .set({
+      status,
+      amountPaid,
+      endedAtTick: endedAtTick ?? null,
+      updatedAt: new Date(),
+    })
+    .where(eq(employments.id, id));
+}
+
 /**
  * Get all employments that need payment (completed but unpaid for on_completion)
  */

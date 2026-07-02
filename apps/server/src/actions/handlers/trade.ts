@@ -12,11 +12,10 @@
  */
 
 import { v4 as uuid } from 'uuid';
-import { eq, and, sql } from 'drizzle-orm';
 import type { ActionIntent, ActionResult } from '../types';
 import type { Agent } from '../../db/schema';
-import { db, inventory } from '../../db';
 import { getAgentById } from '../../db/queries/agents';
+import { swapInventoryForTrade } from '../../db/queries/inventory';
 import { updateRelationshipTrust, storeMemory } from '../../db/queries/memories';
 import { getDistance } from '../../world/grid';
 import { CONFIG, getRuntimeConfig } from '../../config';
@@ -111,122 +110,18 @@ export async function handleTrade(
     ? ` (BONUS: +${Math.round((quantityBonusMultiplier - 1) * 100)}% from trust/loyalty)`
     : '';
 
-  // Execute trade atomically using a database transaction
-  // ALL inventory checks are done INSIDE the transaction to prevent TOCTOU race conditions
-  let tradeError: string | null = null;
+  const tradeResult = await swapInventoryForTrade(
+    agent.id,
+    targetAgentId,
+    offeringItemType,
+    offeringQuantity,
+    requestingItemType,
+    requestingQuantity,
+    bonusQuantityReceived
+  );
 
-  try {
-    await db.transaction(async (tx) => {
-      // Check initiator's inventory within the transaction
-      const [initiatorItem] = await tx
-        .select()
-        .from(inventory)
-        .where(
-          and(
-            eq(inventory.agentId, agent.id),
-            eq(inventory.itemType, offeringItemType)
-          )
-        );
-
-      const initiatorHas = initiatorItem?.quantity ?? 0;
-      if (initiatorHas < offeringQuantity) {
-        tradeError = `Not enough ${offeringItemType} to offer (have: ${initiatorHas}, need: ${offeringQuantity})`;
-        throw new Error(tradeError);
-      }
-
-      // Check target's inventory within the transaction
-      const [targetItem] = await tx
-        .select()
-        .from(inventory)
-        .where(
-          and(
-            eq(inventory.agentId, targetAgentId),
-            eq(inventory.itemType, requestingItemType)
-          )
-        );
-
-      const targetHas = targetItem?.quantity ?? 0;
-      if (targetHas < requestingQuantity) {
-        tradeError = `Target agent doesn't have enough ${requestingItemType} (have: ${targetHas}, need: ${requestingQuantity})`;
-        throw new Error(tradeError);
-      }
-
-      // Lock and update initiator's inventory (remove offered items)
-      const initiatorUpdate = await tx
-        .update(inventory)
-        .set({ quantity: sql`${inventory.quantity} - ${offeringQuantity}` })
-        .where(
-          and(
-            eq(inventory.agentId, agent.id),
-            eq(inventory.itemType, offeringItemType),
-            sql`${inventory.quantity} >= ${offeringQuantity}`
-          )
-        )
-        .returning();
-
-      if (initiatorUpdate.length === 0) {
-        tradeError = 'Failed to remove offering items - concurrent modification detected';
-        throw new Error(tradeError);
-      }
-
-      // Clean up zero-quantity items
-      if (initiatorUpdate[0].quantity <= 0) {
-        await tx.delete(inventory).where(eq(inventory.id, initiatorUpdate[0].id));
-      }
-
-      // Lock and update target's inventory (remove requested items)
-      const targetUpdate = await tx
-        .update(inventory)
-        .set({ quantity: sql`${inventory.quantity} - ${requestingQuantity}` })
-        .where(
-          and(
-            eq(inventory.agentId, targetAgentId),
-            eq(inventory.itemType, requestingItemType),
-            sql`${inventory.quantity} >= ${requestingQuantity}`
-          )
-        )
-        .returning();
-
-      if (targetUpdate.length === 0) {
-        tradeError = 'Failed to remove target items - concurrent modification detected';
-        throw new Error(tradeError);
-      }
-
-      // Clean up zero-quantity items
-      if (targetUpdate[0].quantity <= 0) {
-        await tx.delete(inventory).where(eq(inventory.id, targetUpdate[0].id));
-      }
-
-      // Add items to initiator (upsert) with bonus applied
-      await tx
-        .insert(inventory)
-        .values({
-          id: uuid(),
-          agentId: agent.id,
-          itemType: requestingItemType,
-          quantity: bonusQuantityReceived,
-        })
-        .onConflictDoUpdate({
-          target: [inventory.agentId, inventory.itemType],
-          set: { quantity: sql`${inventory.quantity} + ${bonusQuantityReceived}` },
-        });
-
-      // Add items to target (upsert)
-      await tx
-        .insert(inventory)
-        .values({
-          id: uuid(),
-          agentId: targetAgentId,
-          itemType: offeringItemType,
-          quantity: offeringQuantity,
-        })
-        .onConflictDoUpdate({
-          target: [inventory.agentId, inventory.itemType],
-          set: { quantity: sql`${inventory.quantity} + ${offeringQuantity}` },
-        });
-    });
-  } catch (error) {
-    const errorMessage = tradeError || (error instanceof Error ? error.message : 'Trade transaction failed');
+  if (!tradeResult.success) {
+    const errorMessage = tradeResult.error ?? 'Trade transaction failed';
 
     // If target didn't have items, store memory about failed attempt
     if (errorMessage.includes("Target agent doesn't have enough")) {

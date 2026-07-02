@@ -16,6 +16,13 @@ import { getSheltersAtPosition } from '../../db/queries/world';
 import { storeMemory } from '../../db/queries/memories';
 import { getAliveAgents } from '../../db/queries/agents';
 import { CONFIG, getRuntimeConfig } from '../../config';
+import {
+  get as getPublicWorkSessionState,
+  remove as removePublicWorkSessionState,
+  reset as resetPublicWorkSessions,
+  set as setPublicWorkSessionState,
+  type PublicWorkSession,
+} from '../state/public-work-sessions';
 
 /**
  * Check if agent is alone (no other agents within solo radius)
@@ -53,17 +60,8 @@ async function countNearbyWorkers(agentId: string, x: number, y: number): Promis
   return nearbyWorkers.length;
 }
 
-// Track active public work sessions
-interface PublicWorkSession {
-  startTick: number;
-  taskType: string;
-  ticksWorked: number;
-}
-
-const activeSessions = new Map<string, PublicWorkSession>();
-
 export function clearPublicWorkSessions(): void {
-  activeSessions.clear();
+  resetPublicWorkSessions();
 }
 
 export interface PublicWorkParams {
@@ -111,7 +109,7 @@ export async function handlePublicWork(
   }
 
   // Get or create session
-  let session = activeSessions.get(agent.id);
+  let session = getPublicWorkSessionState(agent.id);
   const taskType = intent.params.taskType || config.taskTypes[0];
 
   if (!session) {
@@ -121,7 +119,7 @@ export async function handlePublicWork(
       taskType,
       ticksWorked: 0,
     };
-    activeSessions.set(agent.id, session);
+    setPublicWorkSessionState(agent.id, session);
   }
 
   // Work one tick
@@ -159,7 +157,7 @@ export async function handlePublicWork(
 
     payment = Math.floor(config.paymentPerTask * paymentModifier);
     newBalance = agent.balance + payment;
-    activeSessions.delete(agent.id);
+    removePublicWorkSessionState(agent.id);
 
     await storeMemory({
       agentId: agent.id,
@@ -240,12 +238,12 @@ export async function handlePublicWork(
  * (Called if agent moves away from shelter, dies, etc.)
  */
 export function cancelPublicWorkSession(agentId: string): void {
-  activeSessions.delete(agentId);
+  removePublicWorkSessionState(agentId);
 }
 
 /**
  * Get active session info for an agent
  */
 export function getPublicWorkSession(agentId: string): PublicWorkSession | undefined {
-  return activeSessions.get(agentId);
+  return getPublicWorkSessionState(agentId);
 }

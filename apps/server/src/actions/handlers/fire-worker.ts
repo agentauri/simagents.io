@@ -14,11 +14,13 @@
 import { v4 as uuid } from 'uuid';
 import type { ActionIntent, ActionResult, FireWorkerParams } from '../types';
 import type { Agent } from '../../db/schema';
-import { getEmploymentById, updateEmploymentStatus } from '../../db/queries/employment';
+import {
+  getEmploymentById,
+  updateEmploymentStatus,
+  updateEmploymentStatusAndPayment,
+} from '../../db/queries/employment';
 import { getAgentById, updateAgentBalance } from '../../db/queries/agents';
 import { storeMemory, updateRelationshipTrust } from '../../db/queries/memories';
-import { db } from '../../db';
-import { sql } from 'drizzle-orm';
 
 export async function handleFireWorker(
   intent: ActionIntent<FireWorkerParams>,
@@ -100,14 +102,12 @@ export async function handleFireWorker(
   }
 
   // Mark employment as fired
-  await db.execute(sql`
-    UPDATE employments
-    SET status = 'fired',
-        amount_paid = ${employment.amountPaid + severancePay},
-        ended_at_tick = ${intent.tick},
-        updated_at = NOW()
-    WHERE id = ${employmentId}
-  `);
+  await updateEmploymentStatusAndPayment(
+    employmentId,
+    'fired',
+    employment.amountPaid + severancePay,
+    intent.tick
+  );
 
   // Apply trust penalty - firing is bad for employer reputation
   await updateRelationshipTrust(agent.id, worker.id, -20, intent.tick, 'Fired worker before contract complete');

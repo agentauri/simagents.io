@@ -17,13 +17,11 @@ import { v4 as uuid } from 'uuid';
 import type { ActionIntent, ActionResult, PayWorkerParams } from '../types';
 import type { Agent } from '../../db/schema';
 import {
+  completeEmployment,
   getEmploymentById,
-  updateEmploymentStatus,
 } from '../../db/queries/employment';
 import { getAgentById, updateAgentBalance } from '../../db/queries/agents';
 import { storeMemory, updateRelationshipTrust } from '../../db/queries/memories';
-import { db } from '../../db';
-import { sql } from 'drizzle-orm';
 
 export async function handlePayWorker(
   intent: ActionIntent<PayWorkerParams>,
@@ -106,14 +104,7 @@ export async function handlePayWorker(
   }
 
   // Update employment record
-  await db.execute(sql`
-    UPDATE employments
-    SET status = 'completed',
-        amount_paid = ${employment.salary},
-        ended_at_tick = ${intent.tick},
-        updated_at = NOW()
-    WHERE id = ${employmentId}
-  `);
+  await completeEmployment(employmentId, remainingPayment, intent.tick);
 
   // Update trust - successful payment is good for reputation
   await updateRelationshipTrust(agent.id, worker.id, 15, intent.tick, 'Paid worker as promised');

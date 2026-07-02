@@ -22,11 +22,10 @@ import type { Agent } from '../../db/schema';
 import { storeMemory, updateRelationshipTrust } from '../../db/queries/memories';
 import {
   getOldestActiveEmployment,
+  incrementTicksWorked,
   updateEmploymentStatus,
 } from '../../db/queries/employment';
 import { getAgentById, updateAgentBalance } from '../../db/queries/agents';
-import { db } from '../../db';
-import { sql } from 'drizzle-orm';
 
 // Work configuration
 const CONFIG = {
@@ -105,13 +104,7 @@ export async function handleWork(
   const newTicksWorked = employment.ticksWorked + 1;
   const newAmountPaid = employment.amountPaid + paymentThisTick;
 
-  await db.execute(sql`
-    UPDATE employments
-    SET ticks_worked = ${newTicksWorked},
-        amount_paid = ${newAmountPaid},
-        updated_at = NOW()
-    WHERE id = ${employment.id}
-  `);
+  await incrementTicksWorked(employment.id, paymentThisTick);
 
   // Check if contract is now complete
   const isComplete = newTicksWorked >= employment.ticksRequired;

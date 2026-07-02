@@ -41,7 +41,17 @@ import type {
   PuzzleFragment,
   PuzzleParticipant,
   PuzzleAttempt,
+  LedgerEntry,
 } from '../db/schema';
+import type { PublicWorkSession } from '../actions/state/public-work-sessions';
+import {
+  reset as resetForageCooldowns,
+  setBackingStore as setForageCooldownBackingStore,
+} from '../actions/state/forage-cooldowns';
+import {
+  reset as resetPublicWorkSessions,
+  setBackingStore as setPublicWorkSessionBackingStore,
+} from '../actions/state/public-work-sessions';
 
 export interface InMemoryStore {
   worldState: WorldState;
@@ -58,6 +68,12 @@ export interface InMemoryStore {
   relationships: Map<string, AgentRelationship>;
   /** Stigmergy scents keyed by `${x}:${y}` (replaces the Redis scent keys). */
   scents: Map<string, { agentId: string; tick: number; strength: number }>;
+  /** Per-agent/location forage cooldowns. */
+  forageCooldowns: Map<string, number>;
+  /** Public-work progress keyed by agent id. */
+  publicWorkSessions: Map<string, PublicWorkSession>;
+  /** Append-only double-entry ledger rows. */
+  ledgerEntries: LedgerEntry[];
 
   // --- Employment ---
   jobOffers: Map<string, JobOffer>;
@@ -128,6 +144,9 @@ export const store: InMemoryStore = {
   memories: new Map(),
   relationships: new Map(),
   scents: new Map(),
+  forageCooldowns: new Map(),
+  publicWorkSessions: new Map(),
+  ledgerEntries: [],
   jobOffers: new Map(),
   employments: new Map(),
   reproductionStates: new Map(),
@@ -150,6 +169,9 @@ export const store: InMemoryStore = {
   nextEventVersion: 1,
 };
 
+setForageCooldownBackingStore(store.forageCooldowns);
+setPublicWorkSessionBackingStore(store.publicWorkSessions);
+
 /** Key helper for the inventory map (matches the agent+item unique index). */
 export function inventoryKey(agentId: string, itemType: string): string {
   return `${agentId}:${itemType}`;
@@ -171,6 +193,9 @@ export function resetStore(): void {
   store.memories.clear();
   store.relationships.clear();
   store.scents.clear();
+  resetForageCooldowns();
+  resetPublicWorkSessions();
+  store.ledgerEntries = [];
   store.jobOffers.clear();
   store.employments.clear();
   store.reproductionStates.clear();
