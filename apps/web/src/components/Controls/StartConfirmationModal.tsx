@@ -5,10 +5,11 @@
  * Ensures users review settings before launching.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useConfigStore } from '../../stores/config';
 import { useApiKeysStore, type LLMType } from '../../stores/apiKeys';
 import { useAgentRoster } from '../../stores/roster';
+import { loadSavedWorld, type SavedWorld } from '../../services/persistence';
 import { isLocalEngineMode } from '../../utils/env';
 import {
   getModelCatalogEntry,
@@ -19,7 +20,7 @@ import {
 
 interface StartConfirmationModalProps {
   isOpen: boolean;
-  onConfirm: () => void;
+  onConfirm: (choice: 'resume' | 'new') => void;
   onCancel: () => void;
   onOpenConfig?: () => void;
   isLoading: boolean;
@@ -66,6 +67,8 @@ export function StartConfirmationModal({
   const { providers, status, isSynced, fetchStatus } = useApiKeysStore();
   const roster = useAgentRoster();
   const isLocalMode = isLocalEngineMode();
+  const [savedWorld, setSavedWorld] = useState<SavedWorld | undefined>();
+  const [startChoice, setStartChoice] = useState<'resume' | 'new'>('new');
 
   // Fetch API keys status when modal opens if not already synced
   useEffect(() => {
@@ -73,6 +76,17 @@ export function StartConfirmationModal({
       fetchStatus();
     }
   }, [isOpen, isSynced, fetchStatus]);
+
+  useEffect(() => {
+    if (!isOpen || !isLocalMode) {
+      setSavedWorld(undefined);
+      setStartChoice('new');
+      return;
+    }
+    const saved = loadSavedWorld();
+    setSavedWorld(saved);
+    setStartChoice(saved ? 'resume' : 'new');
+  }, [isOpen, isLocalMode]);
 
   if (!isOpen) return null;
 
@@ -217,6 +231,47 @@ export function StartConfirmationModal({
             )}
           </div>
 
+          {isLocalMode && savedWorld && (
+            <>
+              <div className="border-t border-gray-700/50" />
+              <div className="space-y-2">
+                <span className="text-sm text-gray-400">World</span>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStartChoice('resume')}
+                    className={`text-left rounded border px-3 py-2 transition-colors ${
+                      startChoice === 'resume'
+                        ? 'border-blue-500 bg-blue-500/10 text-blue-100'
+                        : 'border-gray-700 bg-gray-800/50 text-gray-300 hover:bg-gray-800'
+                    }`}
+                  >
+                    <span className="block text-xs font-medium">
+                      Resume saved world
+                    </span>
+                    <span className="block text-[11px] text-gray-500 mt-0.5">
+                      tick {String(savedWorld.snapshot.store.worldState.currentTick)} · {savedWorld.snapshot.store.agents.length} agents
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStartChoice('new')}
+                    className={`text-left rounded border px-3 py-2 transition-colors ${
+                      startChoice === 'new'
+                        ? 'border-blue-500 bg-blue-500/10 text-blue-100'
+                        : 'border-gray-700 bg-gray-800/50 text-gray-300 hover:bg-gray-800'
+                    }`}
+                  >
+                    <span className="block text-xs font-medium">Start new world</span>
+                    <span className="block text-[11px] text-gray-500 mt-0.5">
+                      clears the saved world snapshot
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
           {/* Divider */}
           <div className="border-t border-gray-700/50" />
 
@@ -347,7 +402,7 @@ export function StartConfirmationModal({
             </button>
           )}
           <button
-            onClick={onConfirm}
+            onClick={() => onConfirm(startChoice)}
             disabled={isLoading}
             className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
@@ -368,7 +423,7 @@ export function StartConfirmationModal({
                 >
                   <polygon points="5 3 19 12 5 21 5 3" />
                 </svg>
-                Start
+                {startChoice === 'resume' ? 'Resume' : 'Start'}
               </>
             )}
           </button>

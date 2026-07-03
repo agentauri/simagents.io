@@ -117,6 +117,8 @@ export interface InMemoryStore {
   nextEventVersion: number;
 }
 
+export const STORE_EVENT_CAP = 10_000;
+
 const WORLD_STATE_ID = 1;
 
 function freshWorldState(): WorldState {
@@ -131,8 +133,8 @@ function freshWorldState(): WorldState {
 
 /**
  * The singleton store for the current simulation. In the browser build this
- * is hydrated from / snapshotted to IndexedDB; in the spike it lives only in
- * memory for the duration of a run.
+ * is hydrated from / snapshotted to localStorage (see engine/persistence.ts);
+ * in tests it lives only in memory for the duration of a run.
  */
 export const store: InMemoryStore = {
   worldState: freshWorldState(),

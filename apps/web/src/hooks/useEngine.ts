@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SimEngineState } from '@server/engine/engine';
 import { getEngineClient } from '../engine-host/engine-client';
+import { startPersistenceSync } from '../services/persistence';
 import { processWorldEvent } from '../services/process-event';
 import { useAgentStatsStore } from '../stores/agentStats';
 import { useWorldStore, type Agent, type ResourceSpawn, type Shelter } from '../stores/world';
@@ -59,6 +60,7 @@ export function useEngine() {
 
   useEffect(() => {
     const client = getEngineClient();
+    const stopPersistence = startPersistenceSync(client);
     const unsubscribeStatus = client.onStatus((nextStatus) => setStatus(nextStatus));
     const unsubscribeEvent = client.onEvent((event) => {
       processWorldEvent(event, {
@@ -79,6 +81,7 @@ export function useEngine() {
       unsubscribeStatus();
       unsubscribeEvent();
       unsubscribeState();
+      stopPersistence();
     };
   }, [addEvent, addBubble, setTick, updateAgent, updateWorldState, recordDecisionEvent]);
 

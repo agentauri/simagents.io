@@ -41,6 +41,20 @@ export function resetVitalsMeta(): void {
   vitalsMetaByAgent.clear();
 }
 
+export function serializeVitalsMeta(): Array<[string, VitalsMeta]> {
+  return [...vitalsMetaByAgent.entries()].map(([agentId, meta]) => [
+    agentId,
+    cloneVitalsMeta(meta),
+  ]);
+}
+
+export function restoreVitalsMeta(entries: Array<[string, VitalsMeta]>): void {
+  vitalsMetaByAgent.clear();
+  for (const [agentId, meta] of entries) {
+    vitalsMetaByAgent.set(agentId, cloneVitalsMeta(meta));
+  }
+}
+
 /**
  * Drop metadata for agents that no longer exist or are dead (killed by paths
  * that don't go through the heartbeat, e.g. the harm handler). Mirrors the

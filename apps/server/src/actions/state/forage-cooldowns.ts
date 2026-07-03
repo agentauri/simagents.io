@@ -24,6 +24,17 @@ export function entries(): IterableIterator<[string, number]> {
   return cooldowns.entries();
 }
 
+export function serialize(): Array<[string, number]> {
+  return [...cooldowns.entries()];
+}
+
+export function restore(entries: Array<[string, number]>): void {
+  cooldowns.clear();
+  for (const [key, tick] of entries) {
+    cooldowns.set(key, tick);
+  }
+}
+
 export function reset(): void {
   cooldowns.clear();
 }

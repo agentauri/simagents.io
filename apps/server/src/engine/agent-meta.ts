@@ -29,6 +29,17 @@ export function resetAgentMeta(): void {
   agentMetaById.clear();
 }
 
+export function serializeAgentMeta(): Array<[string, AgentEngineMeta]> {
+  return [...agentMetaById.entries()].map(([agentId, meta]) => [agentId, { ...meta }]);
+}
+
+export function restoreAgentMeta(entries: Array<[string, AgentEngineMeta]>): void {
+  agentMetaById.clear();
+  for (const [agentId, meta] of entries) {
+    agentMetaById.set(agentId, { busyUntil: Math.max(0, meta.busyUntil) });
+  }
+}
+
 export function sweepAgentMeta(isAlive: (agentId: string) => boolean): number {
   let removed = 0;
   for (const agentId of agentMetaById.keys()) {

@@ -1,5 +1,6 @@
 import type { AgentRosterEntry, LLMType } from '@simagents/shared';
 import type { SimEngineState } from '@server/engine/engine';
+import type { WorldSnapshotV1 } from '@server/engine/persistence';
 import type { WorldEvent } from '../stores/world';
 
 export interface EngineInitPayload {
@@ -9,6 +10,7 @@ export interface EngineInitPayload {
   speed: number;
   worldSeed?: string;
   configOverrides?: Record<string, unknown>;
+  resume?: WorldSnapshotV1;
 }
 
 type WorkerCommand =
@@ -18,17 +20,34 @@ type WorkerCommand =
   | { cmd: 'resume' }
   | { cmd: 'reset' }
   | { cmd: 'setSpeed'; speed: number }
-  | { cmd: 'getState' };
+  | { cmd: 'getState' }
+  | { cmd: 'snapshot' }
+  | { cmd: 'export' };
+
+export interface EngineSnapshotPayload {
+  snapshot: WorldSnapshotV1;
+  recentEvents: WorldEvent[];
+}
+
+export interface EngineExportPayload {
+  snapshot: WorldSnapshotV1;
+  events: WorldEvent[];
+}
 
 type WorkerMessage =
   | { type: 'ready'; state: SimEngineState }
   | { type: 'event'; event: WorldEvent }
   | { type: 'state'; state: SimEngineState }
+  | { type: 'snapshot'; snapshot: WorldSnapshotV1; recentEvents: WorldEvent[] }
+  | { type: 'export'; snapshot: WorldSnapshotV1; events: WorldEvent[] }
+  | { type: 'warning'; message: string }
   | { type: 'error'; message: string };
 
 type EventListener = (event: WorldEvent) => void;
 type StateListener = (state: SimEngineState) => void;
 type StatusListener = (status: EngineClientStatus) => void;
+type SnapshotListener = (payload: EngineSnapshotPayload) => void;
+type WarningListener = (message: string) => void;
 
 export type EngineClientStatus = 'disconnected' | 'connecting' | 'connected';
 
@@ -41,9 +60,15 @@ class EngineClient {
   private readyRejecter: ((error: Error) => void) | undefined;
   private stateResolver: ((state: SimEngineState) => void) | undefined;
   private stateRejecter: ((error: Error) => void) | undefined;
+  private snapshotResolver: ((payload: EngineSnapshotPayload) => void) | undefined;
+  private snapshotRejecter: ((error: Error) => void) | undefined;
+  private exportResolver: ((payload: EngineExportPayload) => void) | undefined;
+  private exportRejecter: ((error: Error) => void) | undefined;
   private readonly eventListeners = new Set<EventListener>();
   private readonly stateListeners = new Set<StateListener>();
   private readonly statusListeners = new Set<StatusListener>();
+  private readonly snapshotListeners = new Set<SnapshotListener>();
+  private readonly warningListeners = new Set<WarningListener>();
 
   init(payload: EngineInitPayload): Promise<SimEngineState> {
     this.ensureWorker();
@@ -108,6 +133,22 @@ class EngineClient {
     });
   }
 
+  async requestSnapshot(): Promise<EngineSnapshotPayload> {
+    return new Promise((resolve, reject) => {
+      this.snapshotResolver = resolve;
+      this.snapshotRejecter = reject;
+      this.post({ cmd: 'snapshot' });
+    });
+  }
+
+  async exportWorld(): Promise<EngineExportPayload> {
+    return new Promise((resolve, reject) => {
+      this.exportResolver = resolve;
+      this.exportRejecter = reject;
+      this.post({ cmd: 'export' });
+    });
+  }
+
   onEvent(listener: EventListener): () => void {
     this.eventListeners.add(listener);
     return () => this.eventListeners.delete(listener);
@@ -122,6 +163,16 @@ class EngineClient {
     this.statusListeners.add(listener);
     listener(this.status);
     return () => this.statusListeners.delete(listener);
+  }
+
+  onSnapshot(listener: SnapshotListener): () => void {
+    this.snapshotListeners.add(listener);
+    return () => this.snapshotListeners.delete(listener);
+  }
+
+  onWarning(listener: WarningListener): () => void {
+    this.warningListeners.add(listener);
+    return () => this.warningListeners.delete(listener);
   }
 
   getStatus(): EngineClientStatus {
@@ -172,6 +223,33 @@ class EngineClient {
           listener(message.event);
         }
         break;
+      case 'snapshot': {
+        const payload = {
+          snapshot: message.snapshot,
+          recentEvents: message.recentEvents,
+        };
+        this.snapshotResolver?.(payload);
+        this.snapshotResolver = undefined;
+        this.snapshotRejecter = undefined;
+        for (const listener of this.snapshotListeners) {
+          listener(payload);
+        }
+        break;
+      }
+      case 'export':
+        this.exportResolver?.({
+          snapshot: message.snapshot,
+          events: message.events,
+        });
+        this.exportResolver = undefined;
+        this.exportRejecter = undefined;
+        break;
+      case 'warning':
+        console.warn('[EngineWorker]', message.message);
+        for (const listener of this.warningListeners) {
+          listener(message.message);
+        }
+        break;
       case 'error': {
         const error = new Error(message.message);
         this.rejectPending(error);
@@ -198,10 +276,16 @@ class EngineClient {
   private rejectPending(error: Error): void {
     this.readyRejecter?.(error);
     this.stateRejecter?.(error);
+    this.snapshotRejecter?.(error);
+    this.exportRejecter?.(error);
     this.readyResolver = undefined;
     this.readyRejecter = undefined;
     this.stateResolver = undefined;
     this.stateRejecter = undefined;
+    this.snapshotResolver = undefined;
+    this.snapshotRejecter = undefined;
+    this.exportResolver = undefined;
+    this.exportRejecter = undefined;
   }
 }
 

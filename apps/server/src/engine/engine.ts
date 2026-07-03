@@ -8,6 +8,7 @@ import { SimClock, DEFAULT_SIM_SPEED } from './time';
 import { runHousekeeping } from './heartbeat';
 import { ActionExecutor } from './executor';
 import { AgentRunner, type AgentRunnerHost } from './agent-runner';
+import { hydrateWorld, serializeWorld, type WorldSnapshotV1 } from './persistence';
 import {
   createDecisionProviderForLLMType,
   type DecisionProvider,
@@ -165,6 +166,7 @@ export type ProviderFactory = (
 
 export interface SimEngineOptions {
   speed?: number;
+  simTimeMs?: number;
   worldSeed?: string;
   providerFactory?: ProviderFactory;
   /**
@@ -196,7 +198,10 @@ export class SimEngine implements AgentRunnerHost {
 
   constructor(options: SimEngineOptions = {}) {
     this.onError = options.onError;
-    this.clock = new SimClock({ speed: options.speed ?? DEFAULT_SIM_SPEED });
+    this.clock = new SimClock({
+      simTimeMs: options.simTimeMs ?? 0,
+      speed: options.speed ?? DEFAULT_SIM_SPEED,
+    });
     this.worldSeed = options.worldSeed ?? 'simagents';
     this.scheduler = new EngineScheduler(
       () => this.clock.simTimeMs,
@@ -212,6 +217,30 @@ export class SimEngine implements AgentRunnerHost {
     await this.reset();
     await seedWorld(world);
     await this.syncRunners();
+  }
+
+  async hydrate(snapshot: WorldSnapshotV1): Promise<void> {
+    this.stopRuntime();
+    this.scheduler.reset();
+    hydrateWorld(snapshot);
+    this.clock = new SimClock({
+      simTimeMs: snapshot.savedAtSimTimeMs,
+      speed: snapshot.speed,
+      paused: store.worldState.isPaused,
+    });
+    // May sit up to one interval past the last actually-fired heartbeat: the
+    // first post-resume heartbeat is then slightly delayed, which is harmless
+    // because vitals decay anchors to each agent's persisted vitalsUpdatedAt.
+    this.lastHeartbeatMs = snapshot.savedAtSimTimeMs;
+    await this.syncRunners();
+  }
+
+  snapshot(): WorldSnapshotV1 {
+    return serializeWorld({
+      savedAtSimTimeMs: this.clock.simTimeMs,
+      worldSeed: this.worldSeed,
+      speed: this.clock.speed,
+    });
   }
 
   async start(): Promise<void> {
@@ -238,15 +267,7 @@ export class SimEngine implements AgentRunnerHost {
   }
 
   async reset(): Promise<void> {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = undefined;
-    }
-
-    for (const runner of this.runners.values()) {
-      runner.stop();
-    }
-    this.runners.clear();
+    this.stopRuntime();
     this.scheduler.reset();
     resetStore();
     this.clock = new SimClock({ speed: this.clock.speed });
@@ -359,6 +380,18 @@ export class SimEngine implements AgentRunnerHost {
         this.runners.delete(agentId);
       }
     }
+  }
+
+  private stopRuntime(): void {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = undefined;
+    }
+
+    for (const runner of this.runners.values()) {
+      runner.stop();
+    }
+    this.runners.clear();
   }
 }
 

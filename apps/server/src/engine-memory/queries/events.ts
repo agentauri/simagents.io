@@ -8,7 +8,7 @@
 
 import type { Event, NewEvent } from '../../db/schema';
 import { getEventCategory, type EventCategory } from '../../events/event-types';
-import { store } from '../store';
+import { STORE_EVENT_CAP, store } from '../store';
 
 export async function appendEvent(event: Omit<NewEvent, 'version'>): Promise<Event | null> {
   const category = getEventCategory(event.eventType);
@@ -24,6 +24,9 @@ export async function appendEvent(event: Omit<NewEvent, 'version'>): Promise<Eve
     createdAt: new Date(),
   };
   store.events.push(row);
+  if (store.events.length > STORE_EVENT_CAP) {
+    store.events.splice(0, store.events.length - STORE_EVENT_CAP);
+  }
   return row;
 }
 

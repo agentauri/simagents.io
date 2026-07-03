@@ -5,11 +5,13 @@
 
 import { getEngineClient } from '../engine-host/engine-client';
 import { engineStateToWorldState } from './useEngine';
+import { clearSavedWorld, loadSavedWorld } from '../services/persistence';
 import { useAgentStatsStore } from '../stores/agentStats';
 import { useApiKeysStore } from '../stores/apiKeys';
 import { useConfigStore } from '../stores/config';
 import { useRosterStore } from '../stores/roster';
 import { useSettingsStore } from '../stores/settings';
+import type { WorldEvent } from '../stores/world';
 import { isLocalEngineMode } from '../utils/env';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -63,6 +65,11 @@ export interface StartResult {
   agents?: AgentState[];
   resourceSpawns?: ResourceSpawnState[];
   shelters?: ShelterState[];
+  events?: WorldEvent[];
+}
+
+export interface StartOptions {
+  resumeSavedWorld?: boolean;
 }
 
 export function useWorldControl() {
@@ -104,7 +111,7 @@ export function useWorldControl() {
    * Start simulation (scientific model - no frontend locations needed)
    * Returns full world state with spawned agents, resource spawns, and shelters
    */
-  const start = async (): Promise<StartResult> => {
+  const start = async (options: StartOptions = {}): Promise<StartResult> => {
     if (isLocalEngineMode()) {
       try {
         useAgentStatsStore.getState().resetAgentStats();
@@ -113,13 +120,18 @@ export function useWorldControl() {
         const proxyUrl = useSettingsStore.getState().proxyUrl.trim();
         const pendingChanges = useConfigStore.getState().pendingChanges;
         const client = getEngineClient();
+        const saved = options.resumeSavedWorld ? loadSavedWorld() : undefined;
+        if (!saved) {
+          clearSavedWorld();
+        }
         const state = await client.init({
           roster,
           keys,
           proxyUrl: proxyUrl || undefined,
-          speed: 10,
-          worldSeed: `browser-${Date.now()}`,
+          speed: saved?.snapshot.speed ?? 10,
+          worldSeed: saved?.snapshot.worldSeed ?? `browser-${Date.now()}`,
           configOverrides: pendingChanges as Record<string, unknown>,
+          resume: saved?.snapshot,
         });
         await client.start();
         const mapped = engineStateToWorldState(state);
@@ -129,6 +141,7 @@ export function useWorldControl() {
           agents: mapped.agents,
           resourceSpawns: mapped.resourceSpawns,
           shelters: mapped.shelters,
+          events: saved?.events,
         };
       } catch (error) {
         console.error('[useWorldControl] Failed to start local engine:', error);
@@ -193,6 +206,7 @@ export function useWorldControl() {
     if (isLocalEngineMode()) {
       getEngineClient().resetHard();
       useAgentStatsStore.getState().resetAgentStats();
+      clearSavedWorld();
       return true;
     }
 

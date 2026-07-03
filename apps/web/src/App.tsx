@@ -9,7 +9,7 @@
  * - Mobile-responsive with bottom navigation on small screens
  */
 
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { useSSE } from './hooks/useSSE';
 import { useEngine } from './hooks/useEngine';
 import { useWorldStore, useAgents, useEvents } from './stores/world';
@@ -36,6 +36,12 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { SocialGraphView, SocialGraphButton } from './components/SocialGraph';
 import { MobileAgentList, MobileDecisionLog } from './components/Mobile';
 import { ConfigPanel } from './components/ConfigPanel';
+import {
+  downloadWorldExport,
+  parseWorldExportFile,
+  saveImportedWorld,
+} from './services/persistence';
+import { getEngineClient } from './engine-host/engine-client';
 export default function App() {
   const remoteConnection = useSSE();
   const localConnection = useEngine();
@@ -59,6 +65,7 @@ export default function App() {
   const [mobileView, setMobileView] = useState<MobileView>('canvas');
   // Config panel state
   const [showConfigPanel, setShowConfigPanel] = useState(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const agents = useAgents();
   const events = useEvents();
   const aliveAgents = agents.filter(a => a.health > 0);
@@ -123,9 +130,9 @@ export default function App() {
   }, [isLocalMode, mode, agents.length, setMode]);
 
   // Handle start simulation - scientific mode (no city layout needed)
-  const handleStartSimulation = useCallback(async () => {
+  const handleStartSimulation = useCallback(async (resumeSavedWorld = false) => {
     // Call backend to start simulation (spawns resources, shelters, agents automatically)
-    const result = await start();
+    const result = await start({ resumeSavedWorld });
     if (!result.success) {
       alert(result.error || 'Failed to start simulation. Is the server running?');
       return;
@@ -138,6 +145,9 @@ export default function App() {
       resourceSpawns: result.resourceSpawns ?? [],
       shelters: result.shelters ?? [],
     });
+    if (result.events) {
+      setEvents(result.events);
+    }
 
     // Switch to simulation mode
     setPaused(false);
@@ -147,7 +157,7 @@ export default function App() {
     if (!isLocalMode) {
       connect();
     }
-  }, [setMode, setPaused, start, setWorldState, connect, isLocalMode]);
+  }, [setMode, setPaused, start, setWorldState, setEvents, connect, isLocalMode]);
 
   // Handle reset - calls BE to reset DB
   const handleReset = useCallback(async () => {
@@ -157,6 +167,28 @@ export default function App() {
     setPaused(false);
     setMode('editor'); // Back to "ready" state
   }, [disconnect, reset, resetWorld, setMode, setPaused]);
+
+  const handleExportWorld = useCallback(async () => {
+    try {
+      const exported = await getEngineClient().exportWorld();
+      downloadWorldExport(exported);
+    } catch (error) {
+      alert(`Failed to export world: ${String(error)}`);
+    }
+  }, []);
+
+  const handleImportFile = useCallback(async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const parsed = parseWorldExportFile(JSON.parse(await file.text()));
+      saveImportedWorld(parsed);
+      alert('World imported. Use Start to resume the saved world.');
+    } catch (error) {
+      alert(`Failed to import world: ${String(error)}`);
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = '';
+    }
+  }, []);
 
   // Handle pause - calls BE
   const handlePause = useCallback(async () => {
@@ -236,6 +268,34 @@ export default function App() {
 
       {/* Right: Controls */}
       <div className="flex items-center gap-2 shrink-0">
+        {/* Config button */}
+        {isLocalMode && (
+          <>
+            <button
+              onClick={() => importInputRef.current?.click()}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
+              title="Import saved world"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v12m0 0 4-4m-4 4-4-4" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+              </svg>
+            </button>
+            {mode === 'simulation' && (
+              <button
+                onClick={handleExportWorld}
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
+                title="Export current world"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 21V9m0 0 4 4m-4-4-4 4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2" />
+                </svg>
+              </button>
+            )}
+          </>
+        )}
+
         {/* Config button */}
         <button
           onClick={() => setShowConfigPanel(!showConfigPanel)}
@@ -411,6 +471,15 @@ export default function App() {
     <>
       {/* Social Graph Overlay */}
       <SocialGraphView />
+
+      {/* Config Panel */}
+      <input
+        ref={importInputRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={(event) => void handleImportFile(event.currentTarget.files?.[0])}
+      />
 
       {/* Config Panel */}
       {showConfigPanel && (

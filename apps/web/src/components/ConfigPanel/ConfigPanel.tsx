@@ -18,6 +18,11 @@ import { PersonalityConfig } from './PersonalityConfig';
 import { AgentRosterConfig } from './AgentRosterConfig';
 import { useSettingsStore } from '../../stores/settings';
 import { isLocalEngineMode } from '../../utils/env';
+import {
+  getPersistenceInfo,
+  subscribePersistenceInfo,
+  type PersistenceInfo,
+} from '../../services/persistence';
 
 interface ConfigPanelProps {
   onClose: () => void;
@@ -71,6 +76,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
   } | null>(null);
 
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [persistenceInfo, setPersistenceInfo] = useState<PersistenceInfo>(getPersistenceInfo());
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -79,6 +85,11 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
     }
     fetchKeyStatus();
   }, [fetchConfig, fetchKeyStatus, isLocalMode]);
+
+  useEffect(() => {
+    if (!isLocalMode) return;
+    return subscribePersistenceInfo(setPersistenceInfo);
+  }, [isLocalMode]);
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -705,12 +716,42 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
           </div>
         </div>
       ) : (
-        <div className="px-4 py-3 border-t border-gray-700 bg-gray-800 text-xs text-gray-500 text-center">
-          Local mode settings are stored in this browser.
+        <div className="px-4 py-3 border-t border-gray-700 bg-gray-800 text-xs text-gray-500 space-y-1">
+          <div className="flex items-center justify-between gap-3">
+            <span>Local persistence</span>
+            <span className={persistenceInfo.warning ? 'text-yellow-300' : 'text-gray-400'}>
+              {formatPersistenceStatus(persistenceInfo)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span>Size</span>
+            <span>
+              {formatBytes(persistenceInfo.snapshotBytes + persistenceInfo.ringBytes)}
+              {' '}
+              ({Math.round(persistenceInfo.quotaFraction * 100)}%)
+            </span>
+          </div>
+          {persistenceInfo.warning && (
+            <div className="text-yellow-300 text-left">
+              {persistenceInfo.warning}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
+}
+
+function formatPersistenceStatus(info: PersistenceInfo): string {
+  if (info.disabled) return 'paused';
+  if (info.lastSavedSimTimeMs === undefined) return 'not saved yet';
+  const minutes = Math.floor(info.lastSavedSimTimeMs / 60_000);
+  return `saved at ${minutes}m`;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
 export default ConfigPanel;

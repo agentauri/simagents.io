@@ -35,6 +35,14 @@ export function resetHeartbeatState(): void {
   lastCurrencyDecayBoundaryTick = 0;
 }
 
+export function getLastCurrencyDecayBoundaryTick(): number {
+  return lastCurrencyDecayBoundaryTick;
+}
+
+export function setLastCurrencyDecayBoundaryTick(tick: number): void {
+  lastCurrencyDecayBoundaryTick = Math.max(0, Math.floor(tick));
+}
+
 registerStoreResetHook(() => resetHeartbeatState());
 
 function withSimTime(payload: Record<string, unknown>, simTimeMs: number): Record<string, unknown> {

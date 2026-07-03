@@ -5,7 +5,7 @@ import { isLocalEngineMode } from '../../utils/env';
 import { StartConfirmationModal } from './StartConfirmationModal';
 
 interface ModeControlsProps {
-  onStartSimulation: () => Promise<void>;
+  onStartSimulation: (resumeSavedWorld?: boolean) => Promise<void>;
   onReset: () => void;
   onPause?: () => Promise<void>;
   onResume?: () => Promise<void>;
@@ -22,10 +22,10 @@ export function ModeControls({ onStartSimulation, onReset, onPause, onResume, on
   const { toggleSound } = useSettingsStore();
   const isLocalMode = isLocalEngineMode();
   // Handle confirmed start
-  const handleConfirmedStart = async () => {
+  const handleConfirmedStart = async (choice: 'resume' | 'new') => {
     setIsLoading(true);
     try {
-      await onStartSimulation();
+      await onStartSimulation(choice === 'resume');
       setShowStartModal(false);
     } finally {
       setIsLoading(false);
