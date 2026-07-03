@@ -520,9 +520,10 @@ describe('review follow-ups: effort headroom, custom ids, no-key, budget clampin
 });
 
 describe('createRosterProviderFactory', () => {
-  const mkAgent = (id: string) =>
+  const mkAgent = (id: string, name?: string) =>
     ({
       id,
+      name,
       llmType: 'claude',
       x: 0,
       y: 0,
@@ -537,14 +538,24 @@ describe('createRosterProviderFactory', () => {
     sleepWall: () => Promise.resolve(),
   };
 
-  test('maps baseline roster entries to baseline providers', async () => {
+  test('binds agents to roster entries by NAME, independent of request order', async () => {
     const { createRosterProviderFactory } = await import('../../../engine/llm/roster-factory');
     const factory = createRosterProviderFactory(
-      [{ name: 'Bot', provider: 'baseline_random', modelId: '', color: '#111111' }],
+      [
+        { name: 'A', provider: 'baseline_random', modelId: '', color: '#111111' },
+        { name: 'B', provider: 'baseline_rule', modelId: '', color: '#222222' },
+        { name: 'C', provider: 'baseline_sugarscape', modelId: '', color: '#333333' },
+      ],
       { getKey: () => undefined }
     );
 
-    expect(factory(mkAgent('a1'), tools).kind).toBe('baseline_random');
+    // Request in an order different from the roster order (getAliveAgents
+    // sorts by llmType, not roster index): binding must not depend on it.
+    expect(factory(mkAgent('a3', 'C'), tools).kind).toBe('baseline_sugarscape');
+    expect(factory(mkAgent('a1', 'A'), tools).kind).toBe('baseline_random');
+    expect(factory(mkAgent('a2', 'B'), tools).kind).toBe('baseline_rule');
+    // Stable on repeat lookups.
+    expect(factory(mkAgent('a3', 'C'), tools).kind).toBe('baseline_sugarscape');
   });
 
   test('returns an unavailable provider that throws no-key when the key is missing', async () => {
@@ -554,35 +565,48 @@ describe('createRosterProviderFactory', () => {
       { getKey: () => undefined }
     );
 
-    const provider = factory(mkAgent('a1'), tools);
+    const provider = factory(mkAgent('a1', 'Claudia'), tools);
     expect(provider.decide({} as never, new AbortController().signal)).rejects.toThrow(
       /unavailable: no-key/
     );
   });
 
-  test('assigns roster entries round-robin and keeps assignments stable per agent', async () => {
+  test('newborns inherit the provider of their first parent via lineage', async () => {
     const { createRosterProviderFactory } = await import('../../../engine/llm/roster-factory');
+    const { store, resetStore } = await import('../../../engine-memory/store');
+    resetStore();
+
+    const parent = mkAgent('parent-1', 'Mother');
+    store.agents.set(parent.id, parent as never);
+    store.agentLineages.set('lineage-1', {
+      id: 'lineage-1',
+      tenantId: null,
+      agentId: 'child-1',
+      generation: 1,
+      parentIds: ['parent-1'],
+      spawnedAtTick: 5,
+      spawnedByParentId: 'parent-1',
+    } as never);
+
     const factory = createRosterProviderFactory(
-      [
-        { name: 'A', provider: 'baseline_random', modelId: '', color: '#111111' },
-        { name: 'B', provider: 'baseline_rule', modelId: '', color: '#222222' },
-      ],
+      [{ name: 'Mother', provider: 'baseline_sugarscape', modelId: '', color: '#111111' }],
       { getKey: () => undefined }
     );
 
-    const first = factory(mkAgent('agent-1'), tools).kind;
-    const second = factory(mkAgent('agent-2'), tools).kind;
-    const firstAgain = factory(mkAgent('agent-1'), tools).kind;
-
-    expect([first, second].sort()).toEqual(['baseline_random', 'baseline_rule']);
-    expect(firstAgain).toBe(first);
+    expect(factory(mkAgent('child-1', undefined), tools).kind).toBe('baseline_sugarscape');
+    resetStore();
   });
 
-  test('falls back to the rule-based baseline for an empty roster', async () => {
+  test('falls back to the rule-based baseline for unknown names and empty rosters', async () => {
     const { createRosterProviderFactory } = await import('../../../engine/llm/roster-factory');
-    const factory = createRosterProviderFactory([], { getKey: () => 'unused' });
+    const factory = createRosterProviderFactory(
+      [{ name: 'A', provider: 'baseline_random', modelId: '', color: '#111111' }],
+      { getKey: () => 'unused' }
+    );
+    expect(factory(mkAgent('aX', 'NotInRoster'), tools).kind).toBe('baseline_rule');
 
-    expect(factory(mkAgent('a1'), tools).kind).toBe('baseline_rule');
+    const emptyFactory = createRosterProviderFactory([], { getKey: () => 'unused' });
+    expect(emptyFactory(mkAgent('a1', 'A'), tools).kind).toBe('baseline_rule');
   });
 });
 

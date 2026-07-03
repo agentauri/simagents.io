@@ -60,6 +60,20 @@ function normalizeEntry(
   };
 }
 
+/**
+ * The entry NAME is the stable key binding a seeded agent to its roster entry
+ * (see engine/llm/roster-factory.ts) and it survives world resume, so
+ * duplicates must be disambiguated everywhere the roster is mutated.
+ */
+function dedupeNames(entries: AgentRosterEntry[]): AgentRosterEntry[] {
+  const seen = new Map<string, number>();
+  return entries.map((entry) => {
+    const count = seen.get(entry.name) ?? 0;
+    seen.set(entry.name, count + 1);
+    return count === 0 ? entry : { ...entry, name: `${entry.name} (${count + 1})` };
+  });
+}
+
 function normalizeRoster(value: unknown): AgentRosterEntry[] {
   if (!Array.isArray(value)) return cloneDefaultRoster();
 
@@ -67,7 +81,7 @@ function normalizeRoster(value: unknown): AgentRosterEntry[] {
     .map((entry, index) => normalizeEntry(entry as Partial<AgentRosterEntry>, index))
     .filter((entry): entry is AgentRosterEntry => entry !== null);
 
-  return normalized.length > 0 ? normalized : cloneDefaultRoster();
+  return normalized.length > 0 ? dedupeNames(normalized) : cloneDefaultRoster();
 }
 
 function loadRosterFromStorage(): AgentRosterEntry[] {
@@ -100,7 +114,7 @@ export const useRosterStore = create<RosterState>((set, get) => ({
     const normalized = normalizeEntry(entry, roster.length);
     if (!normalized) return;
 
-    const nextRoster = [...roster, normalized];
+    const nextRoster = dedupeNames([...roster, normalized]);
     saveRosterToStorage(nextRoster);
     set({ roster: nextRoster });
   },
@@ -132,8 +146,8 @@ export const useRosterStore = create<RosterState>((set, get) => ({
     const normalized = normalizeEntry(merged, index);
     if (!normalized) return;
 
-    const nextRoster = roster.map((entry, currentIndex) =>
-      currentIndex === index ? normalized : entry
+    const nextRoster = dedupeNames(
+      roster.map((entry, currentIndex) => (currentIndex === index ? normalized : entry))
     );
     saveRosterToStorage(nextRoster);
     set({ roster: nextRoster });

@@ -6,6 +6,7 @@ import {
   type LLMType,
 } from '@simagents/shared';
 import type { Agent } from '../../db/schema';
+import { store } from '../../engine-memory/store';
 import {
   BaselineDecisionProvider,
   type DecisionContext,
@@ -35,17 +36,44 @@ export function createRosterProviderFactory(
   keySource: KeySource,
   options: RosterProviderFactoryOptions = {}
 ): RosterProviderFactory {
-  const assignments = new Map<string, AgentRosterEntry>();
-  let nextIndex = 0;
-  const entries = roster.length > 0 ? roster : [];
+  // Deterministic binding: an agent is driven by the roster entry whose NAME
+  // matches the agent's seeded name. Seeding bakes identity (name/color/
+  // llmType) from the roster, agent names are persisted in world snapshots,
+  // and the roster store deduplicates names - so this mapping is stable
+  // across runner-sync order, world resume, and agent deaths. (A round-robin
+  // over request order would scramble identity vs. driving model, because
+  // getAliveAgents sorts by llmType, not roster order.)
+  const entriesByName = new Map<string, AgentRosterEntry>();
+  for (const entry of roster) {
+    if (!entriesByName.has(entry.name)) entriesByName.set(entry.name, entry);
+  }
+  const resolvedByAgentId = new Map<string, AgentRosterEntry | undefined>();
+
+  const entryForAgent = (agent: Agent): AgentRosterEntry | undefined => {
+    if (resolvedByAgentId.has(agent.id)) return resolvedByAgentId.get(agent.id);
+
+    const agentName = (agent as Agent & { name?: string }).name;
+    let entry = agentName ? entriesByName.get(agentName) : undefined;
+
+    if (!entry) {
+      // Reproduction newborns have no roster entry of their own: they inherit
+      // the provider of their first recorded parent (one lineage hop).
+      const lineage = [...store.agentLineages.values()].find(
+        (candidate) => candidate.agentId === agent.id
+      );
+      const parentIds = (lineage?.parentIds as string[] | null | undefined) ?? [];
+      const parentId = parentIds[0] ?? lineage?.spawnedByParentId ?? undefined;
+      const parent = parentId ? store.agents.get(parentId) : undefined;
+      const parentName = parent ? (parent as Agent & { name?: string }).name : undefined;
+      entry = parentName ? entriesByName.get(parentName) : undefined;
+    }
+
+    resolvedByAgentId.set(agent.id, entry);
+    return entry;
+  };
 
   return (agent) => {
-    const existing = assignments.get(agent.id);
-    const entry = existing ?? entries[nextIndex % entries.length];
-    if (!existing && entry) {
-      assignments.set(agent.id, entry);
-      nextIndex++;
-    }
+    const entry = entryForAgent(agent);
 
     if (!entry) {
       return new BaselineDecisionProvider('baseline_rule');

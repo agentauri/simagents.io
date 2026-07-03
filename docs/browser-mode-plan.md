@@ -140,3 +140,5 @@ The code remains in git and can still be used through remote mode or revived lat
 - Replay, analytics, and puzzle pages are hidden in local mode. Prompt gallery remains available.
 - The dev server has an `optimizeDeps` mitigation for worker-discovered npm deps (`uuid`, `seedrandom`, `zod`) to prevent the first simulation start from triggering Vite dep re-optimization and a full-page reload. Keep that comment and include list in `apps/web/vite.config.ts`.
 - The local storage quota policy is compact by design; long, verbose LLM runs should be exported before the browser evicts data.
+- Threat model for keys: API keys live in plain `localStorage`, so XSS is the primary risk. The app injects no untrusted HTML, but any future change that renders user/LLM-provided content as HTML must be reviewed against this. Optional at-rest encryption (Web Crypto + passphrase) is a possible future hardening.
+- Deferred cleanup: the legacy server still exposes the admin-authed `/api/llm/keys*` routes used by the old key-sync flow. They are inert in local mode (the browser no longer calls them) and should be removed together with the rest of the server archive pass.

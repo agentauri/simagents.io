@@ -65,3 +65,6 @@ apps/server/src/scripts/debug-*.ts
 # Experiment results (generated output, reproducible)
 apps/server/results/
 !apps/server/results/.gitkeep
+
+# Claude Code session workspace (local settings, never committed)
+.claude/
