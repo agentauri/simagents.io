@@ -459,6 +459,41 @@ export const CONFIG = {
   },
 
   // ---------------------------------------------------------------------------
+  // Browser Engine (continuous-time per-agent runner)
+  // ---------------------------------------------------------------------------
+  engine: {
+    /** Per-decision timeout owned by the AgentRunner, in wall milliseconds */
+    decisionTimeoutMs: env('ENGINE_DECISION_TIMEOUT_MS', 60000),
+    /** Minimum simulated time between decision starts for a single agent */
+    minDecisionIntervalMs: env('ENGINE_MIN_DECISION_INTERVAL_MS', 1000),
+    /** Simulated interval between housekeeping runs */
+    heartbeatIntervalMs: env('ENGINE_HEARTBEAT_INTERVAL_MS', 1000),
+  },
+
+  // ---------------------------------------------------------------------------
+  // Action Durations (simulated milliseconds)
+  // ---------------------------------------------------------------------------
+  durations: {
+    /** Default duration for actions not listed below */
+    defaultMs: env('ACTION_DURATION_DEFAULT_MS', 5000),
+    /** Penalty after failed actions to prevent permanent hot loops */
+    failedActionPenaltyMs: env('ACTION_DURATION_FAILED_PENALTY_MS', 1000),
+    /** Movement duration is multiplied by Chebyshev distance actually moved */
+    movePerTileMs: env('ACTION_DURATION_MOVE_PER_TILE_MS', 15000),
+    gatherMs: env('ACTION_DURATION_GATHER_MS', 30000),
+    forageMs: env('ACTION_DURATION_FORAGE_MS', 30000),
+    workMs: env('ACTION_DURATION_WORK_MS', 60000),
+    sleepMs: env('ACTION_DURATION_SLEEP_MS', 60000),
+    tradeMs: env('ACTION_DURATION_TRADE_MS', 5000),
+    buyMs: env('ACTION_DURATION_BUY_MS', 5000),
+    consumeMs: env('ACTION_DURATION_CONSUME_MS', 5000),
+    shareInfoMs: env('ACTION_DURATION_SHARE_INFO_MS', 5000),
+    signalMs: env('ACTION_DURATION_SIGNAL_MS', 5000),
+    harmMs: env('ACTION_DURATION_HARM_MS', 10000),
+    stealMs: env('ACTION_DURATION_STEAL_MS', 10000),
+  },
+
+  // ---------------------------------------------------------------------------
   // Agent Spawning (Scarcity Mode)
   // ---------------------------------------------------------------------------
   agent: {
@@ -978,6 +1013,27 @@ interface RuntimeConfigOverrides {
     ttlSeconds?: number;
     shareAcrossAgents?: boolean;
   };
+  engine?: {
+    decisionTimeoutMs?: number;
+    minDecisionIntervalMs?: number;
+    heartbeatIntervalMs?: number;
+  };
+  durations?: {
+    defaultMs?: number;
+    failedActionPenaltyMs?: number;
+    movePerTileMs?: number;
+    gatherMs?: number;
+    forageMs?: number;
+    workMs?: number;
+    sleepMs?: number;
+    tradeMs?: number;
+    buyMs?: number;
+    consumeMs?: number;
+    shareInfoMs?: number;
+    signalMs?: number;
+    harmMs?: number;
+    stealMs?: number;
+  };
   actions?: {
     move?: {
       energyCost?: number;
@@ -1118,6 +1174,14 @@ export function getRuntimeConfig(): RuntimeConfigOverrides & typeof CONFIG {
         ...runtimeOverrides.llmCache,
       },
     },
+    engine: {
+      ...CONFIG.engine,
+      ...runtimeOverrides.engine,
+    },
+    durations: {
+      ...CONFIG.durations,
+      ...runtimeOverrides.durations,
+    },
     experiment: {
       ...CONFIG.experiment,
       useEmergentPrompt: isEmergentPromptEnabled(),
@@ -1228,6 +1292,8 @@ export function setRuntimeConfig(updates: RuntimeConfigOverrides): void {
     agent: { ...runtimeOverrides.agent, ...updates.agent },
     needs: { ...runtimeOverrides.needs, ...updates.needs },
     llmCache: { ...runtimeOverrides.llmCache, ...updates.llmCache },
+    engine: { ...runtimeOverrides.engine, ...updates.engine },
+    durations: { ...runtimeOverrides.durations, ...updates.durations },
     actions: updates.actions ? {
       move: { ...runtimeOverrides.actions?.move, ...updates.actions.move },
       gather: { ...runtimeOverrides.actions?.gather, ...updates.actions.gather },

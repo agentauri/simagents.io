@@ -33,7 +33,7 @@ import type {
   NearbyPuzzlePlayer,
   PuzzleParticipationInfo,
 } from '../llm/types';
-import { buildAvailableActions } from '../llm/prompt-builder';
+import { buildAvailableActions } from '../llm/available-actions';
 import { getVisibleAgents, getAdjacentPositions, getDirection, getDistance } from '../world/grid';
 import { getAgentInventory } from '../db/queries/inventory';
 import { getRecentMemories, getAgentRelationships } from '../db/queries/memories';

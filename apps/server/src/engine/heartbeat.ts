@@ -18,6 +18,7 @@ import { completeGestations } from './reproduction';
 import { processPuzzleLifecycle } from './puzzles';
 import { materializeVitals, type MaterializedVitals } from './vitals';
 import { deleteVitalsMeta, setVitalsMeta, sweepVitalsMeta, type VitalsMeta } from './vitals-meta';
+import { deleteAgentMeta, sweepAgentMeta } from './agent-meta';
 import { TICK_MS, simMinutes, tickFromSimTime } from './time';
 
 export interface HousekeepingSummary {
@@ -240,6 +241,7 @@ async function processVitals(nowMs: number, tick: number, events: WorldEvent[]):
       // agent_died (tick-engine discarded the needs/warning events on death).
       await killAgent(initialAgent.id);
       deleteVitalsMeta(initialAgent.id);
+      deleteAgentMeta(initialAgent.id);
       deaths.push(initialAgent.id);
       await emit(
         makeEvent(
@@ -555,11 +557,13 @@ export async function runHousekeeping(nowMs: number, dtMs: number): Promise<Hous
         await killAgent(agentId);
       }
       deleteVitalsMeta(agentId);
+      deleteAgentMeta(agentId);
     }
     // Once per minute boundary, sweep metadata orphaned by out-of-heartbeat
     // deaths (e.g. the harm handler killing an agent directly).
     if (tick > previousTick) {
       sweepVitalsMeta((agentId) => store.agents.get(agentId)?.state !== 'dead' && store.agents.has(agentId));
+      sweepAgentMeta((agentId) => store.agents.get(agentId)?.state !== 'dead' && store.agents.has(agentId));
     }
   });
 

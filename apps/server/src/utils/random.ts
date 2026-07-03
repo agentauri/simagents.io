@@ -19,6 +19,10 @@ let rng: ReturnType<typeof seedrandom> | null = null;
 // Current seed for debugging/logging
 let currentSeed: string | null = null;
 
+export type RandomSource = () => number;
+
+const rngStack: Array<ReturnType<typeof seedrandom> | null> = [];
+
 /**
  * Initialize the RNG with a specific seed.
  * Call this at the start of each experiment or simulation run.
@@ -71,6 +75,35 @@ export function isSeeded(): boolean {
  */
 export function random(): number {
   return rng ? (rng as () => number)() : Math.random();
+}
+
+/**
+ * Create an isolated deterministic RNG stream.
+ *
+ * This does not affect the module-level RNG used by existing handlers. The
+ * browser engine uses it for per-agent decision streams while leaving handler
+ * randomness on the legacy global stream.
+ */
+export function createRng(seed: string): RandomSource {
+  const local = seedrandom(seed);
+  return () => local();
+}
+
+/**
+ * Temporarily route the existing random helpers through a supplied RNG.
+ *
+ * Baseline agents were written against the module-level random() helper. This
+ * keeps their public behavior intact while allowing a runner to provide an
+ * isolated stream for one synchronous decision.
+ */
+export function withRng<T>(source: RandomSource, fn: () => T): T {
+  rngStack.push(rng);
+  rng = source as ReturnType<typeof seedrandom>;
+  try {
+    return fn();
+  } finally {
+    rng = rngStack.pop() ?? null;
+  }
 }
 
 /**
