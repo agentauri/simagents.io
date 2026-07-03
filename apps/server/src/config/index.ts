@@ -6,19 +6,24 @@
  */
 
 // Helper to get env with default
+function readEnv(key: string): string | undefined {
+  if (typeof process === 'undefined' || !process.env) return undefined;
+  return process.env[key];
+}
+
 function env(key: string, defaultValue: number): number {
-  const value = process.env[key];
+  const value = readEnv(key);
   if (value === undefined) return defaultValue;
   const parsed = parseFloat(value);
   return isNaN(parsed) ? defaultValue : parsed;
 }
 
 function envString(key: string, defaultValue: string): string {
-  return process.env[key] ?? defaultValue;
+  return readEnv(key) ?? defaultValue;
 }
 
 function envBool(key: string, defaultValue: boolean): boolean {
-  const value = process.env[key];
+  const value = readEnv(key);
   if (value === undefined) return defaultValue;
   return value.toLowerCase() === 'true' || value === '1';
 }

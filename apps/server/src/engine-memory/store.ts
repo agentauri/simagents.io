@@ -216,4 +216,16 @@ export function resetStore(): void {
   store.puzzleAttempts.clear();
   store.nextEventId = 1;
   store.nextEventVersion = 1;
+  for (const hook of storeResetHooks) hook();
+}
+
+/**
+ * Modules that keep simulation state OUTSIDE the store (e.g. the continuous-time
+ * engine's vitals metadata and heartbeat boundaries) register a hook here so
+ * resetStore() also resets them. Keeps the dependency direction engine -> store.
+ */
+const storeResetHooks: Array<() => void> = [];
+
+export function registerStoreResetHook(hook: () => void): void {
+  storeResetHooks.push(hook);
 }

@@ -375,7 +375,7 @@ describe('newly unblocked real handlers on in-memory modules', () => {
 
     // Common LLM mistake: gameId provided instead of a fragmentId.
     const result = await h.shareFragment(
-      intent(sharer.id, 'share_fragment', { gameId: game.id, targetAgentId: receiver.id }),
+      intent(sharer.id, 'share_fragment', { gameId: game.id, targetAgentId: receiver.id }) as any,
       sharer
     );
 
