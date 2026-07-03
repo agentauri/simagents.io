@@ -1,77 +1,138 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with this repository.
 
 ## Project Overview
 
-**Sim Agents** is a persistent "world-as-a-service" platform where external AI agents can live, interact, and evolve. A scientific research platform for studying emergent AI behavior.
+**Sim Agents** is now primarily a browser-local multi-agent simulation. The user opens the Vite app, configures a roster, brings their own LLM API keys, and runs a continuous-time agent world inside a Web Worker. No backend is required in local mode, and application data is stored in the browser only.
+
+The legacy Fastify/PostgreSQL/Redis/BullMQ backend still exists for `VITE_ENGINE_MODE=remote`, research workflows, and server development. Treat browser-local mode as the active product path unless the task explicitly targets remote mode.
 
 Key differentiators:
-- **BYO Agent**: External agents connect via A2A protocol (`/api/v1/*`)
-- **Radical Emergence**: Only survival is imposed; everything else emerges from agent interaction
-- **Social Discovery**: Stigmergy (scents) and long-range signals for finding other agents
-- **Full Event Sourcing**: Complete action logging for replay and scientific analysis
+
+- **Browser-local BYOK:** LLM keys, roster, proxy URL, world snapshots, and event ring live in `localStorage`.
+- **Continuous-time engine:** `simTimeMs` advances in a worker; each agent runs an async decision loop; action application is serialized.
+- **Radical emergence:** The system validates physics and survival pressure, not morality or centralized social rules.
+- **Provider catalog:** Shared model/reasoning metadata drives UI roster controls and provider request construction.
+
+## Browser Mode (Local)
+
+Run local mode:
+
+```bash
+bun dev:web
+```
+
+Open `http://localhost:5173`. No server, PostgreSQL, Redis, or Docker service is required for local mode.
+
+Mode flag:
+
+```bash
+VITE_ENGINE_MODE=local   # default, Web Worker engine
+VITE_ENGINE_MODE=remote  # legacy backend/SSE mode
+```
+
+Important browser storage keys:
+
+- `simagents_api_keys`
+- `simagents_agent_roster`
+- `simagents_proxy_url`
+- `simagents_world_snapshot`
+- `simagents_event_ring`
+
+Engine layout:
+
+- `apps/web/src/engine-host/` hosts the worker and main-thread client.
+- `apps/server/src/engine/` contains the browser-safe continuous-time engine.
+- `apps/server/src/engine-memory/` replaces DB/cache/ledger/projection behavior for local mode.
+- `apps/web/vite.config.ts` aliases legacy server imports to browser-safe memory/stub modules.
+- `packages/shared/src/llm-catalog.ts` is the provider/model/reasoning catalog.
+- `apps/server/src/engine/llm/request-builder.ts` builds direct and proxied provider requests.
+
+CORS proxy:
+
+- Code and self-hosting docs are in `infra/cors-proxy/`.
+- The app reads the proxy origin from the Config panel and stores it in `simagents_proxy_url`.
+- The proxy is stateless and allow-lists only catalog providers with `cors: 'proxy'`.
 
 ## Core Philosophy: IMPOSED vs EMERGENT
 
 When implementing features, always distinguish:
 
-**IMPOSED (Infrastructure)**: Grid world (100x100), movement physics, event logging, agent identity, survival pressure (hunger, energy decay), health system, resource distribution, biome geography, seasonal cycles, currency (CITY)
+**IMPOSED (Infrastructure):** Grid world, movement physics, event logging, agent identity, survival pressure, health system, resource distribution, biome geography, seasonal cycles, currency.
 
-**EMERGENT (Agent-Created)**: Movement patterns, trade conventions, reputation, trust, social structures, property conventions, laws, morality
+**EMERGENT (Agent-Created):** Movement patterns, trade conventions, reputation, trust, social structures, property conventions, laws, morality.
 
-**Rule**: The system validates physics, not morality. Never add central databases for reputation, crime tracking, or justice.
+**Rule:** The system validates physics, not morality. Do not add central databases for reputation, crime tracking, or justice.
 
 ## Tech Stack
 
-- **Runtime**: Bun + TypeScript
-- **Backend**: Fastify + PostgreSQL (Drizzle ORM) + Redis + BullMQ
-- **Frontend**: React + Vite + TailwindCSS + Zustand + HTML5 Canvas
-- **AI**: Multi-LLM (Claude, Gemini, Codex, DeepSeek, Qwen, GLM, Grok, Mistral, MiniMax, Kimi) + Baseline agents (random, rule-based, sugarscape, q-learning)
+- **Runtime:** Bun + TypeScript
+- **Local frontend:** React + Vite + TailwindCSS + Zustand + HTML5 Canvas + Web Worker
+- **Local engine:** `apps/server/src/engine` plus `engine-memory`, bundled into the web app through Vite aliases
+- **Remote backend:** Fastify + PostgreSQL (Drizzle ORM) + Redis + BullMQ
+- **AI:** Claude, Gemini, OpenAI/Codex, DeepSeek, Qwen, GLM, Grok, Mistral, MiniMax, Kimi, plus baseline agents
 
 ## Commands
 
 ```bash
-# Development (from root - runs all apps)
-bun dev                          # Start both server and web
-bun dev:server                   # Backend only (localhost:3000)
-bun dev:web                      # Frontend only (localhost:5173)
+# Local browser mode
+bun dev:web                      # Frontend only, local worker engine, localhost:5173
 
-# Test mode (no LLM API calls, uses fallback decisions)
-TEST_MODE=true bun dev:server
-
-# Testing
-bun test                         # Run all tests
-cd apps/server && bun test       # Server tests only
-cd apps/server && bun test src/__tests__/actions/move.test.ts  # Single file
+# Remote/server development
+bun dev                          # Start all workspace dev scripts
+bun dev:server                   # Backend only, localhost:3000
+TEST_MODE=true bun dev:server    # Backend with fallback decisions
 
 # Type checking and linting
 bun typecheck                    # All workspaces
 bun lint                         # All workspaces
 
-# Database
-cd apps/server && bunx drizzle-kit push   # Apply schema changes
-
 # Build
 bun build                        # All workspaces
+cd apps/web && bun run build     # Web build
 
-# Docker (PostgreSQL + Redis)
+# Database and remote-mode infra
 docker-compose up -d
+bun run infra:up
+bun run infra:down
+bun run db:push
+bun run dev:setup
 
-# Convenience scripts (from root)
-bun run infra:up                 # Start Docker (PostgreSQL + Redis)
-bun run db:push                  # Apply schema changes
-bun run dev:setup                # Full setup (infra + db + install)
-
-# Per-agent evolution (autoresearch-style, no LLM calls)
-bun run apps/server/src/evolution/orchestrator.ts --generations 10   # All agents
-bun run apps/server/src/evolution/orchestrator.ts --agent claude     # Single agent
-bun run apps/server/src/evolution/orchestrator.ts --status           # Survival table
-bun run apps/server/src/evolution/orchestrator.ts --seed 42         # Reproducible run
-
+# Per-agent evolution, server-side
+bun run apps/server/src/evolution/orchestrator.ts --generations 10
+bun run apps/server/src/evolution/orchestrator.ts --agent claude
+bun run apps/server/src/evolution/orchestrator.ts --status
+bun run apps/server/src/evolution/orchestrator.ts --seed 42
 ```
 
-## Initial Setup
+## Testing
+
+Never run plain `bun test` from the repo root for browser-pivot work. The test suites must be split so browser-safe in-memory suites are not mixed with DB-backed suites.
+
+Run these exact verification commands when relevant:
+
+```bash
+bun typecheck
+
+cd apps/web && bun run build
+# Must print NOTHING (exits non-zero when the bundle is clean - that is the pass state):
+grep -l "PostgresError\\|ioredis\\|bullmq\\|drizzle" dist/assets/*.js
+
+cd apps/server && bun test src/__tests__/engine/ src/__tests__/engine-memory/
+
+cd apps/server && bun test src/__tests__/actions src/__tests__/agents src/__tests__/analytics src/__tests__/cache src/__tests__/crypto src/__tests__/db src/__tests__/experiments src/__tests__/integration src/__tests__/llm src/__tests__/queue src/__tests__/simulation src/__tests__/world
+```
+
+If PostgreSQL, Redis, or Docker are unavailable in the sandbox, report the exact connection-only failures instead of treating the whole verification pass as ambiguous.
+
+Uses `bun:test` with `describe`/`expect`:
+
+```typescript
+import { describe, expect, test } from 'bun:test';
+```
+
+## Initial Setup For Remote Mode
 
 ```bash
 bun install
@@ -80,86 +141,80 @@ docker-compose up -d
 cd apps/server && bunx drizzle-kit push
 ```
 
+Local browser mode only needs `bun install` and `bun dev:web`.
+
 ## Project Structure
 
-```
+```text
 apps/
   server/src/
-    actions/handlers/    # Action implementations (move, gather, trade, harm, signal, etc.)
-    agents/              # Spawner, observer, orchestrator, baselines/
-    db/                  # Drizzle schema and queries
-    llm/adapters/        # LLM provider adapters
-    simulation/          # Tick engine, needs-decay, shocks, puzzle-engine, seasons
-    evolution/           # Per-agent autonomous evolution (autoresearch-style)
-    experiments/         # Experiment DSL and runner
-    routes/              # API route handlers
-    world/               # Grid utilities, scent system (stigmergy)
-    middleware/          # Auth, rate limiting, tenant context
+    actions/handlers/       # Action implementations
+    engine/                 # Browser-safe continuous-time engine
+    engine-memory/          # In-memory store, query modules, bus, projections, ledger
+    db/                     # Drizzle schema and remote-mode queries
+    llm/                    # Legacy remote-mode LLM adapters and prompt code
+    simulation/             # Legacy tick engine and server simulation utilities
+    evolution/              # Server-side evolution workflows
+    experiments/            # Server-side experiment DSL and runner
+    routes/                 # Remote API route handlers
+    world/                  # Grid/biome utilities
   web/src/
-    components/          # UI components (Canvas, Controls)
-    stores/              # Zustand stores (world, editor, visualization)
-    hooks/               # Custom hooks (useSSE, useWorldControl)
+    engine-host/            # Worker host, client, browser stubs
+    components/             # UI components
+    stores/                 # Zustand stores and localStorage-backed state
+    hooks/                  # Local and remote control hooks
 packages/
-  shared/                # Shared types, schemas, constants (imported as @simagents/shared)
+  shared/                   # Shared types, schemas, constants, LLM catalog
+infra/
+  cors-proxy/               # Stateless Cloudflare Worker artifact
 ```
 
 ## Key Architecture Files
 
-- `apps/server/src/simulation/tick-engine.ts` - Main simulation loop
-- `apps/server/src/agents/orchestrator.ts` - Agent decision coordination
-- `apps/server/src/llm/prompt-builder.ts` - LLM prompt construction (physics-only, reads values from CONFIG)
-- `apps/server/src/llm/index.ts` - LLM adapter registry (lazy-loaded to avoid circular deps)
-- `apps/server/src/db/schema.ts` - Database schema (Drizzle)
-- `apps/server/src/config/index.ts` - Centralized configuration
-- `apps/server/src/world/grid.ts` - Grid utilities (positions, movement, visibility)
-- `apps/server/src/world/scent.ts` - Stigmergy system (agent trails)
-- `apps/server/src/middleware/auth.ts` - Authentication (API keys, admin auth)
-- `apps/server/src/simulation/puzzle-engine.ts` - Puzzle game lifecycle management
-- `apps/server/src/db/queries/puzzles.ts` - Puzzle database queries
-- `apps/web/src/stores/world.ts` - World state management
-- `apps/server/src/analysis/experiment-analysis.ts` - Statistical functions (t-test, Mann-Whitney U, normalityTest, CI, power analysis)
-- `apps/server/src/analysis/metric-validator.ts` - Metric validation harness + multiple comparison corrections
-- `apps/server/src/experiments/scientific-profile.ts` - Scientific execution profiles
-- `apps/server/src/simulation/seasons.ts` - Seasonal resource cycles (emergent cooperation)
-- `apps/server/src/evolution/runner.ts` - Per-agent evolution runner (mini-sim + fitness)
-- `apps/server/src/evolution/orchestrator.ts` - Multi-agent evolution orchestrator + CLI
+- `apps/web/src/engine-host/worker.ts` - Browser worker entrypoint
+- `apps/web/src/engine-host/engine-client.ts` - Main-thread worker client
+- `apps/web/vite.config.ts` - Browser-mode aliases and worker dep prebundle mitigation
+- `apps/server/src/engine/engine.ts` - `SimEngine`, clock advancement, runner sync, housekeeping
+- `apps/server/src/engine/agent-runner.ts` - Per-agent async decision loop
+- `apps/server/src/engine/executor.ts` - Serialized action executor and action durations
+- `apps/server/src/engine/persistence.ts` - Versioned snapshot serialize/hydrate
+- `apps/server/src/engine/llm/request-builder.ts` - Provider request construction
+- `apps/server/src/engine-memory/store.ts` - Browser-local in-memory store
+- `apps/server/src/engine-memory/queries/` - DB-query-compatible memory modules
+- `apps/web/src/services/persistence.ts` - localStorage snapshot/event-ring persistence
+- `packages/shared/src/llm-catalog.ts` - Provider, model, CORS, and reasoning catalog
+- `infra/cors-proxy/worker.js` - Optional stateless CORS proxy
 
-## Testing
+Remote-mode files that still matter for backend work:
 
-Uses bun:test with describe/expect pattern:
-```typescript
-import { describe, expect, test } from 'bun:test';
-```
-
-Tests are in `apps/server/src/__tests__/` organized by domain (actions/, integration/, llm/, etc.)
+- `apps/server/src/index.ts`
+- `apps/server/src/db/schema.ts`
+- `apps/server/src/simulation/tick-engine.ts`
+- `apps/server/src/agents/orchestrator.ts`
+- `apps/server/src/llm/prompt-builder.ts`
+- `apps/server/src/analysis/experiment-analysis.ts`
+- `apps/server/src/experiments/scientific-profile.ts`
 
 ## Key Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TEST_MODE` | `false` | Use fallback decisions instead of LLM calls |
-| `TICK_INTERVAL_MS` | `60000` | Simulation tick interval (1 minute) |
-| `GRID_SIZE` | `100` | World grid size (NxN) |
-| `DATABASE_URL` | `postgres://dev:dev@localhost:5432/simagents` | PostgreSQL connection |
-| `REDIS_URL` | `redis://localhost:6379` | Redis connection |
-| `RANDOM_SEED` | timestamp | Seed for reproducible experiments |
-| `ADMIN_API_KEY` | (insecure default) | Required for admin API endpoints |
-| `BIOME_EXCLUSIVITY_ENABLED` | `false` | Resources exclusive to certain biomes |
-| `SEASONS_ENABLED` | `false` | Seasonal resource cycles |
-| `RESOURCE_DEPLETION_ENABLED` | `false` | Over-harvest degradation |
-| `EVOLUTION_POPULATION_SIZE` | `20` | Genomes per agent in evolution |
-| `EVOLUTION_MUTATION_RATE` | `0.25` | Genome mutation rate (0-1) |
-| `EVOLUTION_CROSSOVER_RATE` | `0.5` | Genome crossover rate (0-1) |
-| `EVOLUTION_ELITE_COUNT` | `3` | Elite genomes preserved per generation |
-| `EVOLUTION_TICKS_PER_EVAL` | `100` | Ticks per fitness evaluation |
-| `EVOLUTION_MIN_FITNESS` | `0.55` | Min fitness to earn survival |
-| `EVOLUTION_MIN_GENERATIONS` | `5` | Min generations before judging |
+| `VITE_ENGINE_MODE` | `local` | `local` uses the Web Worker engine; `remote` uses backend/SSE |
+| `VITE_API_URL` | empty | Remote API base URL for backend mode |
+| `TEST_MODE` | `false` | Remote mode fallback decisions instead of LLM calls |
+| `TICK_INTERVAL_MS` | `60000` | Legacy remote tick interval |
+| `GRID_SIZE` | `100` | World grid size |
+| `DATABASE_URL` | `postgres://dev:dev@localhost:5432/simagents` | PostgreSQL connection for remote mode |
+| `REDIS_URL` | `redis://localhost:6379` | Redis connection for remote mode |
+| `RANDOM_SEED` | timestamp | Seed for reproducible server experiments |
+| `ADMIN_API_KEY` | insecure dev default | Admin endpoints in remote mode |
 
-See `apps/server/src/config/index.ts` for full configuration options.
+See `apps/server/src/config/index.ts` for the full runtime configuration surface.
 
 ## API Authentication
 
-**Admin endpoints** (config, scenarios, LLM keys) require the `X-Admin-Key` header:
+Remote admin endpoints require the `X-Admin-Key` header:
+
 ```bash
 curl -X POST http://localhost:3000/api/config \
   -H "X-Admin-Key: your_admin_key" \
@@ -167,34 +222,26 @@ curl -X POST http://localhost:3000/api/config \
   -d '{"simulation": {"testMode": true}}'
 ```
 
-Set `ADMIN_API_KEY` env var in production. Default is insecure for development only.
+Set `ADMIN_API_KEY` in production. The default is insecure and for development only.
 
 ## Adding New Actions
 
-1. Create handler in `apps/server/src/actions/handlers/`
-2. Add type to `apps/server/src/actions/types.ts`
-3. Register in action dispatcher
-4. Add tests in `apps/server/src/__tests__/actions/`
-
-**Recent Example**: Employment System (Phase 6)
-- 7 new handlers: `offer-job`, `accept-job`, `pay-worker`, `quit-job`, `fire-worker`, `claim-escrow`, `cancel-job-offer`
-- New queries: `apps/server/src/db/queries/employment.ts`
-- See PRD §41 and ROADMAP Phase 6 for details
-
-**Recent Example**: Cooperative Puzzle System (Phase 7)
-- 6 new handlers: `join-puzzle`, `leave-puzzle`, `share-fragment`, `form-team`, `join-team`, `submit-solution`
-- New queries: `apps/server/src/db/queries/puzzles.ts`
-- Engine: `apps/server/src/simulation/puzzle-engine.ts`
-- See PRD §43 and ROADMAP Phase 7 for details
+1. Create the handler in `apps/server/src/actions/handlers/`.
+2. Add the type to `apps/server/src/actions/types.ts`.
+3. Register it in the action dispatcher.
+4. Keep handlers backend-agnostic. Put persistence and atomic cross-entity mutations in query modules or memory-compatible helpers, not raw DB/cache imports.
+5. Add focused tests under `apps/server/src/__tests__/actions/` or `engine-memory/` depending on the behavior.
 
 ## Adding New LLM Providers
 
-1. Create adapter in `apps/server/src/llm/adapters/`
-2. Add type to shared types
-3. Register in LLM factory (`apps/server/src/llm/index.ts` uses lazy `require()` initialization via `ensureAdapters()` to avoid circular dependency issues with `BaseLLMAdapter`)
+1. Add provider/model/reasoning metadata to `packages/shared/src/llm-catalog.ts`.
+2. Update browser request construction in `apps/server/src/engine/llm/request-builder.ts`.
+3. If the provider needs proxy CORS, add its exact host to `infra/cors-proxy/worker.js` and docs.
+4. Keep shared schema/type unions aligned with the catalog and constants.
 
 ## Documentation
 
+- `docs/browser-mode-plan.md` - Current browser-mode architecture
 - `docs/PRD.md` - Product Requirements Document
 - `docs/experiment-design-guide.md` - Research experiment guide
 - `docs/literature-validation-plan.md` - Literature validation progress
@@ -204,9 +251,9 @@ Set `ADMIN_API_KEY` env var in production. Default is insecure for development o
 
 ## Language Conventions
 
-All project artifacts must be in **English**:
+All project artifacts must be in English:
 
-- **Code**: Variable names, function names, class names, comments, JSDoc/TSDoc
-- **Commits**: Use [Conventional Commits](https://www.conventionalcommits.org/) format (e.g., `feat:`, `fix:`, `docs:`)
-- **Pull Requests**: English title and description
-- **Documentation**: All markdown files, README, inline docs
+- **Code:** Variable names, function names, class names, comments, JSDoc/TSDoc
+- **Commits:** Conventional Commits format, when commits are requested
+- **Pull Requests:** English title and description
+- **Documentation:** Markdown files, README, inline docs

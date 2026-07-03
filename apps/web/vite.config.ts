@@ -64,6 +64,12 @@ const engineAliases = [
 
 export default defineConfig({
   plugins: [react()],
+  optimizeDeps: {
+    // The browser engine is first loaded from a Worker. Prebundle the npm deps
+    // reachable only through that graph so Vite does not discover them on first
+    // simulation start and force a full-page reload.
+    include: ['uuid', 'seedrandom', 'zod'],
+  },
   resolve: {
     alias: [
       { find: '@server', replacement: serverSrc },

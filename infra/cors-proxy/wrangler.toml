@@ -1,0 +1,7 @@
+name = "simagents-cors-proxy"
+main = "worker.js"
+compatibility_date = "2026-07-03"
+
+# Privacy contract: keep platform-level logging off too.
+[observability]
+enabled = false

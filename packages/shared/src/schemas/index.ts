@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { AGENT_STATES, LOCATION_TYPES, EVENT_TYPES, LLM_TYPES } from '../constants';
+import { AGENT_STATES, LOCATION_TYPES, EVENT_TYPES } from '../constants';
 
 // ============================================
 // Physical Identity Schemas
@@ -25,6 +25,7 @@ export const AgentStateSchema = z.enum([
   AGENT_STATES.WALKING,
   AGENT_STATES.WORKING,
   AGENT_STATES.SLEEPING,
+  AGENT_STATES.DEAD,
   AGENT_STATES.INTERACTING,
 ]);
 
@@ -93,6 +94,7 @@ export const EventTypeSchema = z.enum([
   EVENT_TYPES.WORLD_UPDATE,
   EVENT_TYPES.AGENT_ACTION,
   EVENT_TYPES.AGENT_INTERACTION,
+  EVENT_TYPES.RESOURCE_EVENT,
   EVENT_TYPES.LOCATION_EVENT,
 ]);
 
