@@ -59,6 +59,8 @@ import {
   type LLMInvoker,
 } from './genesis';
 import { createProductionInvoker, createDiverseMockInvoker } from './genesis-llm-invoker';
+import { getBiomeForPosition, type BiomeType } from '../world/biomes';
+export { getBiomeForPosition, type BiomeType } from '../world/biomes';
 
 /** Use seeded UUID during experiments for determinism, crypto UUID otherwise */
 function generateId(): string {
@@ -112,8 +114,6 @@ const BASELINE_AGENT_CONFIGS: AgentConfig[] = [
 // =============================================================================
 // Biome Configurations
 // =============================================================================
-
-export type BiomeType = 'forest' | 'desert' | 'tundra' | 'plains';
 
 export interface BiomeConfig {
   type: BiomeType;
@@ -186,23 +186,6 @@ export const BIOME_CONFIGS_EXCLUSIVE: Record<BiomeType, BiomeConfig> = {
     regenMultipliers: { food: 0.5, energy: 0.5, material: 0.3, medicine: 0.3 },
   },
 };
-
-/**
- * Determine biome based on position (quadrant system)
- * - NW (x < 50, y < 50): forest - lush with food
- * - NE (x >= 50, y < 50): tundra - cold with energy
- * - SW (x < 50, y >= 50): desert - scarce but materials
- * - SE (x >= 50, y >= 50): plains - balanced
- */
-export function getBiomeForPosition(x: number, y: number): BiomeType {
-  const midX = 50;
-  const midY = 50;
-
-  if (x < midX && y < midY) return 'forest';
-  if (x >= midX && y < midY) return 'tundra';
-  if (x < midX && y >= midY) return 'desert';
-  return 'plains';
-}
 
 // =============================================================================
 // Resource Spawn Configurations (Sugarscape-style)

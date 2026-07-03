@@ -128,6 +128,8 @@ export class AgentRunner {
           reasoning: decision.reasoning,
           usedFallback,
           processingTimeMs,
+          modelId: decision.telemetry?.modelId,
+          tokens: decision.telemetry?.tokens,
         });
 
         // Defensive anti-spin guard: with zero min interval AND a zero-duration

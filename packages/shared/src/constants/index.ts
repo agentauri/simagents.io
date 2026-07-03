@@ -15,7 +15,7 @@ export const TILE_HEIGHT = 32;
 export const WORLD_SIZE = 100; // 100x100 grid
 
 // Agent limits
-export const MAX_AGENTS = 7; // One per LLM type
+export const MAX_AGENTS = 10; // One per BYOK LLM provider by default
 
 // Event types
 export const EVENT_TYPES = {
@@ -59,7 +59,7 @@ export const LOCATION_TYPES = {
   CIVIC: 'civic',
 } as const;
 
-// LLM types (7 agents + external)
+// LLM types (10 BYOK providers + external)
 export const LLM_TYPES = {
   CLAUDE: 'claude',
   CODEX: 'codex',
@@ -68,5 +68,8 @@ export const LLM_TYPES = {
   QWEN: 'qwen',
   GLM: 'glm',
   GROK: 'grok',
+  MISTRAL: 'mistral',
+  MINIMAX: 'minimax',
+  KIMI: 'kimi',
   EXTERNAL: 'external',
 } as const;

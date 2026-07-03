@@ -32,6 +32,11 @@ export interface DecisionMeta {
   reasoning?: string;
   usedFallback?: boolean;
   processingTimeMs?: number;
+  modelId?: string;
+  tokens?: {
+    input?: number;
+    output?: number;
+  };
 }
 
 interface QueueItem {
@@ -156,6 +161,10 @@ export class ActionExecutor {
               reasoning: decisionMeta?.reasoning,
               usedFallback: decisionMeta?.usedFallback ?? false,
               processingTimeMs: decisionMeta?.processingTimeMs,
+              // New telemetry fields are additive: omit them entirely when
+              // absent (baselines) so payload key-presence checks stay clean.
+              ...(decisionMeta?.modelId !== undefined ? { modelId: decisionMeta.modelId } : {}),
+              ...(decisionMeta?.tokens !== undefined ? { tokens: decisionMeta.tokens } : {}),
             },
           },
           tick,

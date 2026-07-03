@@ -2,14 +2,14 @@
  * ApiKeyInput Component
  *
  * Input for a single LLM API key with:
- * - Status badge (From ENV / User Provided / Not Set)
+ * - Status badge (User Provided / Not Set)
  * - Password input with show/hide toggle
  * - Enable/Disable toggle
  * - Link to get API key
  */
 
 import { useState } from 'react';
-import type { LLMProviderInfo, ProviderKeyStatus, LLMType } from '../../stores/apiKeys';
+import type { LLMProviderInfo, ProviderKeyStatus } from '../../stores/apiKeys';
 
 interface ApiKeyInputProps {
   provider: LLMProviderInfo;
@@ -38,8 +38,6 @@ export function ApiKeyInput({
       return { text: 'Disabled', color: 'bg-gray-600 text-gray-300' };
     }
     switch (status.source) {
-      case 'env':
-        return { text: 'From ENV', color: 'bg-green-800 text-green-200' };
       case 'user':
         return { text: 'User Key', color: 'bg-blue-800 text-blue-200' };
       default:
@@ -48,7 +46,7 @@ export function ApiKeyInput({
   };
 
   const badge = getBadge();
-  const hasKey = status.source !== 'none';
+  const hasKey = status.source === 'user';
   const displayValue = pendingKey ?? (hasKey ? status.maskedKey ?? '' : '');
   const isEditing = pendingKey !== undefined;
 

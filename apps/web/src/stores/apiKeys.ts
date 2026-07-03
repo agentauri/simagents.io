@@ -1,31 +1,31 @@
 /**
  * API Keys Store
  *
- * Manages LLM API keys state.
- * - Keys stored in localStorage (browser-side)
- * - Syncs with backend on page load
- * - Backend never returns full keys (only masked)
+ * Manages browser-local LLM API key state.
+ * - Keys are stored only in localStorage
+ * - Provider metadata comes from the shared browser-safe catalog
+ * - No key material is sent to the server
  */
 
+import { LLM_CATALOG, type LLMType as SharedLLMType } from '@simagents/shared';
 import { create } from 'zustand';
 
 // =============================================================================
 // Types
 // =============================================================================
 
-export type LLMType = 'claude' | 'codex' | 'gemini' | 'deepseek' | 'qwen' | 'glm' | 'grok' | 'mistral' | 'minimax' | 'kimi';
+export type LLMType = SharedLLMType;
 
 export interface LLMProviderInfo {
   type: LLMType;
   displayName: string;
-  envVar: string;
   docsUrl: string;
   costInfo: string;
 }
 
 export interface ProviderKeyStatus {
   type: LLMType;
-  source: 'env' | 'user' | 'none';
+  source: 'user' | 'none';
   disabled: boolean;
   maskedKey?: string;
 }
@@ -56,20 +56,27 @@ export interface ApiKeysState {
 
 const KEYS_STORAGE_KEY = 'simagents_api_keys';
 const DISABLED_STORAGE_KEY = 'simagents_disabled_keys';
+const ALL_TYPES = LLM_CATALOG.map((provider) => provider.id);
 
-function loadKeysFromStorage(): Record<string, string> {
-  try {
-    const saved = localStorage.getItem(KEYS_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (e) {
-    console.warn('[ApiKeysStore] Failed to load keys from localStorage:', e);
-  }
-  return {};
+function canUseLocalStorage(): boolean {
+  return typeof localStorage !== 'undefined';
 }
 
-function saveKeysToStorage(keys: Record<string, string>): void {
+function loadKeysFromStorage(): Partial<Record<LLMType, string>> {
+  if (!canUseLocalStorage()) return {};
+
+  try {
+    const saved = localStorage.getItem(KEYS_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : {};
+  } catch (e) {
+    console.warn('[ApiKeysStore] Failed to load keys from localStorage:', e);
+    return {};
+  }
+}
+
+function saveKeysToStorage(keys: Partial<Record<LLMType, string>>): void {
+  if (!canUseLocalStorage()) return;
+
   try {
     if (Object.keys(keys).length === 0) {
       localStorage.removeItem(KEYS_STORAGE_KEY);
@@ -82,18 +89,27 @@ function saveKeysToStorage(keys: Record<string, string>): void {
 }
 
 function loadDisabledFromStorage(): LLMType[] {
+  if (!canUseLocalStorage()) return [];
+
   try {
     const saved = localStorage.getItem(DISABLED_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
+    if (!saved) return [];
+
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter((type): type is LLMType =>
+      ALL_TYPES.includes(type as LLMType)
+    );
   } catch (e) {
     console.warn('[ApiKeysStore] Failed to load disabled from localStorage:', e);
+    return [];
   }
-  return [];
 }
 
 function saveDisabledToStorage(disabled: LLMType[]): void {
+  if (!canUseLocalStorage()) return;
+
   try {
     if (disabled.length === 0) {
       localStorage.removeItem(DISABLED_STORAGE_KEY);
@@ -105,82 +121,38 @@ function saveDisabledToStorage(disabled: LLMType[]): void {
   }
 }
 
-// =============================================================================
-// API Functions
-// =============================================================================
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
-
-interface StatusResponse {
-  providers: LLMProviderInfo[];
-  status: Record<LLMType, ProviderKeyStatus>;
-  hasAnyKey: boolean;
+function maskKey(key: string): string {
+  if (key.length <= 8) return '****';
+  return `****${key.slice(-4)}`;
 }
 
-async function fetchStatusFromAPI(): Promise<StatusResponse> {
-  const response = await fetch(`${API_BASE}/api/llm/keys/status`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch keys status: ${response.statusText}`);
-  }
-  return response.json();
-}
-
-async function syncKeysToBackend(keys: Record<string, string>, disabled: LLMType[]): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/llm/keys/sync`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ keys, disabled }),
+function getProvidersFromCatalog(): LLMProviderInfo[] {
+  return LLM_CATALOG.map((provider) => {
+    const defaultModel = provider.models.find((model) => model.id === provider.defaultModelId);
+    return {
+      type: provider.id,
+      displayName: provider.displayName,
+      docsUrl: provider.docsUrl,
+      costInfo: `Default: ${defaultModel?.label ?? provider.defaultModelId}`,
+    };
   });
-  if (!response.ok) {
-    throw new Error(`Failed to sync keys: ${response.statusText}`);
-  }
 }
 
-async function setKeyAPI(type: LLMType, key: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/llm/keys`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ keys: { [type]: key } }),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to set key: ${response.statusText}`);
-  }
-}
-
-async function clearKeyAPI(type: LLMType): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/llm/keys/clear`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type }),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to clear key: ${response.statusText}`);
-  }
-}
-
-async function setDisabledAPI(type: LLMType, disabled: boolean): Promise<void> {
-  const endpoint = disabled ? '/api/llm/keys/disable' : '/api/llm/keys/enable';
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ types: [type] }),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to ${disabled ? 'disable' : 'enable'} key: ${response.statusText}`);
-  }
-}
-
-// =============================================================================
-// Initial State
-// =============================================================================
-
-const ALL_TYPES: LLMType[] = ['claude', 'codex', 'gemini', 'deepseek', 'qwen', 'glm', 'grok', 'mistral', 'minimax', 'kimi'];
-
-function createEmptyStatus(): Record<LLMType, ProviderKeyStatus> {
+function createStatusFromStorage(): Record<LLMType, ProviderKeyStatus> {
+  const keys = loadKeysFromStorage();
+  const disabled = new Set(loadDisabledFromStorage());
   const status: Partial<Record<LLMType, ProviderKeyStatus>> = {};
+
   for (const type of ALL_TYPES) {
-    status[type] = { type, source: 'none', disabled: false };
+    const key = keys[type];
+    status[type] = {
+      type,
+      source: key ? 'user' : 'none',
+      disabled: disabled.has(type),
+      maskedKey: key ? maskKey(key) : undefined,
+    };
   }
+
   return status as Record<LLMType, ProviderKeyStatus>;
 }
 
@@ -190,76 +162,59 @@ function createEmptyStatus(): Record<LLMType, ProviderKeyStatus> {
 
 export const useApiKeysStore = create<ApiKeysState>((set, get) => ({
   // Initial state
-  providers: [],
-  status: createEmptyStatus(),
+  providers: getProvidersFromCatalog(),
+  status: createStatusFromStorage(),
   pendingKeys: {} as Record<LLMType, string>,
   isLoading: false,
   error: null,
   isSynced: false,
 
-  // Fetch status from backend and sync localStorage keys
+  // Refresh localStorage-backed status.
   fetchStatus: async () => {
     set({ isLoading: true, error: null });
     try {
-      // First, sync localStorage data to backend
-      const storedKeys = loadKeysFromStorage();
-      const storedDisabled = loadDisabledFromStorage();
-
-      if (Object.keys(storedKeys).length > 0 || storedDisabled.length > 0) {
-        await syncKeysToBackend(storedKeys, storedDisabled);
-      }
-
-      // Then fetch current status
-      const data = await fetchStatusFromAPI();
       set({
-        providers: data.providers,
-        status: data.status,
+        providers: getProvidersFromCatalog(),
+        status: createStatusFromStorage(),
         isLoading: false,
         isSynced: true,
       });
     } catch (e) {
-      const error = e instanceof Error ? e.message : 'Failed to fetch keys status';
+      const error = e instanceof Error ? e.message : 'Failed to load keys status';
       set({ error, isLoading: false });
       console.error('[ApiKeysStore] Fetch error:', e);
     }
   },
 
-  // Set a pending key (not yet applied)
+  // Set a pending key (not yet applied).
   setPendingKey: (type: LLMType, key: string) => {
     const { pendingKeys } = get();
     if (key === '') {
-      // Remove from pending if empty
       const { [type]: _, ...rest } = pendingKeys;
       set({ pendingKeys: rest as Record<LLMType, string> });
-    } else {
-      set({ pendingKeys: { ...pendingKeys, [type]: key } });
+      return;
     }
+
+    set({ pendingKeys: { ...pendingKeys, [type]: key } });
   },
 
-  // Apply pending keys to backend and localStorage
+  // Apply pending keys to localStorage.
   applyKeys: async () => {
     const { pendingKeys, status } = get();
     if (Object.keys(pendingKeys).length === 0) return;
 
     set({ isLoading: true, error: null });
     try {
-      // Apply each key
-      for (const [type, key] of Object.entries(pendingKeys)) {
-        await setKeyAPI(type as LLMType, key);
-      }
-
-      // Update localStorage
       const storedKeys = loadKeysFromStorage();
       const newKeys = { ...storedKeys, ...pendingKeys };
       saveKeysToStorage(newKeys);
 
-      // Update status
       const newStatus = { ...status };
       for (const type of Object.keys(pendingKeys) as LLMType[]) {
         newStatus[type] = {
           ...newStatus[type],
           source: 'user',
-          maskedKey: `****${pendingKeys[type].slice(-4)}`,
+          maskedKey: maskKey(pendingKeys[type]),
         };
       }
 
@@ -267,6 +222,7 @@ export const useApiKeysStore = create<ApiKeysState>((set, get) => ({
         status: newStatus,
         pendingKeys: {} as Record<LLMType, string>,
         isLoading: false,
+        isSynced: true,
       });
     } catch (e) {
       const error = e instanceof Error ? e.message : 'Failed to apply keys';
@@ -275,25 +231,24 @@ export const useApiKeysStore = create<ApiKeysState>((set, get) => ({
     }
   },
 
-  // Clear a user-provided key
+  // Clear a user-provided key.
   clearKey: async (type: LLMType) => {
     const { status } = get();
-    const current = status[type];
-
-    // Can only clear user-provided keys
-    if (current.source !== 'user') return;
+    if (status[type].source !== 'user') return;
 
     set({ isLoading: true, error: null });
     try {
-      await clearKeyAPI(type);
-
-      // Update localStorage
       const storedKeys = loadKeysFromStorage();
       delete storedKeys[type];
       saveKeysToStorage(storedKeys);
 
-      // Re-fetch status to get accurate state
-      await get().fetchStatus();
+      const disabled = loadDisabledFromStorage().filter((entry) => entry !== type);
+      saveDisabledToStorage(disabled);
+
+      const newStatus = { ...status };
+      newStatus[type] = { type, source: 'none', disabled: false };
+
+      set({ status: newStatus, isLoading: false, isSynced: true });
     } catch (e) {
       const error = e instanceof Error ? e.message : 'Failed to clear key';
       set({ error, isLoading: false });
@@ -301,34 +256,23 @@ export const useApiKeysStore = create<ApiKeysState>((set, get) => ({
     }
   },
 
-  // Toggle disabled state
+  // Toggle disabled state.
   toggleDisabled: async (type: LLMType) => {
     const { status } = get();
-    const current = status[type];
-    const newDisabled = !current.disabled;
+    const newDisabled = !status[type].disabled;
 
     set({ isLoading: true, error: null });
     try {
-      await setDisabledAPI(type, newDisabled);
-
-      // Update localStorage
       const storedDisabled = loadDisabledFromStorage();
-      if (newDisabled) {
-        if (!storedDisabled.includes(type)) {
-          storedDisabled.push(type);
-        }
-      } else {
-        const idx = storedDisabled.indexOf(type);
-        if (idx !== -1) {
-          storedDisabled.splice(idx, 1);
-        }
-      }
-      saveDisabledToStorage(storedDisabled);
+      const nextDisabled = newDisabled
+        ? Array.from(new Set([...storedDisabled, type]))
+        : storedDisabled.filter((entry) => entry !== type);
 
-      // Update status
+      saveDisabledToStorage(nextDisabled);
+
       const newStatus = { ...status };
       newStatus[type] = { ...newStatus[type], disabled: newDisabled };
-      set({ status: newStatus, isLoading: false });
+      set({ status: newStatus, isLoading: false, isSynced: true });
     } catch (e) {
       const error = e instanceof Error ? e.message : 'Failed to toggle key';
       set({ error, isLoading: false });
@@ -336,21 +280,21 @@ export const useApiKeysStore = create<ApiKeysState>((set, get) => ({
     }
   },
 
-  // Discard pending changes
+  // Discard pending changes.
   discardPendingKeys: () => {
     set({ pendingKeys: {} as Record<LLMType, string> });
   },
 
-  // Check if there are pending changes
+  // Check if there are pending changes.
   hasPendingChanges: () => {
     const { pendingKeys } = get();
     return Object.keys(pendingKeys).length > 0;
   },
 
-  // Check if any key is active (not disabled and has a key)
+  // Check if any user key is active.
   hasAnyActiveKey: () => {
     const { status } = get();
-    return Object.values(status).some((s) => s.source !== 'none' && !s.disabled);
+    return Object.values(status).some((s) => s.source === 'user' && !s.disabled);
   },
 }));
 

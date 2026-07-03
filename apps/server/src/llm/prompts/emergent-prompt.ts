@@ -13,7 +13,7 @@
 
 import type { AgentObservation, AvailableAction } from '../types';
 import type { PersonalityTrait } from '../../agents/personalities';
-import { getBiomeForPosition, type BiomeType } from '../../agents/spawner';
+import { getBiomeForPosition, type BiomeType } from '../../world/biomes';
 import { getSeasonSensoryDescription } from '../../simulation/seasons';
 import { getRuntimeConfig } from '../../config';
 

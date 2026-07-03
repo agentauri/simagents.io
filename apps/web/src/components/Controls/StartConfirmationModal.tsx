@@ -51,34 +51,16 @@ export function StartConfirmationModal({
     ? genesisConfig.childrenPerMother * genesisConfig.mothers.length
     : 7;
 
-  // All possible LLM types
-  const ALL_LLM_TYPES: LLMType[] = ['claude', 'codex', 'gemini', 'deepseek', 'qwen', 'glm', 'grok', 'mistral', 'minimax', 'kimi'];
-  const DISPLAY_NAMES: Record<LLMType, string> = {
-    claude: 'Claude',
-    codex: 'Codex',
-    gemini: 'Gemini',
-    deepseek: 'DeepSeek',
-    qwen: 'Qwen',
-    glm: 'GLM',
-    grok: 'Grok',
-    mistral: 'Mistral',
-    minimax: 'MiniMax',
-    kimi: 'Kimi',
-  };
-
   // Get active API keys from store state (only if synced)
   const activeProviders: Array<{ type: LLMType; displayName: string }> = [];
 
   if (isSynced) {
-    // Check status for each LLM type
-    for (const llmType of ALL_LLM_TYPES) {
-      const keyStatus = status[llmType];
-      if (keyStatus && keyStatus.source !== 'none' && !keyStatus.disabled) {
-        // Try to get display name from providers, fallback to DISPLAY_NAMES
-        const provider = providers.find((p) => p.type === llmType);
+    for (const provider of providers) {
+      const keyStatus = status[provider.type];
+      if (keyStatus && keyStatus.source === 'user' && !keyStatus.disabled) {
         activeProviders.push({
-          type: llmType,
-          displayName: provider?.displayName || DISPLAY_NAMES[llmType],
+          type: provider.type,
+          displayName: provider.displayName,
         });
       }
     }

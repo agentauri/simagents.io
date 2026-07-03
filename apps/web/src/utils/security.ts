@@ -29,6 +29,9 @@ export const VALID_LLM_TYPES = [
   'qwen',
   'glm',
   'grok',
+  'mistral',
+  'minimax',
+  'kimi',
 ] as const;
 
 /** Allowed event types for filtering */

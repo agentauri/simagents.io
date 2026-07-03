@@ -20,6 +20,15 @@ export interface ActionDecision {
   type: ActionType;
   params: ActionParams;
   reasoning?: string;
+  telemetry?: DecisionTelemetry;
+}
+
+export interface DecisionTelemetry {
+  modelId?: string;
+  tokens?: {
+    input?: number;
+    output?: number;
+  };
 }
 
 export interface DecisionProvider {

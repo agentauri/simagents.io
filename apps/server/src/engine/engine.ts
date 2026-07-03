@@ -12,6 +12,8 @@ import {
   createDecisionProviderForLLMType,
   type DecisionProvider,
 } from './decision';
+export { createRosterProviderFactory } from './llm/roster-factory';
+export type { KeySource, ProviderAvailability } from './llm/keys';
 
 interface Waiter {
   target: number;
