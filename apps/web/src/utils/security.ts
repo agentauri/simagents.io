@@ -32,6 +32,11 @@ export const VALID_LLM_TYPES = [
   'mistral',
   'minimax',
   'kimi',
+  // Local-mode baseline agents (no API key required)
+  'baseline_random',
+  'baseline_rule',
+  'baseline_sugarscape',
+  'baseline_qlearning',
 ] as const;
 
 /** Allowed event types for filtering */

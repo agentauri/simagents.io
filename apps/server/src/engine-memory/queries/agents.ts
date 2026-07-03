@@ -61,6 +61,7 @@ export async function createAgent(agent: NewAgent): Promise<Agent> {
     createdAt: agent.createdAt ?? now,
     updatedAt: agent.updatedAt ?? now,
     diedAt: agent.diedAt ?? null,
+    ...((agent as NewAgent & { name?: string }).name ? { name: (agent as NewAgent & { name?: string }).name } : {}),
   };
   store.agents.set(full.id, full);
   return full;

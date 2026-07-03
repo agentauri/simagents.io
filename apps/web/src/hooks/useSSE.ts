@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useWorldStore, type WorldEvent } from '../stores/world';
+import { useAgentStatsStore } from '../stores/agentStats';
+import { processWorldEvent } from '../services/process-event';
 import { playSound } from './useAudio';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
@@ -30,48 +32,6 @@ function isSafariIOS(): boolean {
   return isIOS && isSafari;
 }
 
-// Map event types to bubble content (using LLM reasoning when available)
-function getBubbleContent(event: WorldEvent): { emoji: string; text: string } | null {
-  const reasoning = event.payload?.reasoning as string | undefined;
-
-  switch (event.type) {
-    // Tick-engine decision events (present tense - have reasoning)
-    case 'agent_move':
-      return { emoji: '🚶', text: reasoning || 'Moving...' };
-    case 'agent_work':
-      return { emoji: '🏭', text: reasoning || 'Working...' };
-    case 'agent_sleep':
-      return { emoji: '💤', text: reasoning || 'Sleeping...' };
-    case 'agent_buy':
-      return { emoji: '🛒', text: reasoning || 'Buying...' };
-    case 'agent_consume':
-      return { emoji: '🍔', text: reasoning || 'Eating...' };
-    // Action handler events (past tense)
-    case 'agent_moved':
-      return { emoji: '🚶', text: reasoning || 'Moved!' };
-    case 'agent_worked':
-      return { emoji: '🏭', text: reasoning || 'Worked!' };
-    case 'agent_sleeping':
-      return { emoji: '💤', text: reasoning || 'Sleeping...' };
-    case 'agent_woke':
-      return { emoji: '☀️', text: reasoning || 'Awake!' };
-    case 'agent_bought':
-      return { emoji: '🛒', text: reasoning || 'Bought!' };
-    case 'agent_consumed':
-      return { emoji: '🍔', text: reasoning || 'Ate!' };
-    case 'balance_changed': {
-      const delta = (event.payload.newBalance as number) - (event.payload.oldBalance as number || 0);
-      if (delta > 0) return { emoji: '💰', text: `+${delta} CITY` };
-      if (delta < 0) return { emoji: '💸', text: `${delta} CITY` };
-      return null;
-    }
-    case 'agent_died':
-      return { emoji: '💀', text: 'Died!' };
-    default:
-      return null;
-  }
-}
-
 // =============================================================================
 // Hook
 // =============================================================================
@@ -87,153 +47,22 @@ export function useSSE() {
   const sseConnectTimeRef = useRef<number>(0);
 
   const { updateWorldState, setTick, updateAgent, addEvent, addBubble } = useWorldStore();
+  const recordDecisionEvent = useAgentStatsStore((s) => s.recordDecisionEvent);
 
   // Process a single event
   const processEvent = useCallback(
     (data: WorldEvent) => {
-      // Skip if we've already processed this event (use Set for proper deduplication)
-      if (data.id) {
-        if (processedEventIds.current.has(data.id)) {
-          return;
-        }
-        processedEventIds.current.add(data.id);
-        // Keep set size bounded (remove old entries)
-        if (processedEventIds.current.size > 200) {
-          const idsArray = Array.from(processedEventIds.current);
-          processedEventIds.current = new Set(idsArray.slice(-100));
-        }
-      }
-
-      // Add to event feed
-      addEvent(data);
-
-      // Create bubble for agent if applicable
-      if (data.agentId) {
-        const bubbleContent = getBubbleContent(data);
-        if (bubbleContent) {
-          addBubble({
-            agentId: data.agentId,
-            text: bubbleContent.text,
-            emoji: bubbleContent.emoji,
-            timestamp: Date.now(),
-          });
-        }
-      }
-
-      // Handle specific event types
-      switch (data.type) {
-        case 'connected':
-        case 'ping':
-          break;
-
-        case 'tick_start':
-          setTick(data.tick);
-          playSound('tick');
-          break;
-
-        case 'tick_end':
-          setTick(data.tick);
-          break;
-
-        case 'agent_move':
-          if (data.agentId && data.payload.params) {
-            const params = data.payload.params as { toX: number; toY: number };
-            updateAgent(data.agentId, { x: params.toX, y: params.toY, state: 'walking' });
-          }
-          break;
-
-        case 'agent_moved':
-          if (data.agentId && data.payload.to) {
-            const to = data.payload.to as { x: number; y: number };
-            updateAgent(data.agentId, { x: to.x, y: to.y, state: 'idle' });
-          }
-          break;
-
-        case 'agent_work':
-          if (data.agentId) {
-            updateAgent(data.agentId, { state: 'working' });
-          }
-          break;
-
-        case 'agent_worked':
-          if (data.agentId) {
-            updateAgent(data.agentId, { state: 'working' });
-            playSound('work');
-          }
-          break;
-
-        case 'agent_sleep':
-          if (data.agentId) {
-            updateAgent(data.agentId, { state: 'sleeping' });
-          }
-          break;
-
-        case 'agent_sleeping':
-          if (data.agentId) {
-            updateAgent(data.agentId, { state: 'sleeping' });
-          }
-          break;
-
-        case 'agent_woke':
-          if (data.agentId) {
-            updateAgent(data.agentId, { state: 'idle' });
-          }
-          break;
-
-        case 'needs_updated':
-          if (data.agentId && data.payload) {
-            const { hunger, energy, health } = data.payload as {
-              hunger?: number;
-              energy?: number;
-              health?: number;
-            };
-            updateAgent(data.agentId, {
-              ...(hunger !== undefined && { hunger }),
-              ...(energy !== undefined && { energy }),
-              ...(health !== undefined && { health }),
-            });
-          }
-          break;
-
-        case 'balance_changed':
-          if (data.agentId && data.payload.newBalance !== undefined) {
-            updateAgent(data.agentId, {
-              balance: data.payload.newBalance as number,
-            });
-            const delta = (data.payload.newBalance as number) - (data.payload.oldBalance as number || 0);
-            if (delta < 0) {
-              playSound('buy');
-            } else if (delta > 0) {
-              playSound('trade');
-            }
-          }
-          break;
-
-        case 'agent_died':
-          if (data.agentId) {
-            updateAgent(data.agentId, { health: 0, state: 'dead' });
-            playSound('death');
-          }
-          break;
-
-        case 'agent_traded':
-          playSound('trade');
-          break;
-
-        case 'agent_harmed':
-          playSound('harm');
-          break;
-
-        case 'agent_gathered':
-          playSound('gather');
-          break;
-
-        default:
-          // Silently ignore unknown events
-          break;
-      }
+      processWorldEvent(data, {
+        processedEventIds: processedEventIds.current,
+        addEvent,
+        addBubble,
+        setTick,
+        updateAgent,
+        recordDecisionEvent,
+        playSound,
+      });
     },
-    [addEvent, addBubble, setTick, updateAgent]
+    [addEvent, addBubble, setTick, updateAgent, recordDecisionEvent]
   );
 
   // Handle SSE message event

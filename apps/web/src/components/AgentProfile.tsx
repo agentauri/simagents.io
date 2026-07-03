@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { actionsPerSimMinute, fallbackRatio, useAgentStats } from '../stores/agentStats';
 import { useAgent, useWorldStore } from '../stores/world';
 
 interface AgentProfileProps {
@@ -62,6 +63,7 @@ function getStateConfig(state: string) {
 export function AgentProfile({ agentId }: AgentProfileProps) {
   const agent = useAgent(agentId);
   const selectAgent = useWorldStore((s) => s.selectAgent);
+  const stats = useAgentStats(agentId);
 
   if (!agent) {
     return (
@@ -72,6 +74,9 @@ export function AgentProfile({ agentId }: AgentProfileProps) {
   }
 
   const stateConfig = getStateConfig(agent.state);
+  const actionsPerMinute = actionsPerSimMinute(stats);
+  const fallbackPercent = fallbackRatio(stats) * 100;
+  const modelId = stats?.lastModelId ?? agent.llmType;
 
   return (
     <div className="p-4 space-y-5">
@@ -89,10 +94,10 @@ export function AgentProfile({ agentId }: AgentProfileProps) {
           </div>
           <div>
             <h3 className="font-semibold text-city-text capitalize text-base">
-              {agent.llmType}
+              {agent.name ?? agent.llmType}
             </h3>
             <span className="text-xs text-city-text-muted font-mono">
-              {agent.id.slice(0, 8)}...
+              {agent.llmType} · {agent.id.slice(0, 8)}...
             </span>
           </div>
         </div>
@@ -193,6 +198,36 @@ export function AgentProfile({ agentId }: AgentProfileProps) {
             </span>
             <span className="text-xs text-city-text-muted ml-1">CITY</span>
           </div>
+        </div>
+      </div>
+
+      {/* Decision Speed */}
+      <div className="pt-4 border-t border-city-border/30 space-y-3">
+        <h4 className="text-xs font-medium text-city-text-muted uppercase tracking-wider">
+          Decision Speed
+        </h4>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="rounded border border-city-border/40 bg-city-surface/40 p-2">
+            <div className="text-city-text-muted">Avg latency</div>
+            <div className="font-mono text-city-text mt-1">
+              {stats?.latencySamples ? `${Math.round(stats.avgLatencyMs)} ms` : '-'}
+            </div>
+          </div>
+          <div className="rounded border border-city-border/40 bg-city-surface/40 p-2">
+            <div className="text-city-text-muted">Actions/min</div>
+            <div className="font-mono text-city-text mt-1">{actionsPerMinute.toFixed(2)}</div>
+          </div>
+          <div className="rounded border border-city-border/40 bg-city-surface/40 p-2">
+            <div className="text-city-text-muted">Fallback</div>
+            <div className="font-mono text-city-text mt-1">{fallbackPercent.toFixed(0)}%</div>
+          </div>
+          <div className="rounded border border-city-border/40 bg-city-surface/40 p-2">
+            <div className="text-city-text-muted">Tokens</div>
+            <div className="font-mono text-city-text mt-1">{stats?.totalTokens ?? 0}</div>
+          </div>
+        </div>
+        <div className="text-xs text-city-text-muted truncate">
+          Model <span className="font-mono text-city-text">{modelId}</span>
         </div>
       </div>
     </div>

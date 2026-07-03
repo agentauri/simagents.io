@@ -15,12 +15,16 @@ import { FallbackModeInfo } from './FallbackModeInfo';
 import { PromptEditor } from './PromptEditor';
 import { GenesisConfig } from './GenesisConfig';
 import { PersonalityConfig } from './PersonalityConfig';
+import { AgentRosterConfig } from './AgentRosterConfig';
+import { useSettingsStore } from '../../stores/settings';
+import { isLocalEngineMode } from '../../utils/env';
 
 interface ConfigPanelProps {
   onClose: () => void;
 }
 
 export function ConfigPanel({ onClose }: ConfigPanelProps) {
+  const isLocalMode = isLocalEngineMode();
   const {
     config,
     isLoading,
@@ -55,6 +59,8 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
     hasPendingChanges: hasKeyChanges,
     hasAnyActiveKey,
   } = useApiKeysStore();
+  const proxyUrl = useSettingsStore((state) => state.proxyUrl);
+  const setProxyUrl = useSettingsStore((state) => state.setProxyUrl);
 
   // Use selector pattern for reactivity
   const hasPendingChanges = Object.keys(pendingChanges).length > 0;
@@ -68,9 +74,11 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    fetchConfig();
+    if (!isLocalMode) {
+      fetchConfig();
+    }
     fetchKeyStatus();
-  }, [fetchConfig, fetchKeyStatus]);
+  }, [fetchConfig, fetchKeyStatus, isLocalMode]);
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -143,7 +151,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
     setShowResetConfirm(false);
   };
 
-  if (isLoading && !config) {
+  if (!isLocalMode && isLoading && !config) {
     return (
       <div className="fixed right-0 top-0 h-full w-full max-w-sm sm:max-w-md bg-gray-900 border-l border-gray-700 shadow-xl z-50">
         <div className="flex items-center justify-center h-full">
@@ -265,19 +273,46 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
           <div className="px-4 py-2 text-xs text-gray-500 text-center border-t border-gray-700/50">
             Keys stored in browser localStorage
           </div>
+
+          <div className="px-4 py-3 border-t border-gray-700/50 space-y-2">
+            <label className="block">
+              <span className="text-xs font-medium text-gray-300">Proxy URL</span>
+              <input
+                type="url"
+                value={proxyUrl}
+                onChange={(event) => setProxyUrl(event.target.value)}
+                placeholder="https://your-proxy.example.com"
+                className="mt-1 w-full px-2 py-1.5 text-xs bg-gray-900 border border-gray-700 rounded focus:outline-none focus:border-blue-500"
+              />
+            </label>
+            <p className="text-xs text-gray-500">
+              Providers marked proxy need this because their APIs do not allow direct browser calls.
+              Claude and Gemini can run direct.
+            </p>
+          </div>
         </ConfigSection>
+
+        {isLocalMode && (
+          <ConfigSection title="Agent Roster" icon="👥" defaultExpanded={true}>
+            <AgentRosterConfig />
+          </ConfigSection>
+        )}
 
         {/* Agent System Prompt Section */}
-        <ConfigSection title="Agent System Prompt" icon="🧠" defaultExpanded={false}>
-          <PromptEditor />
-        </ConfigSection>
+        {!isLocalMode && (
+          <ConfigSection title="Agent System Prompt" icon="🧠" defaultExpanded={false}>
+            <PromptEditor />
+          </ConfigSection>
+        )}
 
         {/* Agent Deployment Section */}
-        <ConfigSection title="Agent Deployment" icon="🚀" defaultExpanded={false}>
-          <GenesisConfig />
-        </ConfigSection>
+        {!isLocalMode && (
+          <ConfigSection title="Agent Deployment" icon="🚀" defaultExpanded={false}>
+            <GenesisConfig />
+          </ConfigSection>
+        )}
 
-        {config && (
+        {!isLocalMode && config && (
           <>
             {/* Simulation Section */}
             <ConfigSection title="Simulation" icon="🎮" defaultExpanded={false}>
@@ -640,34 +675,40 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
       )}
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t border-gray-700 bg-gray-800 space-y-2">
-        <div className="flex gap-2">
+      {!isLocalMode ? (
+        <div className="px-4 py-3 border-t border-gray-700 bg-gray-800 space-y-2">
+          <div className="flex gap-2">
+            <button
+              onClick={handleApply}
+              disabled={!hasPendingChanges || isLoading}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
+            >
+              {isLoading ? 'Applying...' : 'Apply Changes'}
+            </button>
+            <button
+              onClick={discardChanges}
+              disabled={!hasPendingChanges || isLoading}
+              className="px-4 py-2 bg-gray-700 text-gray-200 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
+            >
+              Discard
+            </button>
+          </div>
           <button
-            onClick={handleApply}
-            disabled={!hasPendingChanges || isLoading}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
+            onClick={() => setShowResetConfirm(true)}
+            disabled={isLoading}
+            className="w-full px-4 py-2 bg-red-900/50 text-red-200 rounded hover:bg-red-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
           >
-            {isLoading ? 'Applying...' : 'Apply Changes'}
+            Reset to Defaults
           </button>
-          <button
-            onClick={discardChanges}
-            disabled={!hasPendingChanges || isLoading}
-            className="px-4 py-2 bg-gray-700 text-gray-200 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
-          >
-            Discard
-          </button>
+          <div className="text-xs text-gray-500 text-center">
+            <span aria-hidden="true">⚡</span> = applies immediately | others require restart
+          </div>
         </div>
-        <button
-          onClick={() => setShowResetConfirm(true)}
-          disabled={isLoading}
-          className="w-full px-4 py-2 bg-red-900/50 text-red-200 rounded hover:bg-red-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
-        >
-          Reset to Defaults
-        </button>
-        <div className="text-xs text-gray-500 text-center">
-          <span aria-hidden="true">⚡</span> = applies immediately | others require restart
+      ) : (
+        <div className="px-4 py-3 border-t border-gray-700 bg-gray-800 text-xs text-gray-500 text-center">
+          Local mode settings are stored in this browser.
         </div>
-      </div>
+      )}
     </div>
   );
 }

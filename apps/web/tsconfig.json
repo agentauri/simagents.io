@@ -4,7 +4,12 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     "jsxImportSource": "react",
-    "noEmit": true
+    "noEmit": true,
+    "types": ["vite/client", "bun-types"],
+    "baseUrl": ".",
+    "paths": {
+      "@server/*": ["../server/src/*"]
+    }
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "../server/src/engine/**/*", "../server/src/engine-memory/**/*"]
 }

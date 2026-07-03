@@ -123,6 +123,11 @@ export const useRosterStore = create<RosterState>((set, get) => ({
       modelId: providerChanged && patch.modelId === undefined
         ? undefined
         : patch.modelId ?? current.modelId,
+      // A reasoning level only makes sense for the provider it was chosen for:
+      // reset it on provider change so a stale value never leaks across kinds.
+      reasoningLevel: providerChanged && patch.reasoningLevel === undefined
+        ? undefined
+        : patch.reasoningLevel ?? current.reasoningLevel,
     };
     const normalized = normalizeEntry(merged, index);
     if (!normalized) return;

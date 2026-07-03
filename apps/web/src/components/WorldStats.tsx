@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useWorldStore, useAliveAgents } from '../stores/world';
 import type { ConnectionStatus } from '../hooks/useSSE';
+import { actionsPerSimMinute, useAllAgentStats } from '../stores/agentStats';
+import { isLocalEngineMode } from '../utils/env';
 
 interface WorldStatsProps {
   connectionStatus: ConnectionStatus;
@@ -9,15 +11,18 @@ interface WorldStatsProps {
 export function WorldStats({ connectionStatus }: WorldStatsProps) {
   const tick = useWorldStore((s) => s.tick);
   const aliveAgents = useAliveAgents();
+  const allStats = useAllAgentStats();
   const [testMode, setTestMode] = useState(false);
+  const isLocalMode = isLocalEngineMode();
 
   // Fetch test mode status on mount
   useEffect(() => {
+    if (isLocalMode) return;
     fetch('/api/test/mode')
       .then((res) => res.json())
       .then((data) => setTestMode(data.testMode))
       .catch(() => {});
-  }, []);
+  }, [isLocalMode]);
 
   const getStatusConfig = () => {
     switch (connectionStatus) {
@@ -74,6 +79,32 @@ export function WorldStats({ connectionStatus }: WorldStatsProps) {
         <span className={`w-2 h-2 rounded-full ${status.dotClass}`} />
         <span className="text-xs font-medium">{status.text}</span>
       </div>
+
+      {aliveAgents.length > 0 && (
+        <>
+          <div className="hidden xl:block w-px h-4 bg-city-border/50" />
+          <div className="hidden xl:flex items-center gap-1.5 max-w-[48vw] overflow-x-auto">
+            {aliveAgents.map((agent) => {
+              const stats = allStats[agent.id];
+              const model = stats?.lastModelId ?? agent.llmType;
+              return (
+                <div
+                  key={agent.id}
+                  className="grid grid-cols-[minmax(4rem,7rem)_minmax(5rem,8rem)_3.5rem_4rem] gap-2 items-center px-2 py-1 rounded border border-city-border/40 bg-city-surface/40 text-[10px] shrink-0"
+                  title={`${agent.name ?? agent.llmType}: ${model}`}
+                >
+                  <span className="truncate text-city-text">{agent.name ?? agent.llmType}</span>
+                  <span className="truncate text-city-text-muted font-mono">{model}</span>
+                  <span className="text-city-accent font-mono">{actionsPerSimMinute(stats).toFixed(2)}</span>
+                  <span className="text-city-text-muted font-mono">
+                    {stats?.latencySamples ? `${Math.round(stats.avgLatencyMs)}ms` : '-'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }

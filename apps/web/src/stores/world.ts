@@ -7,6 +7,7 @@ import { useShallow } from 'zustand/react/shallow';
 
 export interface Agent {
   id: string;
+  name?: string;
   llmType: string;
   x: number;
   y: number;

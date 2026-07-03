@@ -11,9 +11,11 @@
 
 import { useEffect, useCallback, useState } from 'react';
 import { useSSE } from './hooks/useSSE';
+import { useEngine } from './hooks/useEngine';
 import { useWorldStore, useAgents, useEvents } from './stores/world';
 import { useEditorStore, useAppMode, useIsAnalyticsMode, useIsReplayMode, useIsPromptsMode, useIsPuzzlesMode, useIsPaused, useViewMode } from './stores/editor';
 import { useWorldControl } from './hooks/useWorldControl';
+import { isLocalEngineMode } from './utils/env';
 import { Layout } from './components/Layout';
 import { ScientificCanvas } from './components/Canvas/ScientificCanvas';
 import { ScientificIsometricCanvas } from './components/Canvas/ScientificIsometricCanvas';
@@ -35,7 +37,10 @@ import { SocialGraphView, SocialGraphButton } from './components/SocialGraph';
 import { MobileAgentList, MobileDecisionLog } from './components/Mobile';
 import { ConfigPanel } from './components/ConfigPanel';
 export default function App() {
-  const { status, connect, disconnect } = useSSE();
+  const remoteConnection = useSSE();
+  const localConnection = useEngine();
+  const isLocalMode = isLocalEngineMode();
+  const { status, connect, disconnect } = isLocalMode ? localConnection : remoteConnection;
   const selectedAgentId = useWorldStore((s) => s.selectedAgentId);
   const selectedResourceId = useWorldStore((s) => s.selectedResourceId);
   const { resetWorld, setWorldState, setEvents, updateWorldState } = useWorldStore();
@@ -63,6 +68,10 @@ export default function App() {
 
   // Sync with backend on mount (restore running simulation)
   useEffect(() => {
+    if (isLocalMode) {
+      setHasSynced(true);
+      return;
+    }
     if (hasSynced) return;
 
     const syncWithBackend = async () => {
@@ -93,17 +102,25 @@ export default function App() {
     };
 
     syncWithBackend();
-  }, [hasSynced, fetchState, fetchRecentEvents, setMode, setPaused, setWorldState, setEvents]);
+  }, [hasSynced, fetchState, fetchRecentEvents, setMode, setPaused, setWorldState, setEvents, isLocalMode]);
 
   // Connect/disconnect SSE based on mode
   useEffect(() => {
+    if (isLocalMode) return;
     if (mode === 'simulation' && !isPaused) {
       connect();
     } else {
       disconnect();
     }
     return () => disconnect();
-  }, [mode, isPaused, connect, disconnect]);
+  }, [mode, isPaused, connect, disconnect, isLocalMode]);
+
+  useEffect(() => {
+    if (!isLocalMode) return;
+    if (mode === 'analytics' || mode === 'replay' || mode === 'puzzles') {
+      setMode(agents.length > 0 ? 'simulation' : 'editor');
+    }
+  }, [isLocalMode, mode, agents.length, setMode]);
 
   // Handle start simulation - scientific mode (no city layout needed)
   const handleStartSimulation = useCallback(async () => {
@@ -123,19 +140,23 @@ export default function App() {
     });
 
     // Switch to simulation mode
+    setPaused(false);
     setMode('simulation');
 
     // Connect SSE after setting state
-    connect();
-  }, [setMode, start, setWorldState, connect]);
+    if (!isLocalMode) {
+      connect();
+    }
+  }, [setMode, setPaused, start, setWorldState, connect, isLocalMode]);
 
   // Handle reset - calls BE to reset DB
   const handleReset = useCallback(async () => {
     disconnect();
     await reset();
     resetWorld();
+    setPaused(false);
     setMode('editor'); // Back to "ready" state
-  }, [disconnect, reset, resetWorld, setMode]);
+  }, [disconnect, reset, resetWorld, setMode, setPaused]);
 
   // Handle pause - calls BE
   const handlePause = useCallback(async () => {
@@ -253,16 +274,18 @@ export default function App() {
         </button>
 
         {/* Puzzle Games button */}
-        <button
-          onClick={() => setMode('puzzles')}
-          className="w-8 h-8 flex items-center justify-center rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
-          title="Puzzle Games"
-        >
-          <span className="text-sm">🧩</span>
-        </button>
+        {!isLocalMode && (
+          <button
+            onClick={() => setMode('puzzles')}
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
+            title="Puzzle Games"
+          >
+            <span className="text-sm">🧩</span>
+          </button>
+        )}
 
         {/* Replay button (only in simulation mode) */}
-        {mode === 'simulation' && (
+        {mode === 'simulation' && !isLocalMode && (
           <button
             onClick={handleEnterReplay}
             className="w-8 h-8 flex items-center justify-center rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
@@ -288,7 +311,7 @@ export default function App() {
   );
 
   // Analytics mode - render full-screen analytics page with error boundary
-  if (isAnalyticsMode) {
+  if (isAnalyticsMode && !isLocalMode) {
     return (
       <ErrorBoundary sectionName="Analytics" onError={handleError}>
         <AnalyticsPage />
@@ -297,7 +320,7 @@ export default function App() {
   }
 
   // Replay mode - render full-screen replay page with error boundary
-  if (isReplayMode) {
+  if (isReplayMode && !isLocalMode) {
     return (
       <ErrorBoundary sectionName="Replay" onError={handleError}>
         <ReplayPage />
@@ -315,7 +338,7 @@ export default function App() {
   }
 
   // Puzzles mode - render full-screen puzzles page with error boundary
-  if (isPuzzlesMode) {
+  if (isPuzzlesMode && !isLocalMode) {
     return (
       <ErrorBoundary sectionName="Puzzles" onError={handleError}>
         <PuzzlesPage />

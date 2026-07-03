@@ -16,6 +16,7 @@ import { useEditorStore } from '../stores/editor';
 import { useWorldStore } from '../stores/world';
 import { PromptGallery } from '../components/PromptGallery';
 import { PromptInspector } from '../components/PromptInspector';
+import { isLocalEngineMode } from '../utils/env';
 
 type TabId = 'gallery' | 'inspector';
 
@@ -23,6 +24,8 @@ export function PromptsPage() {
   const setMode = useEditorStore((s) => s.setMode);
   const agents = useWorldStore((s) => s.agents);
   const [activeTab, setActiveTab] = useState<TabId>('gallery');
+  const isLocalMode = isLocalEngineMode();
+  const visibleTab = isLocalMode && activeTab === 'inspector' ? 'gallery' : activeTab;
 
   const handleBackToCity = () => {
     setMode(agents.length > 0 ? 'simulation' : 'editor');
@@ -55,10 +58,10 @@ export function PromptsPage() {
           </div>
           <div>
             <h1 className="text-base font-semibold text-city-text">
-              {activeTab === 'gallery' ? 'Prompt Gallery' : 'Live Inspector'}
+              {visibleTab === 'gallery' ? 'Prompt Gallery' : 'Live Inspector'}
             </h1>
             <p className="text-[10px] text-city-text-muted">
-              {activeTab === 'gallery'
+              {visibleTab === 'gallery'
                 ? 'View and compare agent prompts'
                 : 'Real-time prompt inspection per agent'}
             </p>
@@ -71,27 +74,29 @@ export function PromptsPage() {
             <button
               onClick={() => setActiveTab('gallery')}
               className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                activeTab === 'gallery'
+                  visibleTab === 'gallery'
                   ? 'bg-city-surface text-city-text'
                   : 'text-city-text-muted hover:text-city-text'
               }`}
             >
               Gallery
             </button>
-            <button
-              onClick={() => setActiveTab('inspector')}
-              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${
-                activeTab === 'inspector'
-                  ? 'bg-city-surface text-city-text'
-                  : 'text-city-text-muted hover:text-city-text'
-              }`}
-            >
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-              </span>
-              Live Inspector
-            </button>
+            {!isLocalMode && (
+              <button
+                onClick={() => setActiveTab('inspector')}
+                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${
+                  visibleTab === 'inspector'
+                    ? 'bg-city-surface text-city-text'
+                    : 'text-city-text-muted hover:text-city-text'
+                }`}
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                Live Inspector
+              </button>
+            )}
           </div>
 
           <button
@@ -120,13 +125,13 @@ export function PromptsPage() {
 
       {/* Main content */}
       <main className="flex-1 overflow-hidden">
-        {activeTab === 'gallery' ? <PromptGallery /> : <PromptInspector />}
+        {visibleTab === 'gallery' ? <PromptGallery /> : <PromptInspector />}
       </main>
 
       {/* Footer */}
       <footer className="flex-none h-10 bg-city-surface border-t border-city-border px-4 flex items-center justify-between text-xs text-city-text-muted">
         <span>
-          {activeTab === 'gallery'
+          {visibleTab === 'gallery'
             ? 'Templates extracted from server-side prompt builders'
             : 'Set PROMPT_LOGGING_ENABLED=true to enable logging'}
         </span>

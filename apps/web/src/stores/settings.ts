@@ -6,6 +6,7 @@ import { create } from 'zustand';
 
 const SOUND_ENABLED_KEY = 'simagents_sound_enabled';
 const SOUND_VOLUME_KEY = 'simagents_sound_volume';
+const PROXY_URL_KEY = 'simagents_proxy_url';
 
 function loadSoundEnabledFromStorage(): boolean {
   try {
@@ -50,6 +51,28 @@ function saveSoundVolumeToStorage(volume: number): void {
   }
 }
 
+function loadProxyUrlFromStorage(): string {
+  try {
+    return localStorage.getItem(PROXY_URL_KEY) ?? '';
+  } catch (e) {
+    console.warn('[Settings] Failed to load proxy URL from localStorage:', e);
+    return '';
+  }
+}
+
+function saveProxyUrlToStorage(proxyUrl: string): void {
+  try {
+    const trimmed = proxyUrl.trim();
+    if (trimmed) {
+      localStorage.setItem(PROXY_URL_KEY, trimmed);
+    } else {
+      localStorage.removeItem(PROXY_URL_KEY);
+    }
+  } catch (e) {
+    console.warn('[Settings] Failed to save proxy URL to localStorage:', e);
+  }
+}
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -58,11 +81,13 @@ export interface SettingsState {
   // Sound settings
   soundEnabled: boolean;
   soundVolume: number; // 0-1
+  proxyUrl: string;
 
   // Actions
   setSoundEnabled: (enabled: boolean) => void;
   toggleSound: () => void;
   setSoundVolume: (volume: number) => void;
+  setProxyUrl: (proxyUrl: string) => void;
 }
 
 // =============================================================================
@@ -73,6 +98,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   // Initial state from localStorage
   soundEnabled: loadSoundEnabledFromStorage(),
   soundVolume: loadSoundVolumeFromStorage(),
+  proxyUrl: loadProxyUrlFromStorage(),
 
   // Actions
   setSoundEnabled: (enabled) => {
@@ -93,6 +119,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ soundVolume: clampedVolume });
     saveSoundVolumeToStorage(clampedVolume);
   },
+
+  setProxyUrl: (proxyUrl) => {
+    set({ proxyUrl });
+    saveProxyUrlToStorage(proxyUrl);
+  },
 }));
 
 // =============================================================================
@@ -104,3 +135,6 @@ export const useSoundEnabled = () =>
 
 export const useSoundVolume = () =>
   useSettingsStore((state) => state.soundVolume);
+
+export const useProxyUrl = () =>
+  useSettingsStore((state) => state.proxyUrl);

@@ -167,6 +167,12 @@ export interface SimEngineOptions {
   speed?: number;
   worldSeed?: string;
   providerFactory?: ProviderFactory;
+  /**
+   * Called when a background failure occurs (interval tick or an agent
+   * runner crash). In the browser the worker console is invisible to users,
+   * so hosts should surface these (e.g. postMessage an error to the UI).
+   */
+  onError?: (error: unknown, context: string) => void;
 }
 
 export interface SimEngineState {
@@ -186,8 +192,10 @@ export class SimEngine implements AgentRunnerHost {
   private readonly worldSeed: string;
   private timer: ReturnType<typeof setInterval> | undefined;
   private lastHeartbeatMs = 0;
+  private readonly onError?: (error: unknown, context: string) => void;
 
   constructor(options: SimEngineOptions = {}) {
+    this.onError = options.onError;
     this.clock = new SimClock({ speed: options.speed ?? DEFAULT_SIM_SPEED });
     this.worldSeed = options.worldSeed ?? 'simagents';
     this.scheduler = new EngineScheduler(
@@ -213,6 +221,7 @@ export class SimEngine implements AgentRunnerHost {
     this.timer = setInterval(() => {
       void this.tickWall(250).catch((error) => {
         console.error('[engine] interval tick failed:', error);
+        this.onError?.(error, 'interval-tick');
       });
     }, 250);
   }
@@ -335,6 +344,7 @@ export class SimEngine implements AgentRunnerHost {
       this.runners.set(agent.id, runner);
       runner.start().catch((error) => {
         console.error(`[engine] agent runner ${agent.id} failed:`, error);
+        this.onError?.(error, `agent-runner:${agent.id}`);
       });
     }
 

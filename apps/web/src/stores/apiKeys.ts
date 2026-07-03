@@ -48,6 +48,7 @@ export interface ApiKeysState {
   discardPendingKeys: () => void;
   hasPendingChanges: () => boolean;
   hasAnyActiveKey: () => boolean;
+  getActiveKeys: () => Partial<Record<LLMType, string>>;
 }
 
 // =============================================================================
@@ -154,6 +155,21 @@ function createStatusFromStorage(): Record<LLMType, ProviderKeyStatus> {
   }
 
   return status as Record<LLMType, ProviderKeyStatus>;
+}
+
+export function getActiveApiKeysFromStorage(): Partial<Record<LLMType, string>> {
+  const storedKeys = loadKeysFromStorage();
+  const disabled = new Set(loadDisabledFromStorage());
+  const activeKeys: Partial<Record<LLMType, string>> = {};
+
+  for (const type of ALL_TYPES) {
+    const key = storedKeys[type];
+    if (key && !disabled.has(type)) {
+      activeKeys[type] = key;
+    }
+  }
+
+  return activeKeys;
 }
 
 // =============================================================================
@@ -296,6 +312,8 @@ export const useApiKeysStore = create<ApiKeysState>((set, get) => ({
     const { status } = get();
     return Object.values(status).some((s) => s.source === 'user' && !s.disabled);
   },
+
+  getActiveKeys: () => getActiveApiKeysFromStorage(),
 }));
 
 // =============================================================================

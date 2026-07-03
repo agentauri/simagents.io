@@ -28,6 +28,14 @@ function envBool(key: string, defaultValue: boolean): boolean {
   return value.toLowerCase() === 'true' || value === '1';
 }
 
+function defaultDatabaseUrl(): string {
+  // Plain literal on purpose. The browser-bundle safety property is "no
+  // Postgres/Redis CLIENT code in the bundle" (verified against package
+  // identifiers like PostgresError/ioredis/bullmq/drizzle), not the absence
+  // of this harmless default string.
+  return 'postgres://dev:dev@localhost:5432/simagents';
+}
+
 // =============================================================================
 // Configuration Object
 // =============================================================================
@@ -602,7 +610,7 @@ export const CONFIG = {
   // Database
   // ---------------------------------------------------------------------------
   database: {
-    connectionString: envString('DATABASE_URL', 'postgres://dev:dev@localhost:5432/simagents'),
+    connectionString: envString('DATABASE_URL', defaultDatabaseUrl()),
   },
 
   // ---------------------------------------------------------------------------

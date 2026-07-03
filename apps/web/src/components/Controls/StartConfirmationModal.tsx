@@ -8,6 +8,14 @@
 import { useEffect } from 'react';
 import { useConfigStore } from '../../stores/config';
 import { useApiKeysStore, type LLMType } from '../../stores/apiKeys';
+import { useAgentRoster } from '../../stores/roster';
+import { isLocalEngineMode } from '../../utils/env';
+import {
+  getModelCatalogEntry,
+  getProviderCatalogEntry,
+  isLLMProviderId,
+  type AgentRosterEntry,
+} from '@simagents/shared';
 
 interface StartConfirmationModalProps {
   isOpen: boolean;
@@ -27,6 +35,26 @@ const PERSONALITY_COLORS: Record<string, string> = {
   neutral: '#6b7280',
 };
 
+function rosterProviderLabel(entry: AgentRosterEntry): string {
+  if (isLLMProviderId(entry.provider)) {
+    return getProviderCatalogEntry(entry.provider)?.displayName ?? entry.provider;
+  }
+  return entry.provider.replace(/^baseline_/, '').replace(/_/g, ' ');
+}
+
+function rosterModelLabel(entry: AgentRosterEntry): string {
+  if (!isLLMProviderId(entry.provider)) return 'baseline';
+  return getModelCatalogEntry(entry.provider, entry.modelId)?.label ?? entry.modelId;
+}
+
+function reasoningLabel(entry: AgentRosterEntry): string {
+  if (entry.reasoningLevel === undefined) return '';
+  if (typeof entry.reasoningLevel === 'boolean') {
+    return entry.reasoningLevel ? 'reasoning on' : 'reasoning off';
+  }
+  return `reasoning ${entry.reasoningLevel}`;
+}
+
 export function StartConfirmationModal({
   isOpen,
   onConfirm,
@@ -36,6 +64,8 @@ export function StartConfirmationModal({
 }: StartConfirmationModalProps) {
   const { genesisConfig, personalityConfig, config, pendingChanges } = useConfigStore();
   const { providers, status, isSynced, fetchStatus } = useApiKeysStore();
+  const roster = useAgentRoster();
+  const isLocalMode = isLocalEngineMode();
 
   // Fetch API keys status when modal opens if not already synced
   useEffect(() => {
@@ -50,6 +80,7 @@ export function StartConfirmationModal({
   const agentCount = genesisConfig.enabled
     ? genesisConfig.childrenPerMother * genesisConfig.mothers.length
     : 7;
+  const displayedAgentCount = isLocalMode ? roster.length : agentCount;
 
   // Get active API keys from store state (only if synced)
   const activeProviders: Array<{ type: LLMType; displayName: string }> = [];
@@ -120,20 +151,22 @@ export function StartConfirmationModal({
               <span className="text-sm text-gray-400">Deployment Mode</span>
               <span
                 className={`px-2 py-0.5 text-xs font-medium rounded ${
-                  genesisConfig.enabled
+                  isLocalMode
+                    ? 'bg-green-500/20 text-green-300'
+                    : genesisConfig.enabled
                     ? 'bg-purple-500/20 text-purple-300'
                     : 'bg-blue-500/20 text-blue-300'
                 }`}
               >
-                {genesisConfig.enabled ? 'Genesis' : 'Standard'}
+                {isLocalMode ? 'Local roster' : genesisConfig.enabled ? 'Genesis' : 'Standard'}
               </span>
             </div>
 
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-400">Total Agents</span>
               <span className="text-sm font-mono text-gray-200">
-                {agentCount}
-                {genesisConfig.enabled && (
+                {displayedAgentCount}
+                {!isLocalMode && genesisConfig.enabled && (
                   <span className="text-gray-500 ml-1">
                     ({genesisConfig.childrenPerMother} × {genesisConfig.mothers.length})
                   </span>
@@ -141,7 +174,33 @@ export function StartConfirmationModal({
               </span>
             </div>
 
-            {genesisConfig.enabled && (
+            {isLocalMode && (
+              <div className="space-y-1.5 pt-1">
+                {roster.map((entry, index) => {
+                  const reasoning = reasoningLabel(entry);
+                  return (
+                    <div
+                      key={`${entry.name}-${index}`}
+                      className="flex items-center gap-2 rounded bg-gray-800/60 px-2 py-1.5"
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full border border-white/20 shrink-0"
+                        style={{ backgroundColor: entry.color }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs text-gray-200 truncate">{entry.name}</div>
+                        <div className="text-[10px] text-gray-500 truncate">
+                          {rosterProviderLabel(entry)} · {rosterModelLabel(entry)}
+                          {reasoning ? ` · ${reasoning}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {!isLocalMode && genesisConfig.enabled && (
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-400">Mother LLMs</span>
                 <div className="flex gap-1">
