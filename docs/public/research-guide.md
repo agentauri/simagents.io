@@ -83,16 +83,14 @@ This can still produce valuable data, but the output should be treated as explor
 **Self-hosted** — run experiments via the CLI:
 
 ```bash
-cd apps/server
-
 # Validate config
-bun run src/experiments/runner.ts --config experiments/my-experiment.yaml --dry-run
+(cd apps/server && bun run src/experiments/runner.ts --config experiments/my-experiment.yaml --dry-run)
 
 # Run once
-bun run src/experiments/runner.ts --config experiments/my-experiment.yaml --output results/
+(cd apps/server && bun run src/experiments/runner.ts --config experiments/my-experiment.yaml --output results/)
 
 # Run replicated batch
-bun run src/experiments/runner.ts --config experiments/my-experiment.yaml --runs 5 --output results/
+(cd apps/server && bun run src/experiments/runner.ts --config experiments/my-experiment.yaml --runs 5 --output results/)
 ```
 
 Experiments can also be submitted via the API:
@@ -115,8 +113,7 @@ See the [API Reference](./api-reference.md#experiments-api) for the full experim
 ### Canonical Starting Point
 
 ```bash
-cd apps/server
-bun run src/experiments/runner.ts --config experiments/canonical-core-benchmark.yaml --runs 2 --output results/
+(cd apps/server && bun run src/experiments/runner.ts --config experiments/canonical-core-benchmark.yaml --runs 2 --output results/)
 ```
 
 Start here before scaling up to full-surface or provider-backed studies.

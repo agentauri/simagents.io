@@ -6,8 +6,12 @@
 
 | Document | Description |
 |----------|-------------|
-| [README](../README.md) | Quick start and project overview |
-| [ROADMAP](../ROADMAP.md) | Implementation status and progress tracking |
+| [README](../README.md) | Browser-local quick start and project overview |
+| [Browser Mode Architecture](browser-mode-plan.md) | Current local-mode architecture and migration notes |
+| [BYOK Security Notes](security-byok.md) | Browser-local key storage, CSP, and XSS checklist |
+| [Remote Mode and Research Boundary](remote-mode-and-research.md) | Server/research surface, routing split, and porting rules |
+| [Testing Matrix](testing.md) | Browser-local, smoke, security, and remote test gates |
+| [ROADMAP](../ROADMAP.md) | Current browser-pivot status and next work |
 | [CLAUDE.md](../CLAUDE.md) | AI development assistant context |
 
 ---
@@ -20,15 +24,15 @@ User-facing documentation organized by audience:
 |----------|----------|-------------|
 | **[Overview](public/index.md)** | Everyone | Landing page and navigation |
 | **[Why SimAgents?](public/why-simagents.md)** | Decision-makers | Vision, philosophy, use cases |
-| **[Getting Started](public/getting-started.md)** | Developers | Setup, first simulation, connecting agents |
+| **[Getting Started](public/getting-started.md)** | Developers | Browser-local setup, first simulation, remote-mode boundary |
 | **[Research Guide](public/research-guide.md)** | Researchers | Experiment design, metrics, reproducibility |
-| **[API Reference](public/api-reference.md)** | Developers | Complete API documentation |
+| **[API Reference](public/api-reference.md)** | Developers | Remote/server API documentation |
 
 ---
 
 ## Getting Started
 
-- **[README](../README.md)** - Quick start guide and project overview
+- **[README](../README.md)** - Browser-local quick start and project overview
 - **[CONTRIBUTING](../CONTRIBUTING.md)** - How to contribute to the project
 - **[CODE_OF_CONDUCT](../CODE_OF_CONDUCT.md)** - Community guidelines
 
@@ -51,6 +55,30 @@ User-facing documentation organized by audience:
   - User Authentication (Section 44)
 
 ### Technical Reference
+
+- **[Browser Mode Architecture](browser-mode-plan.md)** - Browser-local runtime plan and current split
+  - Web Worker engine hosting
+  - BYOK provider routing
+  - `localStorage` persistence and export/import
+  - Remote/server boundary
+
+- **[BYOK Security Notes](security-byok.md)** - Browser-local security posture
+  - Plain `localStorage` key storage
+  - CSP and XSS constraints
+  - Optional passphrase-encryption tradeoffs
+  - Review checklist for untrusted text
+
+- **[Remote Mode and Research Boundary](remote-mode-and-research.md)** - Local vs remote ownership
+  - Web routing split
+  - Server route ownership
+  - Config override boundary
+  - Porting rule for remote features
+
+- **[Testing Matrix](testing.md)** - Verification split
+  - Browser-local gates
+  - Browser smoke test
+  - BYOK security audit
+  - Remote/DB-backed suites
 
 - **[Stack Rationale](appendix/stack-rationale.md)** - Technical decisions and trade-offs
   - Why Bun over Node.js
@@ -97,25 +125,30 @@ User-facing documentation organized by audience:
   - Data models
   - API endpoints
 
-- **[ROADMAP](../ROADMAP.md)** - Implementation progress
-  - All phases complete (0-8)
-  - Technical debt tracking
+- **[ROADMAP](../ROADMAP.md)** - Browser-pivot status
+  - Current local product path
+  - Verification gates
+  - Remaining hardening and legacy separation work
 
 ---
 
 ## Document Relationships
 
 ```
-README.md           ─── Quick start, links to docs
+README.md           ─── Browser-local quick start, links to docs
     │
-    ├── ROADMAP.md      ─── Implementation status
+    ├── ROADMAP.md      ─── Current status and next work
     │
     ├── CONTRIBUTING.md ─── How to contribute
     │
     └── docs/
         ├── INDEX.md        ─── This file (navigation hub)
         │
-        ├── PRD.md          ─── Design specifications (authoritative)
+        ├── browser-mode-plan.md ─── Browser-local architecture
+        ├── security-byok.md ─── Browser-local BYOK security notes
+        ├── remote-mode-and-research.md ─── Local vs remote boundary
+        ├── testing.md ─── Split verification gates
+        ├── PRD.md          ─── Historical/full-platform design specifications
         │
         ├── experiment-design-guide.md ─── Research guide
         │
@@ -141,4 +174,4 @@ README.md           ─── Quick start, links to docs
 
 ---
 
-*Last updated: March 10, 2026*
+*Last updated: July 3, 2026*

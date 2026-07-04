@@ -90,7 +90,7 @@ bun lint                         # All workspaces
 
 # Build
 bun build                        # All workspaces
-cd apps/web && bun run build     # Web build
+(cd apps/web && bun run build)   # Web build
 
 # Database and remote-mode infra
 docker-compose up -d
@@ -110,19 +110,21 @@ bun run apps/server/src/evolution/orchestrator.ts --seed 42
 
 Never run plain `bun test` from the repo root for browser-pivot work. The test suites must be split so browser-safe in-memory suites are not mixed with DB-backed suites.
 
-Run these exact verification commands when relevant:
+The canonical split is documented in `docs/testing.md`. Run these exact verification commands when relevant:
 
 ```bash
 bun typecheck
 
-cd apps/web && bun run build
-# Must print NOTHING (exits non-zero when the bundle is clean - that is the pass state):
-grep -l "PostgresError\\|ioredis\\|bullmq\\|drizzle" dist/assets/*.js
+(cd apps/web && bun run build)
+grep -l "PostgresError\\|ioredis\\|bullmq\\|drizzle" apps/web/dist/assets/*.js
 
-cd apps/server && bun test src/__tests__/engine/ src/__tests__/engine-memory/
+(cd apps/server && bun test src/__tests__/engine/ src/__tests__/engine-memory/)
+(cd apps/server && bun test src/__tests__/llm/prompt-builder.test.ts)
 
-cd apps/server && bun test src/__tests__/actions src/__tests__/agents src/__tests__/analytics src/__tests__/cache src/__tests__/crypto src/__tests__/db src/__tests__/experiments src/__tests__/integration src/__tests__/llm src/__tests__/queue src/__tests__/simulation src/__tests__/world
+(cd apps/server && bun test src/__tests__/actions src/__tests__/agents src/__tests__/analytics src/__tests__/cache src/__tests__/crypto src/__tests__/db src/__tests__/experiments src/__tests__/integration src/__tests__/llm src/__tests__/queue src/__tests__/simulation src/__tests__/world)
 ```
+
+Passing state for the bundle grep is no output.
 
 If PostgreSQL, Redis, or Docker are unavailable in the sandbox, report the exact connection-only failures instead of treating the whole verification pass as ambiguous.
 
@@ -138,7 +140,7 @@ import { describe, expect, test } from 'bun:test';
 bun install
 cp .env.example apps/server/.env
 docker-compose up -d
-cd apps/server && bunx drizzle-kit push
+(cd apps/server && bunx drizzle-kit push)
 ```
 
 Local browser mode only needs `bun install` and `bun dev:web`.

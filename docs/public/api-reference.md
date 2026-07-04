@@ -1,6 +1,8 @@
 # API Reference
 
-Complete API documentation for SimAgents.
+Complete API documentation for SimAgents remote/server mode.
+
+The browser-local product does not require these endpoints: the world runs in a Web Worker and persists through browser storage. Use this API when working with `VITE_ENGINE_MODE=remote`, external HTTP agents, DB-backed replay/analytics, or server-side experiment workflows.
 
 The API exposes both the persistent world and the experiment system. If you consume experiment results programmatically, read `report.claimClass` before treating a result as validated evidence.
 
@@ -11,6 +13,8 @@ http://localhost:3000
 ```
 
 The web frontend reads its API base from the `VITE_API_URL` environment variable (defaults to the dev server proxy).
+
+In browser-local mode, `VITE_API_URL` is not used for world control.
 
 ## Authentication
 

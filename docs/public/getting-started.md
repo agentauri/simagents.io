@@ -1,13 +1,12 @@
 # Getting Started
 
-This guide helps you get started with SimAgents by running the full stack locally with Docker.
+This guide starts with the current browser-local product path. You only need Docker/PostgreSQL/Redis if you are working on remote mode, external-agent APIs, replay/analytics, or server-side research experiments.
 
-## Setup
+## Browser-Local Setup
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) v1.0+ or Node.js 20+
-- [Docker](https://www.docker.com/)
+- [Bun](https://bun.sh/) v1.0+
 - Git
 
 ### 1. Clone and Install
@@ -18,157 +17,160 @@ cd simagents.io
 bun install
 ```
 
-### 2. Configure Environment
+### 2. Start the Web App
+
+```bash
+bun dev:web
+```
+
+Open [http://localhost:5173](http://localhost:5173).
+
+Local mode is the default:
+
+```bash
+VITE_ENGINE_MODE=local
+```
+
+No server, database, Redis, or Docker service is required.
+
+### 3. Configure Agents
+
+Open the Config panel:
+
+- Edit the **Agent Roster**.
+- Use baseline agents if you do not want API calls.
+- Add LLM API keys if you want live model decisions.
+- Add a proxy URL only for providers marked `needs proxy`.
+
+Browser-local data is stored under these keys:
+
+| Key | Purpose |
+|-----|---------|
+| `simagents_api_keys` | BYOK provider keys |
+| `simagents_agent_roster` | Local agent roster, models, colors, reasoning settings |
+| `simagents_proxy_url` | Optional stateless CORS proxy origin |
+| `simagents_world_snapshot` | Versioned world snapshot |
+| `simagents_event_ring` | Recent UI event ring |
+
+BYOK keys are plain local browser storage. Review [BYOK Security Notes](../security-byok.md) before adding UI that renders imported data, model output, or proxy responses.
+
+### 4. Start the Simulation
+
+Click **Start**. If a saved world exists, choose **Resume saved world** or **Start new world**.
+
+During a run you can:
+
+- Pause/resume the local engine.
+- Export the current world as JSON.
+- Import a previous export and resume it.
+- Reset the local world, which clears saved world state.
+
+## Optional CORS Proxy
+
+Claude and Gemini can run direct from the browser. OpenAI-compatible providers generally need a proxy because their APIs do not return browser CORS headers.
+
+The repository includes a stateless Cloudflare Worker artifact:
+
+```bash
+cd infra/cors-proxy
+bunx wrangler deploy
+```
+
+Paste the Worker origin into the Config panel proxy URL field. The proxy forwards only allowed provider hosts and the auth/content headers required for LLM calls.
+
+## Browser Smoke Test
+
+With the dev server running:
+
+```bash
+SIMAGENTS_SMOKE_URL=http://localhost:5173/ node scripts/browser-smoke.mjs
+```
+
+If Playwright is not installed in the workspace, set `PLAYWRIGHT_MODULE_DIR` to a directory containing `node_modules/playwright`.
+
+The smoke test covers:
+
+- baseline roster start
+- pause/resume
+- reload/resume
+- export/import
+- missing-proxy UI state
+- mocked direct and proxied LLM calls
+
+## Remote/Research Setup
+
+Use this only when you need the server-backed surface.
+
+### Prerequisites
+
+- Bun
+- Docker
+- Git
+
+### 1. Configure Environment
 
 ```bash
 cp .env.example apps/server/.env
 ```
 
-Edit `apps/server/.env` with your provider keys if you want live LLM decisions:
+Edit `apps/server/.env` if you need server-side provider keys or admin configuration.
 
-```env
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-GOOGLE_AI_API_KEY=...
-DEEPSEEK_API_KEY=...
-QWEN_API_KEY=...
-GLM_API_KEY=...
-GROK_API_KEY=...
-MISTRAL_API_KEY=...
-MINIMAX_API_KEY=...
-MOONSHOT_API_KEY=...
-
-# Optional local fallback mode
-TEST_MODE=true
-```
-
-### 3. Start Infrastructure
-
-```bash
-bun run infra:up
-```
-
-This starts PostgreSQL and Redis through Docker.
-
-### 4. Initialize the Database
-
-```bash
-bun run db:push
-```
-
-If you want the one-shot setup path:
+### 2. Start Infrastructure and Schema
 
 ```bash
 bun run dev:setup
 ```
 
-### 5. Run the App
+This starts PostgreSQL and Redis through Docker and pushes the Drizzle schema.
+
+### 3. Start Remote Mode
 
 ```bash
-bun dev
+VITE_ENGINE_MODE=remote bun dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) for the web client.
+Remote mode uses:
 
----
+- API server: [http://localhost:3000](http://localhost:3000)
+- Web client: [http://localhost:5173](http://localhost:5173)
+- Swagger docs: [http://localhost:3000/api/docs](http://localhost:3000/api/docs)
 
 ## Understanding the Interface
 
 ### Main Canvas
 
-The central view shows a 100x100 grid world:
+The central view shows a grid world:
 
-- **Colored circles**: Agents
-- **Green squares**: Food resource spawns
-- **Yellow squares**: Energy resource spawns
-- **Gray squares**: Shelters
-- **Background colors**: Biomes
+- **Agents**: colored markers
+- **Food/energy/materials**: resource spawns
+- **Shelters**: rest and purchase locations
+- **Biomes**: background/environmental variation
 
-### Controls
+### Panels
 
-- **Pan**: Click and drag
-- **Zoom**: Mouse wheel or trackpad
-- **Select Agent**: Click an agent
-- **Play/Pause**: Top-bar simulation controls
+- **Agent Profile**: vitals, inventory, memories, and local context
+- **Event Feed**: recent world events
+- **Decision Log**: model or fallback reasoning traces
+- **Config Panel**: keys, proxy URL, roster, and local persistence status
 
-### Information Panels
+Replay, analytics, and puzzle pages are currently remote/server-oriented and hidden in browser-local mode.
 
-- **Agent Profile**: Current vitals, inventory, memory, and local context
-- **Event Feed**: Recent world events
-- **Decision Log**: Model or fallback reasoning traces
-- **Analytics**: Operational summaries such as Gini, survival, trade/conflict counts, and heuristic cooperation summaries
+## First Research Benchmark
 
-`cooperationIndex` is useful as a dashboard signal, but for scientific reporting it should be treated as a heuristic summary rather than as a primary validated endpoint.
-
----
-
-## Running Modes
-
-### Test Mode
-
-Good for local development and deterministic fallback behavior:
+For lower-imposition research claims, use the server-side experiment runner:
 
 ```bash
-TEST_MODE=true bun dev:server
+(cd apps/server && bun run src/experiments/runner.ts --config experiments/canonical-core-benchmark.yaml --runs 2 --output results/)
 ```
 
-This uses fallback logic instead of live provider calls. It is useful for debugging, but it is not the same thing as a replicated research benchmark.
-
-### Live Mode
-
-Runs the interactive world with live providers:
-
-```bash
-bun dev:server
-```
-
-This mode is best treated as exploratory because external provider behavior is not fully deterministic.
-
-### Experiment Mode
-
-For headless batch runs:
-
-```bash
-cd apps/server
-bun run src/experiments/runner.ts --config experiments/my-experiment.yaml --output results/
-```
-
-Use the [Research Guide](./research-guide.md) to choose the right profile and claim posture before interpreting results.
-
----
-
-## First Scientific Benchmark
-
-To execute the lower-imposition benchmark path:
-
-```bash
-cd apps/server
-bun run src/experiments/runner.ts --config experiments/canonical-core-benchmark.yaml --runs 2 --output results/
-```
-
-This benchmark uses `canonical_core` and deterministic controls. The output directory contains a report plus a research bundle with hashes and run-level artifacts. Strong claims still require at least two conditions with replicated runs; a single benchmark run is descriptive only.
-
-For a literature-baseline run:
-
-```bash
-cd apps/server
-bun run src/experiments/runner.ts --config experiments/sugarscape-replication.yaml --runs 1 --output results/
-```
-
-That path is available and documented, but it should still be treated as a partial literature-validation baseline rather than as a finished validated replication.
-
----
+Strong claims require replicated comparisons and the right claim class. See the [Research Guide](./research-guide.md) before interpreting results.
 
 ## Connecting Your Own Agent
 
-SimAgents supports external agents via public HTTP endpoints.
-
-> **Base URL**: `http://localhost:3000` for local development. The examples below use `<your-api-url>` as a placeholder.
-
-### 1. Register Your Agent
+External HTTP agents are part of remote/server mode, not browser-local mode. Start the server first, then use:
 
 ```bash
-curl -X POST <your-api-url>/api/v1/agents/register \
+curl -X POST http://localhost:3000/api/v1/agents/register \
   -H "Content-Type: application/json" \
   -d '{
     "name": "MyAgent",
@@ -177,119 +179,26 @@ curl -X POST <your-api-url>/api/v1/agents/register \
   }'
 ```
 
-Response:
-
-```json
-{
-  "id": "agent-uuid-here",
-  "apiKey": "your-secret-api-key"
-}
-```
-
-### 2. Receive Observations
-
-Pull mode:
-
-```bash
-curl <your-api-url>/api/v1/agents/{id}/observe \
-  -H "X-API-Key: your-secret-api-key"
-```
-
-Push mode:
-Your endpoint can receive observation payloads via POST.
-
-### 3. Submit Decisions
-
-```bash
-curl -X POST <your-api-url>/api/v1/agents/{id}/decide \
-  -H "X-API-Key: your-secret-api-key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "action": "move",
-    "params": { "toX": 51, "toY": 50 },
-    "reasoning": "Moving toward food source"
-  }'
-```
-
-### Observation Format
-
-```json
-{
-  "tick": 42,
-  "self": {
-    "id": "agent-uuid",
-    "x": 50,
-    "y": 50,
-    "hunger": 75,
-    "energy": 60,
-    "health": 100,
-    "balance": 150
-  },
-  "nearbyAgents": [...],
-  "nearbyResourceSpawns": [...],
-  "nearbyShelters": [...],
-  "inventory": [{ "type": "food", "quantity": 3 }],
-  "availableActions": [...],
-  "recentEvents": [...],
-  "recentMemories": [...],
-  "relationships": {...}
-}
-```
-
-### Available Actions
-
-| Action | Description | Key Parameters |
-|--------|-------------|----------------|
-| `move` | Move to adjacent cell | `toX`, `toY` |
-| `gather` | Collect from a resource spawn | `resourceType`, `quantity` |
-| `consume` | Use inventory item | `itemType` |
-| `sleep` | Rest at a shelter | `duration` |
-| `trade` | Exchange with another agent | `targetAgentId`, `offering*`, `requesting*` |
-| `work` | Fulfill employment contract | `duration` |
-| `forage` | Search for scraps anywhere | - |
-| `public_work` | Basic labor at a shelter | `taskType` |
-| `harm` | Attack another agent | `targetAgentId`, `intensity` |
-| `signal` | Broadcast long-range message | `message`, `intensity` |
-
-See [API Reference](./api-reference.md) for the complete catalog.
-
----
-
-## Configuration
-
-Common environment variables in `apps/server/.env`:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TICK_INTERVAL_MS` | `60000` | Time between ticks in milliseconds |
-| `GRID_SIZE` | `100` | World size |
-| `TEST_MODE` | `false` | Use fallback decisions instead of live providers |
-| `RANDOM_SEED` | timestamp | Default seed source when not set explicitly |
-| `DATABASE_URL` | `postgres://dev:dev@localhost:5432/simagents` | PostgreSQL connection |
-| `REDIS_URL` | `redis://localhost:6379` | Redis connection |
-| `ADMIN_API_KEY` | (insecure default) | Required for admin API endpoints |
-| `VITE_API_URL` | (none) | API base URL for the web frontend (only needed if server runs on a different host) |
-
-For scientific runs, prefer declaring `seed`, `profile`, and `benchmarkWorld` in the experiment config rather than relying on ad hoc environment changes.
-
----
-
-## Next Steps
-
-- [Research Guide](./research-guide.md): choose the right benchmark surface and claim class
-- [API Reference](./api-reference.md): integrate your own agent or export data
-- [Why SimAgents?](./why-simagents.md): understand the public positioning and tradeoffs
+See [API Reference](./api-reference.md) for observation and decision endpoints.
 
 ## Troubleshooting
 
+### "Provider needs proxy"
+
+Add a proxy URL in the Config panel or choose a direct-CORS provider.
+
+### "World snapshot is too large"
+
+Export the world, reduce long-running verbose LLM sessions, then start or import a smaller saved state. The app drops the recent event ring before pausing snapshot persistence.
+
 ### "Cannot connect to database"
-Run `bun run infra:up` and confirm Docker is healthy.
+
+This only matters for remote mode. Run `bun run dev:setup` and confirm Docker is healthy.
 
 ### "No agents appearing"
-Click Start in the UI or call `POST /api/world/start`.
+
+In local mode, configure at least one roster entry and click **Start**. Baseline agents do not need API keys.
 
 ### "LLM timeout errors"
-Check provider keys in `apps/server/.env`. Use `TEST_MODE=true` for local fallback mode.
 
-### Need help?
-[Open an issue](https://github.com/agentauri/simagents.io/issues) on GitHub.
+Check browser-local API keys, provider availability, and proxy URL. Use baseline agents when you want zero-cost local runs.

@@ -11,7 +11,17 @@ Current AI evaluation still struggles with social behavior:
 
 ## The Solution
 
-SimAgents provides a persistent multi-agent world with explicit mechanics, explicit audit trails, and explicit claim classes.
+SimAgents provides a browser-local multi-agent world with explicit mechanics and visible traces. The default experience runs in a Web Worker, stores state locally, and lets users bring their own model keys without operating a backend.
+
+For stricter research work, the repository also includes a server-side experiment surface with explicit audit trails and claim classes.
+
+### Browser-Local Product
+
+- no server required for the main interactive app
+- BYOK keys stay in browser `localStorage`
+- local roster, reasoning settings, proxy URL, snapshots, and recent events persist in browser storage
+- baseline agents run without provider accounts or API costs
+- optional stateless CORS proxy supports providers that do not allow direct browser calls
 
 ### Two Research Surfaces
 
@@ -39,9 +49,13 @@ SimAgents is strongest when it stops pretending all runs are the same kind of ev
 
 ## Key Differentiators
 
-### BYO Agent
+### Browser-Local BYOK
 
-Connect any AI through the public agent APIs. You can benchmark internal fallback agents, external HTTP agents, or mixed populations.
+Configure a roster in the browser, choose baseline or provider-backed agents, and run the simulation without provisioning infrastructure. Direct-CORS providers call from the browser; proxy-only providers use a self-hosted stateless proxy.
+
+### Remote BYO Agent
+
+When you need HTTP agents or external integrations, remote mode exposes public agent APIs. You can benchmark internal fallback agents, external HTTP agents, or mixed populations.
 
 ```text
 POST /api/v1/agents/register
@@ -112,11 +126,11 @@ This is a world to study, but also a system whose intervention layer must be dis
 
 ## Getting Started
 
-Clone the repo, start Docker, and you're running in minutes.
+Clone the repo, install dependencies, and start the browser-local app.
 
-1. [Getting Started Guide](./getting-started.md): set up locally, connect your agent, and run the canonical benchmark
+1. [Getting Started Guide](./getting-started.md): run the browser-local app, configure a roster, and learn when remote mode is needed
 2. [Research Guide](./research-guide.md): choose the right profile, metrics, and claim posture
-3. [API Reference](./api-reference.md): connect your own agent or export data
+3. [API Reference](./api-reference.md): use server APIs when working in remote mode
 
 ---
 
@@ -125,9 +139,11 @@ Clone the repo, start Docker, and you're running in minutes.
 Built for observability and iteration:
 
 - **Bun + TypeScript** for the app and experiment tooling
-- **PostgreSQL** for event-sourced persistence and experiment metadata
-- **Redis** for queues, realtime streams, and cache layers
+- **Vite + React + Web Worker** for the browser-local product
+- **localStorage snapshots** for local persistence and export/import
+- **PostgreSQL** for remote-mode event sourcing and experiment metadata
+- **Redis** for remote-mode queues, realtime streams, and cache layers
 - **Multi-provider support** across major LLM APIs
-- **780+ automated tests** covering server, web, and experiment behavior
+- **split verification gates** for browser-safe suites and DB-backed suites
 
 See [Stack Rationale](https://github.com/agentauri/simagents.io/blob/main/docs/appendix/stack-rationale.md) for deeper architectural context.

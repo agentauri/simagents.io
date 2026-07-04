@@ -1,165 +1,99 @@
 # SimAgents Roadmap
 
-> Last updated: 2026-04-09
+> Last updated: 2026-07-03
 
 ## Current Status
 
-**All Phases Complete** - The core platform is fully functional.
+The active product path is **browser-local Sim Agents**:
 
-| Phase | Name | Status | Completed |
-|-------|------|--------|-----------|
-| 0 | Kernel (MVP) | ✅ Complete | 2025-12-26 |
-| 1 | Emergence Observation | ✅ Complete | 2025-12-28 |
-| 2 | Social Complexity | ✅ Complete | 2025-12-29 |
-| 3 | External Agents | ✅ Complete | 2025-12-29 |
-| 4 | Advanced Features | ✅ Complete | 2025-12-29 |
-| 5 | Research Platform | ✅ Complete | 2026-01-02 |
-| 6 | Employment System | ✅ Complete | 2026-01-11 |
-| 7 | Cooperative Puzzle Game | ✅ Complete | 2026-01-13 |
-| 8 | User Authentication | ✅ Complete | 2026-01-13 |
+- Vite SPA starts without a backend.
+- The simulation engine runs in a Web Worker.
+- Users configure a local roster and bring their own API keys.
+- World state persists through versioned `localStorage` snapshots plus a bounded event ring.
+- An optional stateless CORS proxy supports providers that do not allow direct browser calls.
 
----
+The legacy server platform remains in the repository for `VITE_ENGINE_MODE=remote`, DB-backed research workflows, external-agent APIs, and experiment tooling.
 
-## Phase Summary
+## Browser Pivot Progress
 
-### Phase 0: Kernel (MVP)
-Core simulation with tick-based time, needs decay (hunger/energy/health), agent death, and event sourcing. 6 initial actions: `move`, `gather`, `consume`, `sleep`, `work`, `buy`. Scientific model with resource spawns and shelters. Multi-LLM support (Claude, Gemini, Codex, DeepSeek, Qwen, GLM, Grok, Mistral, MiniMax, Kimi).
+| Phase | Area | Status |
+|-------|------|--------|
+| 0 | In-memory store and backend-agnostic handlers | Complete |
+| 1a | Continuous-time engine foundations | Complete |
+| 1b | Per-agent async loops and serialized execution | Complete |
+| 2 | Browser LLM layer, BYOK keys, reasoning controls | Complete |
+| 3 | Web Worker hosting and roster UI | Complete |
+| 4 | `localStorage` persistence, resume, export/import | Complete |
+| 5 | Stateless CORS proxy, schema drift fixes, docs v2 | Complete |
+| 6 | Product hardening and public docs alignment | Mostly complete |
 
-> See: [PRD Sections 5-9](docs/PRD.md)
+## What Works Now
 
-### Phase 1: Emergence Observation
-Agent memory (episodic), trust/relationships, trade between agents, location claiming, naming conventions, knowledge system (direct + referral discovery), share_info/gossip, emergence metrics (Gini, clustering, cooperation index).
+### Local Product
 
-> See: [PRD Sections 24-26](docs/PRD.md)
+- Browser-local simulation with no PostgreSQL, Redis, Docker, or Fastify requirement.
+- Baseline agents run without API keys.
+- Live LLM agents use browser-local BYOK keys stored in `simagents_api_keys`.
+- Roster entries persist in `simagents_agent_roster`.
+- Snapshots persist in `simagents_world_snapshot`; recent UI events persist in `simagents_event_ring`.
+- Resume/new-world choice is visible at startup.
+- Export/import moves a saved world between browsers or machines.
+- Proxy-required providers can use the self-hosted artifact under `infra/cors-proxy/`.
 
-### Phase 2: Social Complexity
-Conflict actions (`harm`, `steal`, `deceive`), emergent justice tracking, social discovery via gossip, advanced analytics (inequality, social graph metrics), crime/conflict metrics, role crystallization (gatherer, trader, predator detection).
+### Remote/Research Surface
 
-> See: [PRD Sections 9, 30](docs/PRD.md)
+- Fastify routes, PostgreSQL, Redis, replay, analytics, external-agent APIs, and experiment runner remain available in remote mode.
+- Research docs continue to distinguish `canonical_core`/deterministic-baseline claims from exploratory full-platform runs.
+- DB-backed tests are meaningful only when local PostgreSQL/Redis are available.
 
-### Phase 3: External Agents (A2A Protocol)
-Full A2A protocol for external agent registration. Public API with rate limiting. Webhook (push) and polling (pull) modes. API key authentication. Time travel / replay UI with full tick history navigation.
+## Current Verification Gates
 
-> See: [PRD Section 34-35](docs/PRD.md)
+Use these for browser-pivot work:
 
-### Phase 4: Advanced Features
-- **Verifiable Credentials** (§34): Issue/revoke credentials with HMAC-SHA256 signatures
-- **Gossip Protocol** (§35): Reputation spreading with polarization index
-- **Agent Reproduction** (§36): `spawn_offspring` with lineage tracking and mutations
-- **LLM Optimization** (§37): Token budgets, performance tracking, overthinking detection
+```bash
+bun typecheck
+(cd apps/web && bun run build)
+(cd apps/server && bun test src/__tests__/engine/ src/__tests__/engine-memory/)
+(cd apps/server && bun test src/__tests__/llm/prompt-builder.test.ts)
+```
 
-> See: [PRD Sections 34-37](docs/PRD.md)
+Optional browser smoke test against a running dev server:
 
-### Phase 5: Research Platform
-- **Biomes**: forest, desert, tundra, plains with per-biome regen rates
-- **Experiment DSL**: YAML/JSON experiment definitions with batch runner
-- **Shock Scenarios**: Economic shocks, disasters, rule modifications via API
-- **Visualization**: Heatmaps (density, trust, conflict), social graph (D3.js)
+```bash
+SIMAGENTS_SMOKE_URL=http://localhost:5173/ node scripts/browser-smoke.mjs
+```
 
-> See: [PRD Section 38-39](docs/PRD.md), [Experiment Design Guide](docs/experiment-design-guide.md)
-
-### Phase 6: Employment System + Social Discovery
-Real employment contracts replacing "magic work":
-- **7 Employment Actions**: `offer_job`, `accept_job`, `pay_worker`, `quit_job`, `fire_worker`, `claim_escrow`, `cancel_job_offer`
-- **Payment Types**: upfront, on_completion, per_tick with escrow protection
-- **Stigmergy**: Agents leave scent trails (Redis-based with TTL decay)
-- **Signals**: Long-range communication (1-5 intensity, 5-25 tile range)
-- **New Survival Actions**: `forage` (anywhere, low yield), `public_work` (shelters, bootstrap economy)
-
-#### Cooperation Incentives (Sugarscape-inspired)
-Comprehensive system to encourage emergent group behavior:
-- **Gather Cooperation**: +25% per agent at same location (max +75%), solo penalty -50%
-- **Group Gather (Rich Spawns)**: Spawns with 12+ resources require 2+ agents; solo limited to 5 units; group bonus +50%
-- **Forage Cooperation**: +15% success per nearby agent (max +45%), solo penalty -20%
-- **Public Work Cooperation**: +20% pay per nearby worker (max +60%), solo penalty -50%
-- **Trade Bonuses**: +20% items received with trusted partners (trust >20), +5% per prior interaction (max +25%)
-- **Trust-Based Pricing**: Shelter prices -10% at +100 trust, +10% at -100 trust
-- **Inventory Visibility**: Agents see nearby agents' inventories to enable informed trades
-
-#### Item Spoilage (Creates Trade Urgency)
-Perishable items decay each tick, encouraging consumption and trade:
-- Food/Water: -1%/tick | Medicine: -0.5%/tick | Battery: -0.2%/tick
-- Materials and tools do not decay
-
-> See: [PRD Section 41-42](docs/PRD.md)
-
-### Phase 7: Cooperative Puzzle Game (Fragment Chase)
-Collaborative puzzle system inspired by Babylon research:
-- **6 Puzzle Actions**: `join_puzzle`, `leave_puzzle`, `share_fragment`, `form_team`, `join_team`, `submit_solution`
-- **Puzzle Types**: coordinates (find x,y), password (reconstruct string), logic (combine constraints)
-- **Focus Lock**: Agents in puzzles can only perform puzzle-related actions
-- **Staking Mechanism**: Entry requires CITY stake; prize pool distributed to winners
-- **Team Formation**: Agents can form teams to share fragments and solve together
-- **Anti Free-Riding**: Contribution scoring ensures active participants get rewards
-
-#### Fragment Chase Mechanics
-- Automatic puzzle generation (10% chance per tick when <2 active games, ≥3 agents alive)
-- Fragments distributed to participants; no single agent has complete solution
-- Teams share fragments to reconstruct the puzzle solution
-- Winner takes prize pool (sum of all stakes + base prize)
-
-> See: [PRD Section 43](docs/PRD.md)
-
-### Phase 8: User Authentication (OAuth)
-Secure authentication system for web platform:
-- **OAuth Providers**: Google and GitHub sign-in
-- **JWT Tokens**: Access tokens (15m) + refresh tokens (30d)
-- **Encrypted API Keys**: AES-256-GCM encryption for user LLM API keys
-- **Session Management**: Secure httpOnly cookies for refresh tokens
-- **Conditional Auth**: Optional in development, required in production
-
-> See: [PRD Section 44](docs/PRD.md)
-
-### Post-Phase Improvements (April 2026)
-
-Fixes and rebalancing applied across the simulation core:
-
-- **Survival Economics Rebalanced**: Phase 7 cooperation tuning made solo survival nearly impossible, preventing any social behavior from emerging (agents died before interacting). Key changes: forage success 0.35 -> 0.50, forage cooldown 5 -> 2 ticks, food price 25 -> 10 CITY, solo gather cap 2 -> 5, solo forage modifier 0.6 -> 0.8.
-- **Resource Spawns Aligned to Agent Positions**: Food resources now spawn directly at agent spawn locations (was 2-6 tiles away, causing starvation before agents could reach food).
-- **System Prompt Rewritten for Emergence**: Replaced prescriptive prompt (priority lists, strategy advice, cooperation recommendations) with physics-only prompt that describes world mechanics without strategy guidance. All numeric values read dynamically from CONFIG.
-- **LLM Adapter Circular Dependency Fixed**: Changed from eager static imports to lazy `require()` initialization via `ensureAdapters()` pattern, fixing `ReferenceError: Cannot access 'BaseLLMAdapter' before initialization` at startup.
-- **Per-Agent Autonomous Evolution** (autoresearch-style): Each LLM agent type independently evolves its own strategy genome through fast in-memory mini-simulations (no LLM calls). Genome parameterizes decision thresholds (hunger/energy triggers, gather vs forage preference, exploration radius, social/risk biases). Fitness measured by composite survival score. Each agent discovers its own optimal strategy — quality emerges from data. CLI: `bun run apps/server/src/evolution/orchestrator.ts --generations 10`.
-
----
-
-## Technical Status
-
-### Infrastructure
-- Bun + TypeScript, Fastify HTTP, PostgreSQL + Drizzle ORM
-- Redis (cache, pub/sub, scents), BullMQ (job queue)
-- SSE real-time updates, Docker Compose
-- 727 tests passing, CI/CD via GitHub Actions
-
-### API
-- REST API with OpenAPI/Swagger documentation
-- External agent API (`/api/v1/*`)
-- Replay API (`/api/replay/*`)
-- Scenarios API (`/api/scenarios/*`)
-- Admin API with API key authentication
-
-### Frontend
-- React + Vite + Zustand + TailwindCSS
-- Scientific canvas (100x100 grid) with optional isometric toggle
-- Real-time event feed, decision logs, analytics dashboard
-- Heatmaps, social graph visualization, replay UI
-
----
+The smoke test covers baseline start, pause/resume, reload/resume, export/import, missing-proxy UI state, and mocked direct/proxied LLM requests.
 
 ## Known Limitations
 
-1. **No persistence across restarts**: World state resets on server restart (by design for experiments)
-2. **Single-server architecture**: Multi-tenancy schema exists but not horizontally scaled
-3. **LLM rate limits**: External API providers may throttle during high agent counts
+1. **API keys are plain `localStorage` values.** XSS is the main threat. Future UI changes must avoid rendering untrusted HTML and should preserve the CSP/security guidance.
+2. **RNG streams are not snapshotted.** Resume keeps world seed, clock, state, and engine metadata, but probabilistic sequences can diverge after reload.
+3. **Local storage quota is finite.** Long verbose LLM runs can exceed browser quota; event-ring degradation and export are the current mitigation.
+4. **Some pages are hidden in local mode.** Replay, analytics, and puzzle pages are still remote/server-oriented.
+5. **Public docs are being realigned.** Older PRD/experiment docs still describe the full server-backed platform.
+6. **Legacy server cleanup is deferred.** Admin key sync routes, DB-backed experiment handlers, and broad DB/Redis tests still belong to the remote/research surface.
 
----
+## Next Work
 
-## Future Considerations
+1. Add CI coverage for the browser smoke path where a browser runtime is available.
+2. Decide whether replay/analytics/puzzles should be ported to exported local snapshots or stay remote-only.
+3. Archive or remove legacy `/api/llm/keys*` sync routes if remote mode no longer needs them.
+4. Evaluate optional passphrase encryption for browser-local BYOK as local-device hardening.
+5. Add deterministic local run bundles before treating browser-local exports as research artifacts.
 
-These are NOT planned - just ideas for potential future development:
+## Historical Platform Phases
 
-- **Anti-Sybil mechanisms**: Staking, proof-of-work, sponsorship for agent identity
-- **Banking/Treasury**: Proper monetary policy with currency creation rules
-- **Market makers**: Automated trading for price discovery
-- **SDKs**: TypeScript, Python, Go SDKs for external agent development
+The repository still contains the earlier full-platform implementation:
 
-> **Note**: For full Philosophy (IMPOSED vs EMERGENT), see [PRD Sections 3-4](docs/PRD.md)
+- Phase 0: Kernel/MVP simulation
+- Phase 1: Emergence observation
+- Phase 2: Social complexity
+- Phase 3: External agents
+- Phase 4: credentials, gossip, reproduction, LLM optimization
+- Phase 5: research platform
+- Phase 6: employment system
+- Phase 7: cooperative puzzle game
+- Phase 8: OAuth/user authentication
+
+Those systems are not all active in browser-local mode, but they remain useful as remote-mode/research assets or as code to selectively port.

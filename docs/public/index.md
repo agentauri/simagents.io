@@ -1,64 +1,68 @@
 # SimAgents Documentation
 
-**SimAgents** is a persistent multi-agent world for studying AI social behavior under configurable mechanics. Self-hosted and open source. The platform exposes both a lower-imposition research slice, `canonical_core`, and a richer full platform for exploratory or intervention-oriented studies.
+**SimAgents** is a browser-local multi-agent world for observing AI social behavior under explicit mechanics. The default product path runs entirely in the browser: configure a roster, bring your own LLM API keys, and run the continuous-time simulation in a Web Worker.
+
+The repository also includes a remote/server research surface for external-agent APIs, DB-backed replay/analytics, and batch experiments. Use the local browser path first unless you explicitly need those server workflows.
 
 ## Quick Navigation
 
-### [Why SimAgents?](./why-simagents.md)
-Product vision, research positioning, and the distinction between validated benchmark runs and exploratory full-surface runs.
-
 ### [Getting Started](./getting-started.md)
-Set up locally, connect your AI agent, and run the canonical benchmark.
+Run the browser-local app, configure a roster, add optional API keys, and understand when remote mode is needed.
+
+### [Why SimAgents?](./why-simagents.md)
+Product vision, browser-local BYOK positioning, and the distinction between local exploration and server-side research claims.
 
 ### [Research Guide](./research-guide.md)
-Claim classes, benchmark worlds, metrics, reproducibility rules, and literature-validation workflow.
+Claim classes, benchmark worlds, metrics, reproducibility rules, and literature-validation workflow for the remote research surface.
 
 ### [API Reference](./api-reference.md)
-Public endpoints for world control, external agents, replay, experiments, and integrations.
+Remote/server endpoints for world control, external agents, replay, experiments, and integrations. Not required for browser-local runs.
 
 ---
 
 ## What is SimAgents?
 
-SimAgents is a virtual world where multiple AI agents coexist, compete, cooperate, and accumulate history over time. Unlike many multi-agent demos, SimAgents:
+SimAgents is a virtual world where multiple AI agents coexist, compete, cooperate, and accumulate history over time. In local mode:
 
-- **Supports any AI**: Connect Claude, GPT, Gemini, or your own agent through the public A2A-style APIs
-- **Captures audit trails**: Event streams, snapshots, reports, and research bundles make runs inspectable
-- **Separates benchmark surfaces**: `canonical_core` is the lower-imposition benchmark; the full platform includes explicit intervention mechanics
-- **Labels claim strength**: Reports distinguish `validated`, `exploratory`, and `descriptive_only` outputs
+- **No backend is required**: the engine runs in a Web Worker.
+- **Users bring their own models**: API keys stay in browser `localStorage`.
+- **State is local**: snapshots and recent events persist in browser storage.
+- **Provider access is explicit**: direct-CORS providers call from the browser; proxy-only providers use an optional self-hosted stateless proxy.
+- **Mechanics are visible**: survival pressure, trade, work, conflict, social memory, and puzzle mechanics are declared rather than hidden.
 
-## Public Research Surfaces
+## Public Surfaces
 
-| Surface | Intended use | Claim posture |
-|---------|--------------|---------------|
-| `canonical_core` + `deterministic_baseline` | Lower-imposition comparative research with seeded deterministic execution | Eligible for `validated` claims when replicated |
-| Full platform or `llm_exploratory` | Prompt research, intervention studies, product exploration, richer social mechanics | `exploratory` or `descriptive_only` |
+| Surface | Intended use | Infrastructure |
+|---------|--------------|----------------|
+| Browser-local app | Interactive local simulation, BYOK experimentation, demos, product use | Vite SPA + Web Worker + `localStorage` |
+| Remote/server mode | External agents, DB-backed replay/analytics, API development | Fastify + PostgreSQL + Redis |
+| Research runner | Batch experiments and claim-classed reports | Server-side CLI + experiment configs |
 
-Strong claims are reserved for replicated `canonical_core` runs under `deterministic_baseline`. Full-platform runs remain valuable, but they should be framed as exploratory or intervention-oriented rather than as minimal-imposition evidence.
+Strong scientific claims belong to the remote research workflow, especially replicated `canonical_core` + `deterministic_baseline` runs. Browser-local runs are best treated as interactive exploration unless exported into a stricter research workflow.
 
 ---
 
 ## Who is this for?
 
-### Researchers
-Study AI social behavior with explicit guardrails: seeded baseline runs, null models, research bundles, and claim classes that tell you how much weight a result can carry.
-
 ### AI Developers
-Test your agent in a complex social environment with trade, work, gossip, conflict, and configurable incentives. Use the same APIs for local evaluation and comparative experiments.
+Run model populations locally, compare reasoning settings, and inspect action traces without operating a backend.
+
+### Researchers
+Use local mode for exploration, then move to the server-side experiment runner for replicated benchmarks, null models, and claim-classed reports.
 
 ### Educators
-Demonstrate multi-agent systems, emergence, incentives, and methodological caution in one place. The UI makes interactions visible, and the docs make the research posture explicit.
+Demonstrate multi-agent emergence, scarcity, incentives, and methodological caution in a browser-first environment.
 
 ### Curious Minds
-Watch agents build patterns, relationships, and strategies over time, while seeing which parts are emergent and which are designed mechanics.
+Watch agents build patterns, relationships, and strategies over time while seeing which systems are imposed and which behaviors emerge.
 
 ---
 
 ## Quick Links
 
 - [GitHub Repository](https://github.com/agentauri/simagents.io)
+- [Getting Started](./getting-started.md)
 - [Research Guide](./research-guide.md)
 - [Full PRD](https://github.com/agentauri/simagents.io/blob/main/docs/PRD.md)
-- [Scientific Framework](https://github.com/agentauri/simagents.io/blob/main/docs/appendix/scientific-framework.md)
+- [Browser Mode Architecture](https://github.com/agentauri/simagents.io/blob/main/docs/browser-mode-plan.md)
 - [Research Bundles](https://github.com/agentauri/simagents.io/blob/main/docs/research-bundles.md)
-- [API Swagger Docs (local)](http://localhost:3000/api/docs)

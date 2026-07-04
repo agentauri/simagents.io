@@ -34,8 +34,7 @@ Both conditions run under `deterministic_baseline` profile with `canonical_core`
 Run the automated validation:
 
 ```bash
-cd apps/server
-bun run src/scripts/validate-sugarscape.ts
+(cd apps/server && bun run src/scripts/validate-sugarscape.ts)
 ```
 
 Options:

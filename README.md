@@ -3,82 +3,94 @@
 [![CI](https://github.com/agentauri/simagents.io/actions/workflows/ci.yml/badge.svg)](https://github.com/agentauri/simagents.io/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> World-as-a-Service for autonomous AI agents
+> Browser-local multi-agent simulation for observing AI social behavior.
 
-A platform where AI agents live, interact, and build social structure under configurable world mechanics. The full platform includes designed affordances and incentives; the `canonical_core` benchmark disables those extras for lower-imposition research runs.
+Sim Agents runs a continuous-time agent world directly in the browser. Users configure a roster, bring their own LLM API keys, and run the simulation inside a Web Worker. The local product path does not require Fastify, PostgreSQL, Redis, Docker, or server-side persistence.
 
-## Philosophy
+The legacy backend still exists for `VITE_ENGINE_MODE=remote`, server API development, and research/experiment workflows. Treat browser-local mode as the primary product path unless you are explicitly working on remote mode.
 
-**Core rigorous mode**: Strong scientific claims are reserved for `canonical_core` + `deterministic_baseline`, where cooperation/trust incentives, spoilage, puzzles, personalities, and shared LLM cache are disabled. Outside that slice, the platform should be treated as exploratory or intervention-oriented rather than minimally imposed.
+## Current Architecture
 
-**Scientific tooling**: The experiment runner enforces pre-registration (hypothesis and metric locking before execution), auto-generates threats to validity in reports, selects parametric vs non-parametric tests based on normality, provides a priori power analysis via `requiredSampleSize()`, and uses Student's t-distribution for small-sample accuracy.
+| Layer | Current local mode |
+|-------|--------------------|
+| Runtime | Bun + TypeScript |
+| Frontend | Vite + React + Zustand + HTML5 Canvas |
+| Engine | Continuous-time Web Worker engine |
+| Persistence | Browser `localStorage` snapshot + recent event ring |
+| LLMs | BYOK provider calls, direct or via optional stateless CORS proxy |
+| Remote/research | Fastify + PostgreSQL + Redis remain available in `remote` mode |
 
-## Tech Stack
+Local browser state uses:
 
-| Component | Technology |
-|-----------|------------|
-| Runtime | [Bun](https://bun.sh) |
-| Backend | Fastify + PostgreSQL + Redis |
-| Frontend | Vite + HTML5 Canvas (Isometric) |
-| Communication | SSE (Server-Sent Events) |
-| LLM Support | Claude, Codex, Gemini, DeepSeek, Qwen, GLM, Grok, Mistral, MiniMax, Kimi |
+- `simagents_api_keys`
+- `simagents_agent_roster`
+- `simagents_proxy_url`
+- `simagents_world_snapshot`
+- `simagents_event_ring`
 
 ## Getting Started
 
 ```bash
-# Install dependencies
 bun install
+bun dev:web
+```
 
-# Copy local env
+Open [http://localhost:5173](http://localhost:5173). Configure the roster and API keys in the app. Baseline agents run without keys.
+
+Some providers allow direct browser calls. Proxy-only providers require a self-hosted stateless CORS proxy; code and instructions live in [infra/cors-proxy](infra/cors-proxy).
+
+BYOK keys are plain browser `localStorage` values. The app now ships a defensive CSP and keeps model text on React text-rendering paths; see [BYOK Security Notes](docs/security-byok.md) before adding new surfaces that display untrusted text.
+
+## Remote/Research Mode
+
+Use this path only when you need the legacy backend, external-agent APIs, DB-backed replay/analytics, or experiment runner workflows.
+
+```bash
 cp .env.example apps/server/.env
-
-# Start PostgreSQL + Redis and initialize the schema
 bun run dev:setup
-
-# Start development (server + web)
 bun dev
-
-# Same flow with pnpm
-pnpm install
-pnpm dev:setup
-pnpm dev
-
-# Or run individually
-bun dev:server  # Backend on localhost:3000
-bun dev:web     # Frontend on localhost:5173
 ```
 
-## Project Structure
+Remote mode uses:
 
+- Fastify on `localhost:3000`
+- PostgreSQL + Redis through Docker
+- `VITE_ENGINE_MODE=remote` for the web client
+
+## Verification
+
+For browser-pivot work, do not run plain `bun test` from the repo root. Split browser-safe and DB-backed suites:
+
+```bash
+bun typecheck
+(cd apps/web && bun run build)
+(cd apps/server && bun test src/__tests__/engine/ src/__tests__/engine-memory/)
+(cd apps/server && bun test src/__tests__/llm/prompt-builder.test.ts)
 ```
-simagents.io/
-├── apps/
-│   ├── server/         # Fastify backend
-│   └── web/            # Vite + Canvas frontend
-├── packages/
-│   └── shared/         # Shared types & schemas
-└── docs/
-    └── PRD.md          # Full specification
+
+To run the browser smoke test against a running Vite dev server:
+
+```bash
+SIMAGENTS_SMOKE_URL=http://localhost:5173/ node scripts/browser-smoke.mjs
 ```
+
+If Playwright is not installed in the workspace, set `PLAYWRIGHT_MODULE_DIR` to a directory containing `node_modules/playwright`.
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
+| [Browser Mode Architecture](docs/browser-mode-plan.md) | Current local-mode architecture |
+| [BYOK Security Notes](docs/security-byok.md) | Browser-local key storage, CSP, and XSS checklist |
+| [Remote Mode Boundary](docs/remote-mode-and-research.md) | Server/research surfaces and porting rules |
+| [Testing Matrix](docs/testing.md) | Browser-local, smoke, security, and remote test gates |
 | [Documentation Index](docs/INDEX.md) | Central navigation hub |
-| [Roadmap](ROADMAP.md) | Implementation status (Phases 0-8 Complete) |
-| [PRD](docs/PRD.md) | Product Requirements Document |
-| [Experiment Design](docs/experiment-design-guide.md) | Research experiment guide |
+| [Roadmap](ROADMAP.md) | Current status and next work |
+| [PRD](docs/PRD.md) | Historical and full-platform product requirements |
+| [Experiment Design](docs/experiment-design-guide.md) | Server-side research experiment guide |
 | [Scientific Framework](docs/appendix/scientific-framework.md) | Validation methodology |
-| [Scientific Remediation Checklist](docs/scientific-remediation-checklist.md) | Priority roadmap for scientific hardening |
-| [Metric Specification](docs/metric-specification.md) | Metric tiers, formulas, and failure modes |
-| [Research Bundles](docs/research-bundles.md) | Export structure and claim-review workflow |
-| [Stack Rationale](docs/appendix/stack-rationale.md) | Technical decisions |
-| [CI](.github/workflows/ci.yml) | Continuous integration pipeline |
-
-## Contributing
-
-Contributions are welcome! Please read the PRD first to understand the project philosophy.
+| [Research Guide](docs/public/research-guide.md) | Claim posture and research workflow |
+| [API Reference](docs/public/api-reference.md) | Remote/server API reference |
 
 ## License
 
