@@ -2,6 +2,8 @@
  * LLM API Keys Routes
  *
  * Manages API keys for LLM providers.
+ * Remote/server surface only: browser-local BYOK keys stay in localStorage and
+ * are passed directly to the local worker, not synced through these endpoints.
  *
  * NOTE: Write endpoints (POST) require admin authentication via X-Admin-Key header.
  * Read endpoints (GET) are public for frontend status display.
