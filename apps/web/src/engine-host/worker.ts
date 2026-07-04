@@ -1,5 +1,5 @@
 import type { AgentRosterEntry, LLMType } from '@simagents/shared';
-import { setRuntimeConfig } from '@server/config';
+import { resetRuntimeConfig, setRuntimeConfig } from '@server/config';
 import { SimEngine, createRosterProviderFactory, type SimEngineState } from '@server/engine/engine';
 import {
   getStoredWorldEvents,
@@ -99,6 +99,7 @@ async function init(payload: InitPayload): Promise<void> {
     await engine.reset();
   }
 
+  resetRuntimeConfig();
   if (payload.configOverrides) {
     setRuntimeConfig(payload.configOverrides as Parameters<typeof setRuntimeConfig>[0]);
   }

@@ -28,6 +28,34 @@ interface ConfigPanelProps {
   onClose: () => void;
 }
 
+type ConfigSectionKey =
+  | 'simulation'
+  | 'agent'
+  | 'needs'
+  | 'experiment'
+  | 'llmCache'
+  | 'actions'
+  | 'economy';
+
+const LOCAL_DEFAULT_AGENT = {
+  startingBalance: 50,
+  startingHunger: 80,
+  startingEnergy: 80,
+  startingHealth: 100,
+};
+
+const LOCAL_DEFAULT_NEEDS = {
+  hungerDecay: 0.6,
+  energyDecay: 0.3,
+  lowHungerThreshold: 20,
+  criticalHungerThreshold: 10,
+  lowEnergyThreshold: 20,
+  criticalEnergyThreshold: 10,
+  hungerEnergyDrain: 1,
+  criticalHungerHealthDamage: 2,
+  criticalEnergyHealthDamage: 1,
+};
+
 export function ConfigPanel({ onClose }: ConfigPanelProps) {
   const isLocalMode = isLocalEngineMode();
   const {
@@ -69,6 +97,9 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
 
   // Use selector pattern for reactivity
   const hasPendingChanges = Object.keys(pendingChanges).length > 0;
+  const pendingSections = Object.keys(pendingChanges);
+  const localAppliedSections = pendingSections.filter(isLocalAppliedConfigSection);
+  const localIgnoredSections = pendingSections.filter((section) => !isLocalAppliedConfigSection(section));
 
   const [applyResult, setApplyResult] = useState<{
     appliedImmediately: string[];
@@ -117,28 +148,28 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
 
   // Handle close with unsaved changes warning
   const handleClose = useCallback(() => {
-    if (hasPendingChanges) {
+    if (!isLocalMode && hasPendingChanges) {
       const confirmed = window.confirm(
         'You have unsaved changes. Are you sure you want to close?'
       );
       if (!confirmed) return;
     }
     onClose();
-  }, [hasPendingChanges, onClose]);
+  }, [hasPendingChanges, isLocalMode, onClose]);
 
   const isRuntimeModifiable = (path: string) => runtimeModifiable.includes(path);
 
   // Get effective value (pending or current)
   const getValue = <T,>(
-    section: 'simulation' | 'agent' | 'needs' | 'experiment' | 'llmCache' | 'actions' | 'economy',
+    section: ConfigSectionKey,
     key: string,
     fallback: T
   ): T => {
-    if (!config) return fallback;
     const pending = pendingChanges[section] as unknown as Record<string, unknown> | undefined;
     if (pending && key in pending) {
       return pending[key] as T;
     }
+    if (!config) return fallback;
     const sectionData = config[section] as unknown as Record<string, unknown>;
     if (sectionData && key in sectionData) {
       return sectionData[key] as T;
@@ -193,7 +224,11 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
             Configuration
             {hasPendingChanges && (
               <span className="ml-2 text-xs font-normal text-yellow-400">
-                (unsaved changes)
+                {isLocalMode
+                  ? localAppliedSections.length > 0
+                    ? '(local overrides)'
+                    : '(remote overrides ignored)'
+                  : '(unsaved changes)'}
               </span>
             )}
           </h2>
@@ -309,6 +344,108 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
           </ConfigSection>
         )}
 
+        {isLocalMode && (
+          <>
+            <ConfigSection title="Local Agent Defaults" icon="🤖" defaultExpanded={false}>
+              <ConfigInput
+                type="number"
+                label="Balance"
+                description="Initial currency for newly spawned agents"
+                value={getValue('agent', 'startingBalance', LOCAL_DEFAULT_AGENT.startingBalance)}
+                onChange={(v) => updateAgent({ startingBalance: v })}
+                min={0}
+                unit="CITY"
+              />
+              <ConfigInput
+                type="number"
+                label="Hunger"
+                description="Initial hunger for newly spawned agents"
+                value={getValue('agent', 'startingHunger', LOCAL_DEFAULT_AGENT.startingHunger)}
+                onChange={(v) => updateAgent({ startingHunger: v })}
+                min={0}
+                max={100}
+              />
+              <ConfigInput
+                type="number"
+                label="Energy"
+                description="Initial energy for newly spawned agents"
+                value={getValue('agent', 'startingEnergy', LOCAL_DEFAULT_AGENT.startingEnergy)}
+                onChange={(v) => updateAgent({ startingEnergy: v })}
+                min={0}
+                max={100}
+              />
+              <ConfigInput
+                type="number"
+                label="Health"
+                description="Initial health for newly spawned agents"
+                value={getValue('agent', 'startingHealth', LOCAL_DEFAULT_AGENT.startingHealth)}
+                onChange={(v) => updateAgent({ startingHealth: v })}
+                min={0}
+                max={100}
+              />
+            </ConfigSection>
+
+            <ConfigSection title="Local Needs Decay" icon="📉" defaultExpanded={false}>
+              <ConfigInput
+                type="number"
+                label="Hunger Decay"
+                description="Base hunger loss during housekeeping"
+                value={getValue('needs', 'hungerDecay', LOCAL_DEFAULT_NEEDS.hungerDecay)}
+                onChange={(v) => updateNeeds({ hungerDecay: v })}
+                min={0}
+                max={10}
+                step={0.1}
+              />
+              <ConfigInput
+                type="number"
+                label="Energy Decay"
+                description="Base energy loss during housekeeping"
+                value={getValue('needs', 'energyDecay', LOCAL_DEFAULT_NEEDS.energyDecay)}
+                onChange={(v) => updateNeeds({ energyDecay: v })}
+                min={0}
+                max={10}
+                step={0.1}
+              />
+              <ConfigInput
+                type="number"
+                label="Low Hunger"
+                description="Below this threshold, hunger starts draining energy"
+                value={getValue('needs', 'lowHungerThreshold', LOCAL_DEFAULT_NEEDS.lowHungerThreshold)}
+                onChange={(v) => updateNeeds({ lowHungerThreshold: v })}
+                min={0}
+                max={100}
+              />
+              <ConfigInput
+                type="number"
+                label="Critical Hunger"
+                description="Below this threshold, hunger damages health"
+                value={getValue('needs', 'criticalHungerThreshold', LOCAL_DEFAULT_NEEDS.criticalHungerThreshold)}
+                onChange={(v) => updateNeeds({ criticalHungerThreshold: v })}
+                min={0}
+                max={100}
+              />
+              <ConfigInput
+                type="number"
+                label="Low Energy"
+                description="Below this threshold, exhaustion warnings begin"
+                value={getValue('needs', 'lowEnergyThreshold', LOCAL_DEFAULT_NEEDS.lowEnergyThreshold)}
+                onChange={(v) => updateNeeds({ lowEnergyThreshold: v })}
+                min={0}
+                max={100}
+              />
+              <ConfigInput
+                type="number"
+                label="Critical Energy"
+                description="Below this threshold, exhaustion damages health"
+                value={getValue('needs', 'criticalEnergyThreshold', LOCAL_DEFAULT_NEEDS.criticalEnergyThreshold)}
+                onChange={(v) => updateNeeds({ criticalEnergyThreshold: v })}
+                min={0}
+                max={100}
+              />
+            </ConfigSection>
+          </>
+        )}
+
         {/* Agent System Prompt Section */}
         {!isLocalMode && (
           <ConfigSection title="Agent System Prompt" icon="🧠" defaultExpanded={false}>
@@ -390,7 +527,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
                 type="number"
                 label="Hunger"
                 description="Initial hunger (0-100). Lower = more starvation pressure"
-                value={getValue('agent', 'startingHunger', 60)}
+                value={getValue('agent', 'startingHunger', LOCAL_DEFAULT_AGENT.startingHunger)}
                 onChange={(v) => updateAgent({ startingHunger: v })}
                 min={0}
                 max={100}
@@ -399,7 +536,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
                 type="number"
                 label="Energy"
                 description="Initial energy (0-100). Affects movement and work capacity"
-                value={getValue('agent', 'startingEnergy', 60)}
+                value={getValue('agent', 'startingEnergy', LOCAL_DEFAULT_AGENT.startingEnergy)}
                 onChange={(v) => updateAgent({ startingEnergy: v })}
                 min={0}
                 max={100}
@@ -717,6 +854,34 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
         </div>
       ) : (
         <div className="px-4 py-3 border-t border-gray-700 bg-gray-800 text-xs text-gray-500 space-y-1">
+          {(localAppliedSections.length > 0 || localIgnoredSections.length > 0) && (
+            <div className="flex items-center justify-between gap-3 pb-2 mb-2 border-b border-gray-700/60">
+              <div className="min-w-0">
+                {localAppliedSections.length > 0 && (
+                  <>
+                    <div className="text-gray-300">Local overrides</div>
+                    <div className="truncate text-gray-500">
+                      {formatSections(localAppliedSections)}
+                    </div>
+                  </>
+                )}
+                {localIgnoredSections.length > 0 && (
+                  <div className={localAppliedSections.length > 0 ? 'mt-1' : undefined}>
+                    <div className="text-yellow-300">Remote overrides ignored</div>
+                    <div className="truncate text-gray-500">
+                      {formatSections(localIgnoredSections)}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={discardChanges}
+                className="shrink-0 px-2 py-1 text-xs bg-gray-700 text-gray-200 rounded hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
+              >
+                Reset
+              </button>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-3">
             <span>Local persistence</span>
             <span className={persistenceInfo.warning ? 'text-yellow-300' : 'text-gray-400'}>
@@ -740,6 +905,14 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
       )}
     </div>
   );
+}
+
+function isLocalAppliedConfigSection(section: string): boolean {
+  return section === 'agent' || section === 'needs';
+}
+
+function formatSections(sections: string[]): string {
+  return sections.length === 0 ? 'none' : sections.join(', ');
 }
 
 function formatPersistenceStatus(info: PersistenceInfo): string {

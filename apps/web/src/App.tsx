@@ -13,7 +13,7 @@ import { useEffect, useCallback, useRef, useState } from 'react';
 import { useSSE } from './hooks/useSSE';
 import { useEngine } from './hooks/useEngine';
 import { useWorldStore, useAgents, useEvents } from './stores/world';
-import { useEditorStore, useAppMode, useIsAnalyticsMode, useIsReplayMode, useIsPromptsMode, useIsPuzzlesMode, useIsPaused, useViewMode } from './stores/editor';
+import { useEditorStore, useAppMode, useIsAnalyticsMode, useIsReplayMode, useIsPromptsMode, useIsPuzzlesMode, useIsPaused, useViewMode, type AppMode } from './stores/editor';
 import { useWorldControl } from './hooks/useWorldControl';
 import { isLocalEngineMode } from './utils/env';
 import { Layout } from './components/Layout';
@@ -42,6 +42,13 @@ import {
   saveImportedWorld,
 } from './services/persistence';
 import { getEngineClient } from './engine-host/engine-client';
+
+const REMOTE_ONLY_MODES = new Set<AppMode>(['analytics', 'replay', 'puzzles']);
+
+function isRemoteOnlyMode(mode: AppMode): boolean {
+  return REMOTE_ONLY_MODES.has(mode);
+}
+
 export default function App() {
   const remoteConnection = useSSE();
   const localConnection = useEngine();
@@ -70,10 +77,10 @@ export default function App() {
   const events = useEvents();
   const aliveAgents = agents.filter(a => a.health > 0);
 
-  // World control hook for BE API
+  // World control hook: browser worker in local mode, backend API in remote mode.
   const { fetchState, start, pause, resume, reset, fetchRecentEvents } = useWorldControl();
 
-  // Sync with backend on mount (restore running simulation)
+  // Remote-only backend sync on mount (restore running server simulation).
   useEffect(() => {
     if (isLocalMode) {
       setHasSynced(true);
@@ -124,14 +131,13 @@ export default function App() {
 
   useEffect(() => {
     if (!isLocalMode) return;
-    if (mode === 'analytics' || mode === 'replay' || mode === 'puzzles') {
+    if (isRemoteOnlyMode(mode)) {
       setMode(agents.length > 0 ? 'simulation' : 'editor');
     }
   }, [isLocalMode, mode, agents.length, setMode]);
 
-  // Handle start simulation - scientific mode (no city layout needed)
+  // Handle start simulation - local worker or remote backend depending on mode.
   const handleStartSimulation = useCallback(async (resumeSavedWorld = false) => {
-    // Call backend to start simulation (spawns resources, shelters, agents automatically)
     const result = await start({ resumeSavedWorld });
     if (!result.success) {
       alert(result.error || 'Failed to start simulation. Is the server running?');

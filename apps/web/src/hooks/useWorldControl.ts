@@ -16,6 +16,17 @@ import { isLocalEngineMode } from '../utils/env';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+function hasValues(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && Object.keys(value).length > 0;
+}
+
+function localRuntimeOverrides(pendingChanges: Record<string, unknown>): Record<string, unknown> {
+  const overrides: Record<string, unknown> = {};
+  if (hasValues(pendingChanges.agent)) overrides.agent = pendingChanges.agent;
+  if (hasValues(pendingChanges.needs)) overrides.needs = pendingChanges.needs;
+  return overrides;
+}
+
 export interface AgentState {
   id: string;
   name?: string;
@@ -118,7 +129,8 @@ export function useWorldControl() {
         const roster = useRosterStore.getState().roster;
         const keys = useApiKeysStore.getState().getActiveKeys();
         const proxyUrl = useSettingsStore.getState().proxyUrl.trim();
-        const pendingChanges = useConfigStore.getState().pendingChanges;
+        const pendingChanges = useConfigStore.getState().pendingChanges as Record<string, unknown>;
+        const configOverrides = localRuntimeOverrides(pendingChanges);
         const client = getEngineClient();
         const saved = options.resumeSavedWorld ? loadSavedWorld() : undefined;
         if (!saved) {
@@ -130,7 +142,7 @@ export function useWorldControl() {
           proxyUrl: proxyUrl || undefined,
           speed: saved?.snapshot.speed ?? 10,
           worldSeed: saved?.snapshot.worldSeed ?? `browser-${Date.now()}`,
-          configOverrides: pendingChanges as Record<string, unknown>,
+          configOverrides,
           resume: saved?.snapshot,
         });
         await client.start();
