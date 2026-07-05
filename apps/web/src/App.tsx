@@ -43,7 +43,7 @@ import {
 } from './services/persistence';
 import { getEngineClient } from './engine-host/engine-client';
 
-const REMOTE_ONLY_MODES = new Set<AppMode>(['analytics', 'replay', 'puzzles']);
+const REMOTE_ONLY_MODES = new Set<AppMode>(['replay', 'puzzles']);
 
 function isRemoteOnlyMode(mode: AppMode): boolean {
   return REMOTE_ONLY_MODES.has(mode);
@@ -377,7 +377,7 @@ export default function App() {
   );
 
   // Analytics mode - render full-screen analytics page with error boundary
-  if (isAnalyticsMode && !isLocalMode) {
+  if (isAnalyticsMode) {
     return (
       <ErrorBoundary sectionName="Analytics" onError={handleError}>
         <AnalyticsPage />

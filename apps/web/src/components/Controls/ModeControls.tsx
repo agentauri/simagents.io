@@ -154,19 +154,17 @@ export function ModeControls({ onStartSimulation, onReset, onPause, onResume, on
       </button>
 
       {/* Analytics button - icon only on mobile */}
-      {!isLocalMode && (
-        <button
-          type="button"
-          onClick={() => setMode('analytics')}
-          className="px-2 py-1.5 sm:px-3 bg-city-accent/20 hover:bg-city-accent/30 text-city-accent text-[11px] sm:text-xs font-medium rounded border border-city-accent/30 flex items-center gap-1"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sm:w-3 sm:h-3">
-            <path d="M3 3v18h18" />
-            <path d="m19 9-5 5-4-4-3 3" />
-          </svg>
-          <span className="hidden sm:inline">Analytics</span>
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => setMode('analytics')}
+        className="px-2 py-1.5 sm:px-3 bg-city-accent/20 hover:bg-city-accent/30 text-city-accent text-[11px] sm:text-xs font-medium rounded border border-city-accent/30 flex items-center gap-1"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sm:w-3 sm:h-3">
+          <path d="M3 3v18h18" />
+          <path d="m19 9-5 5-4-4-3 3" />
+        </svg>
+        <span className="hidden sm:inline">Analytics</span>
+      </button>
 
       {/* Replay button - icon only on mobile */}
       {!isLocalMode && (
