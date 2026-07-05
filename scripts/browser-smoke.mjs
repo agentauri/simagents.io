@@ -143,6 +143,34 @@ async function snapshot(page) {
   return page.evaluate(() => JSON.parse(localStorage.getItem('simagents_world_snapshot') ?? 'null'));
 }
 
+async function verifyLocalAnalytics(page) {
+  await page.getByRole('button', { name: /Analytics/ }).click();
+  await page.waitForFunction(() => document.body.innerText.includes('Analytics Dashboard'));
+  await page.waitForFunction(() => document.body.innerText.toLowerCase().includes('alive agents by llm'));
+
+  const visible = await page.evaluate(() => {
+    const text = document.body.innerText;
+    const normalizedText = text.toLowerCase();
+    return {
+      dashboard: text.includes('Analytics Dashboard'),
+      survival: text.includes('Survival Metrics'),
+      economy: text.includes('Economy Metrics'),
+      behavior: text.includes('Behavior Metrics'),
+      temporal: text.includes('Temporal Metrics'),
+      aliveByLlm: normalizedText.includes('alive agents by llm'),
+    };
+  });
+  results.push({ step: 'local-analytics', ...visible });
+  assertSmoke(
+    Object.values(visible).every(Boolean),
+    'local analytics dashboard did not render expected metric sections',
+    visible
+  );
+
+  await page.getByRole('button', { name: /Back to City/ }).click();
+  await page.waitForFunction(() => document.body.innerText.includes('Paused'));
+}
+
 async function runBaselinePersistence(browser) {
   const context = await createContext(browser, browserInitPayload({ roster: baselineRoster }));
   const page = await openPage(context);
@@ -162,6 +190,7 @@ async function runBaselinePersistence(browser) {
     actual: afterPause.store.agents.length,
   });
   assertSmoke(afterPause.store.events.length > 0, 'baseline start produced no events');
+  await verifyLocalAnalytics(page);
 
   await clickResume(page);
   await page.waitForTimeout(600);
