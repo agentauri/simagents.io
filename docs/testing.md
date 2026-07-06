@@ -20,6 +20,8 @@ Passing state is no output.
 
 ## Browser Smoke
 
+CI runs the browser smoke against a local Vite server. For local reproduction, start a dev server first:
+
 With a dev server running:
 
 ```bash

@@ -117,12 +117,88 @@ jobs:
           retention-days: 7
 
   # ============================================================================
-  # Job 3: CI Summary
+  # Job 3: Browser Smoke
+  # ============================================================================
+  browser-smoke:
+    name: Browser Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: build-web
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock', '**/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: |
+          mkdir -p "$RUNNER_TEMP/playwright"
+          cd "$RUNNER_TEMP/playwright"
+          npm init -y
+          npm install playwright@1.61.1
+          npx playwright install --with-deps chromium
+
+      - name: Start web server
+        run: |
+          cd apps/web
+          bun run dev -- --host 127.0.0.1 --port 5175 > "$RUNNER_TEMP/simagents-vite.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/simagents-vite.pid"
+
+      - name: Wait for web server
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:5175/ >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/simagents-vite.log"
+          exit 1
+
+      - name: Run browser smoke
+        env:
+          PLAYWRIGHT_MODULE_DIR: ${{ runner.temp }}/playwright/node_modules/playwright
+          SIMAGENTS_SMOKE_URL: http://127.0.0.1:5175/
+        run: node scripts/browser-smoke.mjs
+
+      - name: Stop web server
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/simagents-vite.pid" ]; then
+            kill "$(cat "$RUNNER_TEMP/simagents-vite.pid")" || true
+          fi
+
+  # ============================================================================
+  # Job 4: CI Summary
   # ============================================================================
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
-    needs: [lint-typecheck, build-web]
+    needs: [lint-typecheck, build-web, browser-smoke]
     if: always()
 
     steps:
@@ -134,11 +210,13 @@ jobs:
           echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Lint & Typecheck | ${{ needs.lint-typecheck.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build Web | ${{ needs.build-web.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Browser Smoke | ${{ needs.browser-smoke.result }} |" >> $GITHUB_STEP_SUMMARY
 
       - name: Fail if any job failed
         if: |
           needs.lint-typecheck.result == 'failure' ||
-          needs.build-web.result == 'failure'
+          needs.build-web.result == 'failure' ||
+          needs.browser-smoke.result == 'failure'
         run: |
           echo "One or more CI jobs failed"
           exit 1
