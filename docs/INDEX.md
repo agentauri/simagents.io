@@ -17,17 +17,20 @@ Central navigation for the browser-only Sim Agents app.
 
 ## Research And Historical Notes
 
+These files are retained for context. They may describe older backend/API plans and should not be used as the current product architecture unless they explicitly point back to the browser-only docs above.
+
 | Document | Description |
 |----------|-------------|
 | [Metric Specification](metric-specification.md) | Metric tiers and formulas |
 | [Research Bundles](research-bundles.md) | Browser-export review bundle structure |
 | [Literature Validation Plan](literature-validation-plan.md) | Replication-first caution for claims |
 | [Scientific Remediation Checklist](scientific-remediation-checklist.md) | Current hardening checklist |
-| [PRD](PRD.md) | Historical full-platform product requirements |
+| [PRD](PRD.md) | Legacy full-platform product requirements, superseded by Backend Zero for implementation |
+| [Stack Rationale](appendix/stack-rationale.md) | Legacy backend stack rationale, retained as historical context |
 
 ## Assistant Context
 
 - [CLAUDE.md](../CLAUDE.md)
 - [ROADMAP](../ROADMAP.md)
 
-*Last updated: July 5, 2026*
+*Last updated: July 6, 2026*

@@ -1,5 +1,9 @@
 # Sim Agents - Product Requirements Document (PRD)
 
+> **Legacy document**: This PRD captures the earlier full-platform/server design. The current product implementation is browser-only and localStorage-only. For implementation work, treat [Backend Zero Architecture](browser-mode-plan.md), [Testing Matrix](testing.md), and current source code as authoritative.
+>
+> Sections below may mention REST APIs, auth, tenancy, Postgres, Redis, queues, server routes, or remote integrations. Those references are historical unless explicitly reintroduced by a new browser-only plan.
+
 > **Version**: 1.7.0
 > **Status**: Phases 0-8 Complete
 > **Last Updated**: April 2026
