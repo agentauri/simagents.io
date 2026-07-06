@@ -1,6 +1,8 @@
 # Stack Rationale - Appendix
 
 > Technical reasoning behind Sim Agents architectural decisions
+>
+> **Legacy document**: This appendix describes the earlier backend/server stack rationale. The current SimAgents product is a browser-only SPA using `apps/web`, a Web Worker, `packages/engine`, localStorage persistence, and export files. Backend stack references below are retained for historical context only.
 
 ## Table of Contents
 
