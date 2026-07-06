@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { SimEngineState } from '@server/engine/engine';
+import type { SimEngineState } from '@simagents/engine/engine/engine';
 import { getEngineClient } from '../engine-host/engine-client';
 import { startPersistenceSync } from '../services/persistence';
+import { startReplayFramePersistence } from '../services/replayFrames';
 import { processWorldEvent } from '../services/process-event';
 import { useAgentStatsStore } from '../stores/agentStats';
 import { useWorldStore, type Agent, type ResourceSpawn, type Shelter } from '../stores/world';
 import { playSound } from './useAudio';
-import type { ConnectionStatus } from './useSSE';
+
+export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
 function mapEngineState(state: SimEngineState): {
   tick: number;
@@ -61,6 +63,7 @@ export function useEngine() {
   useEffect(() => {
     const client = getEngineClient();
     const stopPersistence = startPersistenceSync(client);
+    const stopReplayPersistence = startReplayFramePersistence();
     const unsubscribeStatus = client.onStatus((nextStatus) => setStatus(nextStatus));
     const unsubscribeEvent = client.onEvent((event) => {
       processWorldEvent(event, {
@@ -82,6 +85,7 @@ export function useEngine() {
       unsubscribeEvent();
       unsubscribeState();
       stopPersistence();
+      stopReplayPersistence();
     };
   }, [addEvent, addBubble, setTick, updateAgent, updateWorldState, recordDecisionEvent]);
 

@@ -1,0 +1,36 @@
+{
+  "name": "@simagents/engine",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./actions": "./src/actions/index.ts",
+    "./config": "./src/config/index.ts",
+    "./engine": "./src/engine/engine.ts",
+    "./engine/*": "./src/engine/*.ts",
+    "./engine/llm/*": "./src/engine/llm/*.ts",
+    "./engine-memory/*": "./src/engine-memory/*.ts",
+    "./engine-memory/queries/*": "./src/engine-memory/queries/*.ts",
+    "./llm/*": "./src/llm/*.ts",
+    "./world/*": "./src/world/*.ts",
+    "./db/schema": "./src/db/schema.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test src/__tests__"
+  },
+  "dependencies": {
+    "@simagents/shared": "workspace:*",
+    "seedrandom": "^3.0.5",
+    "uuid": "^13.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/seedrandom": "^3.0.8",
+    "typescript": "^5.7.2"
+  }
+}

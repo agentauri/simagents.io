@@ -6,6 +6,8 @@
  */
 
 import { create } from 'zustand';
+import { CONFIG } from '@simagents/engine/config';
+import { getEngineClient } from '../engine-host/engine-client';
 
 // =============================================================================
 // Types
@@ -288,145 +290,150 @@ function savePendingToStorage(pending: Partial<ConfigResponse>): void {
   }
 }
 
-// =============================================================================
-// API Functions
-// =============================================================================
+const RUNTIME_MODIFIABLE = [
+  'agent.startingBalance',
+  'agent.startingHunger',
+  'agent.startingEnergy',
+  'agent.startingHealth',
+  'needs.hungerDecay',
+  'needs.energyDecay',
+  'needs.lowHungerThreshold',
+  'needs.criticalHungerThreshold',
+  'needs.lowEnergyThreshold',
+  'needs.criticalEnergyThreshold',
+  'experiment.enablePersonalities',
+  'experiment.useEmergentPrompt',
+  'experiment.safetyLevel',
+  'experiment.normalizeCapabilities',
+  'experiment.useSyntheticVocabulary',
+  'actions.move.energyCost',
+  'actions.move.hungerCost',
+  'actions.gather.energyCostPerUnit',
+  'actions.gather.maxPerAction',
+  'actions.work.basePayPerTick',
+  'actions.work.energyCostPerTick',
+  'actions.sleep.energyRestoredPerTick',
+  'economy.currencyDecayRate',
+  'economy.currencyDecayInterval',
+  'economy.currencyDecayThreshold',
+] as const;
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
-
-// Admin API key for config modifications (default for development)
-const ADMIN_API_KEY = import.meta.env.VITE_ADMIN_API_KEY || 'admin_secret_key_change_me';
-
-async function fetchConfigFromAPI(): Promise<{
-  config: ConfigResponse;
-  runtimeModifiable: string[];
-}> {
-  const response = await fetch(`${API_BASE}/api/config`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch config: ${response.statusText}`);
-  }
-  return response.json();
-}
-
-async function updateConfigAPI(
-  updates: Partial<ConfigResponse>
-): Promise<{
-  success: boolean;
-  config: ConfigResponse;
-  appliedImmediately: string[];
-  requiresRestart: string[];
-}> {
-  const response = await fetch(`${API_BASE}/api/config`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Admin-Key': ADMIN_API_KEY,
+function buildDefaultConfig(): ConfigResponse {
+  return {
+    simulation: {
+      tickIntervalMs: CONFIG.simulation.tickIntervalMs,
+      gridSize: CONFIG.simulation.gridSize,
+      visibilityRadius: CONFIG.simulation.visibilityRadius,
+      testMode: CONFIG.simulation.testMode,
+      randomSeed: CONFIG.simulation.randomSeed,
+      maxTicks: CONFIG.simulation.maxTicks,
     },
-    body: JSON.stringify(updates),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to update config: ${response.statusText}`);
-  }
-  return response.json();
-}
-
-async function resetConfigAPI(): Promise<{ success: boolean; config: ConfigResponse }> {
-  const response = await fetch(`${API_BASE}/api/config/reset`, {
-    method: 'POST',
-    headers: {
-      'X-Admin-Key': ADMIN_API_KEY,
+    agent: { ...CONFIG.agent },
+    needs: { ...CONFIG.needs },
+    experiment: {
+      enablePersonalities: CONFIG.experiment.enablePersonalities,
+      useEmergentPrompt: CONFIG.experiment.useEmergentPrompt,
+      safetyLevel: CONFIG.experiment.safetyLevel,
+      includeBaselineAgents: CONFIG.experiment.includeBaselineAgents,
+      normalizeCapabilities: CONFIG.experiment.normalizeCapabilities,
+      useSyntheticVocabulary: CONFIG.experiment.useSyntheticVocabulary,
     },
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to reset config: ${response.statusText}`);
-  }
-  return response.json();
-}
-
-async function fetchGenesisConfigAPI(): Promise<GenesisConfig> {
-  const response = await fetch(`${API_BASE}/api/config/genesis`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch genesis config: ${response.statusText}`);
-  }
-  return response.json();
-}
-
-async function saveGenesisConfigAPI(
-  config: GenesisConfig
-): Promise<{ success: boolean; requiresRestart: boolean }> {
-  const response = await fetch(`${API_BASE}/api/config/genesis`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Admin-Key': ADMIN_API_KEY,
+    llmCache: { ...CONFIG.llm.cache },
+    actions: {
+      move: { ...CONFIG.actions.move },
+      gather: { ...CONFIG.actions.gather },
+      work: { ...CONFIG.actions.work },
+      sleep: { ...CONFIG.actions.sleep },
     },
-    body: JSON.stringify(config),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to save genesis config: ${response.statusText}`);
-  }
-  return response.json();
-}
-
-async function fetchPersonalityConfigAPI(): Promise<PersonalityConfig> {
-  const response = await fetch(`${API_BASE}/api/config/personalities`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch personality config: ${response.statusText}`);
-  }
-  return response.json();
-}
-
-async function savePersonalityConfigAPI(
-  config: Partial<PersonalityConfig>
-): Promise<{ success: boolean; weights: Record<PersonalityTrait, number>; requiresRestart: boolean }> {
-  const response = await fetch(`${API_BASE}/api/config/personalities`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Admin-Key': ADMIN_API_KEY,
+    economy: { ...CONFIG.economy },
+    cooperation: {
+      enabled: CONFIG.cooperation.enabled,
+      gather: { ...CONFIG.cooperation.gather },
+      groupGather: { ...CONFIG.cooperation.groupGather },
+      forage: { ...CONFIG.cooperation.forage },
+      buy: { ...CONFIG.cooperation.buy },
+      solo: {
+        gatherEfficiencyModifier: CONFIG.cooperation.solo.gatherEfficiencyModifier,
+      },
     },
-    body: JSON.stringify(config),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to save personality config: ${response.statusText}`);
-  }
-  return response.json();
+    spoilage: {
+      enabled: CONFIG.spoilage.enabled,
+      rates: { ...CONFIG.spoilage.rates } as SpoilageConfig['rates'],
+      removalThreshold: CONFIG.spoilage.removalThreshold,
+    },
+  };
 }
 
-async function resetPersonalityWeightsAPI(): Promise<{ success: boolean; weights: Record<PersonalityTrait, number> }> {
-  const response = await fetch(`${API_BASE}/api/config/personalities/reset`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Admin-Key': ADMIN_API_KEY,
+function mergeConfig(base: ConfigResponse, overrides: Partial<ConfigResponse>): ConfigResponse {
+  return {
+    ...base,
+    ...overrides,
+    simulation: { ...base.simulation, ...overrides.simulation },
+    agent: { ...base.agent, ...overrides.agent },
+    needs: { ...base.needs, ...overrides.needs },
+    experiment: { ...base.experiment, ...overrides.experiment },
+    llmCache: { ...base.llmCache, ...overrides.llmCache },
+    actions: {
+      ...base.actions,
+      ...overrides.actions,
+      move: { ...base.actions.move, ...overrides.actions?.move },
+      gather: { ...base.actions.gather, ...overrides.actions?.gather },
+      work: { ...base.actions.work, ...overrides.actions?.work },
+      sleep: { ...base.actions.sleep, ...overrides.actions?.sleep },
     },
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to reset personality weights: ${response.statusText}`);
-  }
-  return response.json();
+    economy: { ...base.economy, ...overrides.economy },
+    cooperation: {
+      ...base.cooperation,
+      ...overrides.cooperation,
+      gather: { ...base.cooperation.gather, ...overrides.cooperation?.gather },
+      groupGather: { ...base.cooperation.groupGather, ...overrides.cooperation?.groupGather },
+      forage: { ...base.cooperation.forage, ...overrides.cooperation?.forage },
+      buy: { ...base.cooperation.buy, ...overrides.cooperation?.buy },
+      solo: { ...base.cooperation.solo, ...overrides.cooperation?.solo },
+    },
+    spoilage: {
+      ...base.spoilage,
+      ...overrides.spoilage,
+      rates: { ...base.spoilage.rates, ...overrides.spoilage?.rates },
+    },
+  };
+}
+
+function loadEffectiveConfig(): { config: ConfigResponse; pendingChanges: Partial<ConfigResponse> } {
+  const pendingChanges = loadPendingFromStorage();
+  return {
+    config: mergeConfig(buildDefaultConfig(), pendingChanges),
+    pendingChanges,
+  };
 }
 
 // =============================================================================
 // Store
 // =============================================================================
 
+const initialEffectiveConfig = loadEffectiveConfig();
+
 export const useConfigStore = create<ConfigState>((set, get) => ({
   // Initial state
-  config: null,
+  config: initialEffectiveConfig.config,
   isLoading: false,
   error: null,
-  pendingChanges: loadPendingFromStorage(),
+  pendingChanges: initialEffectiveConfig.pendingChanges,
   runtimeModifiable: [],
   genesisConfig: loadGenesisFromStorage(),
   personalityConfig: loadPersonalityFromStorage(),
 
-  // Fetch configuration from backend
+  // Fetch configuration from local defaults plus localStorage overrides
   fetchConfig: async () => {
     set({ isLoading: true, error: null });
     try {
-      const { config, runtimeModifiable } = await fetchConfigFromAPI();
-      set({ config, runtimeModifiable, isLoading: false });
+      const effectiveConfig = loadEffectiveConfig();
+      set({
+        config: effectiveConfig.config,
+        pendingChanges: effectiveConfig.pendingChanges,
+        runtimeModifiable: [...RUNTIME_MODIFIABLE],
+        isLoading: false,
+      });
     } catch (e) {
       const error = e instanceof Error ? e.message : 'Failed to fetch config';
       set({ error, isLoading: false });
@@ -469,28 +476,15 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 
   fetchGenesisConfig: async () => {
     set({ isLoading: true, error: null });
-    try {
-      const genesisConfig = await fetchGenesisConfigAPI();
-      set({ genesisConfig, isLoading: false });
-      saveGenesisToStorage(genesisConfig);
-    } catch (e) {
-      // If backend doesn't have genesis endpoint yet, use local storage
-      console.warn('[ConfigStore] Genesis fetch failed, using local:', e);
-      set({ isLoading: false });
-    }
+    const genesisConfig = loadGenesisFromStorage();
+    set({ genesisConfig, isLoading: false });
   },
 
   saveGenesisConfig: async () => {
     const { genesisConfig } = get();
     set({ isLoading: true, error: null });
-    try {
-      await saveGenesisConfigAPI(genesisConfig);
-      set({ isLoading: false });
-    } catch (e) {
-      const error = e instanceof Error ? e.message : 'Failed to save genesis config';
-      set({ error, isLoading: false });
-      console.error('[ConfigStore] Genesis save error:', e);
-    }
+    saveGenesisToStorage(genesisConfig);
+    set({ isLoading: false });
   },
 
   // Personality configuration
@@ -521,51 +515,25 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 
   fetchPersonalityConfig: async () => {
     set({ isLoading: true, error: null });
-    try {
-      const personalityConfig = await fetchPersonalityConfigAPI();
-      set({ personalityConfig, isLoading: false });
-      savePersonalityToStorage(personalityConfig);
-    } catch (e) {
-      // If backend doesn't have personality endpoint yet, use local storage
-      console.warn('[ConfigStore] Personality fetch failed, using local:', e);
-      set({ isLoading: false });
-    }
+    const personalityConfig = loadPersonalityFromStorage();
+    set({ personalityConfig, isLoading: false });
   },
 
   savePersonalityConfig: async () => {
     const { personalityConfig } = get();
     set({ isLoading: true, error: null });
-    try {
-      const result = await savePersonalityConfigAPI({
-        weights: personalityConfig.weights,
-        enabled: personalityConfig.enabled,
-      });
-      set({
-        personalityConfig: { ...personalityConfig, weights: result.weights },
-        isLoading: false
-      });
-    } catch (e) {
-      const error = e instanceof Error ? e.message : 'Failed to save personality config';
-      set({ error, isLoading: false });
-      console.error('[ConfigStore] Personality save error:', e);
-    }
+    savePersonalityToStorage(personalityConfig);
+    set({ isLoading: false });
   },
 
   resetPersonalityWeights: async () => {
     set({ isLoading: true, error: null });
-    try {
-      const result = await resetPersonalityWeightsAPI();
-      const newConfig = { ...get().personalityConfig, weights: result.weights };
-      set({ personalityConfig: newConfig, isLoading: false });
-      savePersonalityToStorage(newConfig);
-    } catch (e) {
-      const error = e instanceof Error ? e.message : 'Failed to reset personality weights';
-      set({ error, isLoading: false });
-      console.error('[ConfigStore] Personality reset error:', e);
-    }
+    const newConfig = { ...get().personalityConfig, weights: DEFAULT_PERSONALITY_CONFIG.weights };
+    set({ personalityConfig: newConfig, isLoading: false });
+    savePersonalityToStorage(newConfig);
   },
 
-  // Apply pending changes to backend
+  // Apply pending changes to the local worker runtime
   applyChanges: async () => {
     const { pendingChanges } = get();
     if (Object.keys(pendingChanges).length === 0) {
@@ -574,16 +542,17 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const result = await updateConfigAPI(pendingChanges);
+      await getEngineClient().setRuntimeConfig(pendingChanges as Record<string, unknown>);
+      const config = mergeConfig(buildDefaultConfig(), pendingChanges);
       set({
-        config: result.config,
+        config,
         pendingChanges: {},
         isLoading: false,
       });
       savePendingToStorage({});
       return {
-        appliedImmediately: result.appliedImmediately,
-        requiresRestart: result.requiresRestart,
+        appliedImmediately: Object.keys(pendingChanges),
+        requiresRestart: [],
       };
     } catch (e) {
       const error = e instanceof Error ? e.message : 'Failed to update config';
@@ -596,25 +565,21 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
   // Reset to defaults
   resetConfig: async () => {
     set({ isLoading: true, error: null });
-    try {
-      const result = await resetConfigAPI();
-      set({
-        config: result.config,
-        pendingChanges: {},
-        isLoading: false,
-      });
-      savePendingToStorage({});
-    } catch (e) {
-      const error = e instanceof Error ? e.message : 'Failed to reset config';
-      set({ error, isLoading: false });
-      console.error('[ConfigStore] Reset error:', e);
-    }
+    set({
+      config: buildDefaultConfig(),
+      pendingChanges: {},
+      isLoading: false,
+    });
+    savePendingToStorage({});
   },
 
   // Discard pending changes
   discardChanges: () => {
-    set({ pendingChanges: {} });
     savePendingToStorage({});
+    set({
+      config: buildDefaultConfig(),
+      pendingChanges: {},
+    });
   },
 
   // Check if there are pending changes

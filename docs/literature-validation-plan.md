@@ -1,63 +1,27 @@
 # Literature Validation Plan
 
-SimAgents should validate novel claims only after reproducing at least one classic artificial-society result in `canonical_core` or in a controlled derivative of it.
+The browser-only app is suitable for exploratory replication work, but strong literature-aligned claims still require careful controls.
 
-## First Target
+## Current Posture
 
-Replicate a Sugarscape-style baseline using `apps/server/experiments/sugarscape-replication.yaml`:
+- Browser runs can demonstrate mechanics and produce exportable traces.
+- Single runs are not enough for inferential claims.
+- Claims should name the exact imposed mechanics active during the run.
+- Exported artifacts should include world JSON plus experiment JSON/CSV summaries.
 
-- local resource gradients drive movement toward richer cells
-- inequality rises under asymmetric resource access
-- survival is sensitive to scarcity shocks
+## Minimal Validation Steps
 
-## Experiment Design
+1. Lock seed, roster, prompt, and runtime config.
+2. Run matched baseline and treatment conditions.
+3. Export world and experiment artifacts after each run.
+4. Fill out a claim-review template.
+5. Separate descriptive observations from inferential claims.
 
-The replication uses two conditions (variants):
+## Acceptance Criteria For Stronger Claims
 
-| Condition | Agents | Purpose |
-|-----------|--------|---------|
-| `control` | 2x baseline_random + 2x baseline_rule | Null-hypothesis baseline |
-| `sugarscape_treatment` | 2x baseline_random + 2x baseline_rule + 2x baseline_sugarscape | Treatment with Sugarscape agent |
-
-Both conditions run under `deterministic_baseline` profile with `canonical_core` benchmark world, ensuring all cooperation incentives, spoilage, puzzles, and personalities are disabled.
-
-## Minimum Acceptance Criteria
-
-- Run the benchmark with `deterministic_baseline` profile and fixed seed schedule.
-- Export a full research bundle for every run.
-- Show that repeated runs with identical seed produce identical event and final-state hashes.
-- Compare at least 10 seeds for each condition before claiming any effect.
-- Report Gini, survival, cooperation index, trade count, and conflict count with effect size and corrected p-values.
-
-## Validation Script
-
-Run the automated validation:
-
-```bash
-(cd apps/server && bun run src/scripts/validate-sugarscape.ts)
-```
-
-Options:
-- `--runs N` -- runs per condition (default: 2)
-- `--seeds N` -- number of seeds for reproducibility check (default: 10)
-- `--verbose` / `-v` -- detailed output
-
-## Canonical Inputs
-
-- Benchmark config: `apps/server/experiments/canonical-core-benchmark.yaml`
-- Sugarscape config: `apps/server/experiments/sugarscape-replication.yaml`
-- Validation script: `apps/server/src/scripts/validate-sugarscape.ts`
-- Study template: `docs/templates/study-template.md`
-- Claim review gate: `docs/templates/claim-review-template.md`
-
-## Current Status
-
-- [x] YAML config with 2 conditions (control vs treatment)
-- [x] Validation script created
-- [x] Claim class enforcement in runner
-- [ ] Full validation run with 10+ seeds completed
-- [ ] Results reviewed and documented
-
-## Publication Rule
-
-If the acceptance criteria above are not met, results must be labeled exploratory rather than validated. Until the Sugarscape path is replicated across repeated seed schedules with matching bundle hashes, it remains a partial literature-validation baseline rather than a validated replication.
+- multiple replicated runs
+- predeclared hypothesis and metric
+- matched baseline condition
+- documented exclusions and failures
+- artifact bundle with stable files
+- independent review of metric interpretation

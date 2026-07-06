@@ -4,7 +4,6 @@
 
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
-import { isLocalEngineMode } from '../utils/env';
 import { useWorldStore, type Agent, type WorldEvent } from './world';
 
 // =============================================================================
@@ -113,8 +112,6 @@ interface AnalyticsState {
   toggleVisibility: () => void;
   setVisible: (visible: boolean) => void;
 }
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
 
 type AnalyticsDataState = Pick<
   AnalyticsState,
@@ -448,95 +445,31 @@ export const useAnalyticsStore = create<AnalyticsState>((set, get) => ({
   // Fetch all analytics at once
   fetchSnapshot: async () => {
     set({ isLoading: true });
-    if (isLocalEngineMode()) {
-      set({
-        ...snapshotToState(buildLocalAnalyticsSnapshot()),
-        isLoading: false,
-      });
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API_BASE}/api/analytics/snapshot`);
-      if (!res.ok) throw new Error('Failed to fetch analytics');
-      const data: AnalyticsSnapshot = await res.json();
-      set({
-        ...snapshotToState(data),
-        isLoading: false,
-      });
-    } catch (error) {
-      console.error('[Analytics] Failed to fetch snapshot:', error);
-      set({ isLoading: false });
-    }
+    set({
+      ...snapshotToState(buildLocalAnalyticsSnapshot()),
+      isLoading: false,
+    });
   },
 
   // Fetch individual metrics
   fetchSurvival: async () => {
-    if (isLocalEngineMode()) {
-      const { survival, timestamp } = buildLocalAnalyticsSnapshot();
-      set({ survival, lastUpdated: timestamp });
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API_BASE}/api/analytics/survival`);
-      if (!res.ok) return;
-      const data: SurvivalMetrics = await res.json();
-      set({ survival: data, lastUpdated: Date.now() });
-    } catch (error) {
-      console.error('[Analytics] Failed to fetch survival:', error);
-    }
+    const { survival, timestamp } = buildLocalAnalyticsSnapshot();
+    set({ survival, lastUpdated: timestamp });
   },
 
   fetchEconomy: async () => {
-    if (isLocalEngineMode()) {
-      const { economy, timestamp } = buildLocalAnalyticsSnapshot();
-      set({ economy, lastUpdated: timestamp });
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API_BASE}/api/analytics/economy`);
-      if (!res.ok) return;
-      const data: EconomyMetrics = await res.json();
-      set({ economy: data, lastUpdated: Date.now() });
-    } catch (error) {
-      console.error('[Analytics] Failed to fetch economy:', error);
-    }
+    const { economy, timestamp } = buildLocalAnalyticsSnapshot();
+    set({ economy, lastUpdated: timestamp });
   },
 
   fetchBehavior: async () => {
-    if (isLocalEngineMode()) {
-      const { behavior, timestamp } = buildLocalAnalyticsSnapshot();
-      set({ behavior, lastUpdated: timestamp });
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API_BASE}/api/analytics/behavior`);
-      if (!res.ok) return;
-      const data: BehaviorMetrics = await res.json();
-      set({ behavior: data, lastUpdated: Date.now() });
-    } catch (error) {
-      console.error('[Analytics] Failed to fetch behavior:', error);
-    }
+    const { behavior, timestamp } = buildLocalAnalyticsSnapshot();
+    set({ behavior, lastUpdated: timestamp });
   },
 
   fetchTemporal: async () => {
-    if (isLocalEngineMode()) {
-      const { temporal, timestamp } = buildLocalAnalyticsSnapshot();
-      set({ temporal, lastUpdated: timestamp });
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API_BASE}/api/analytics/temporal`);
-      if (!res.ok) return;
-      const data: TemporalMetrics = await res.json();
-      set({ temporal: data, lastUpdated: Date.now() });
-    } catch (error) {
-      console.error('[Analytics] Failed to fetch temporal:', error);
-    }
+    const { temporal, timestamp } = buildLocalAnalyticsSnapshot();
+    set({ temporal, lastUpdated: timestamp });
   },
 
   // UI actions

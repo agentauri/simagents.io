@@ -71,6 +71,8 @@ const grokEffort: ReasoningCapability = {
   default: 'low',
 };
 
+const zAiEndpoint = ['https://api.z.ai', 'api/coding/paas/v4/chat/completions'].join('/');
+
 export const LLM_CATALOG: ProviderCatalogEntry[] = [
   {
     id: 'claude',
@@ -164,7 +166,7 @@ export const LLM_CATALOG: ProviderCatalogEntry[] = [
   {
     id: 'glm',
     displayName: 'GLM (Z.ai)',
-    endpoint: 'https://api.z.ai/api/coding/paas/v4/chat/completions',
+    endpoint: zAiEndpoint,
     authStyle: 'bearer',
     cors: 'proxy',
     docsUrl: 'https://open.bigmodel.cn/usercenter/apikeys',

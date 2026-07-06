@@ -1,5 +1,6 @@
 import type { AgentBubble, Agent, WorldEvent } from '../stores/world';
 import type { SoundType } from '../hooks/useAudio';
+import { recordPromptEvent } from './promptLogs';
 
 export interface ProcessEventDeps {
   processedEventIds: Set<string>;
@@ -27,6 +28,7 @@ export function processWorldEvent(data: WorldEvent, deps: ProcessEventDeps): voi
   }
 
   deps.recordDecisionEvent?.(data);
+  recordPromptEvent(data);
   deps.addEvent(data);
 
   if (data.agentId) {

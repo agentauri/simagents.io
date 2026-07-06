@@ -10,6 +10,9 @@
  */
 
 import { create } from 'zustand';
+import { getDefaultSystemPrompt } from '@simagents/engine/llm/prompt-manager';
+import { useWorldStore, type WorldEvent } from './world';
+import { loadPromptLogs } from '../services/promptLogs';
 
 // =============================================================================
 // Types
@@ -94,17 +97,16 @@ interface PromptInspectorState {
 }
 
 // =============================================================================
-// API Functions
-// =============================================================================
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
-
 async function fetchInspectorStatus(): Promise<InspectorStatus> {
-  const response = await fetch(`${API_BASE}/api/prompt/inspector/status`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch inspector status: ${response.statusText}`);
-  }
-  return response.json();
+  const logs = localPromptLogs();
+  return {
+    enabled: true,
+    hasData: logs.length > 0,
+    config: {
+      maxLogsPerAgent: 100,
+      retentionTicks: 1000,
+    },
+  };
 }
 
 interface TimelineResponse {
@@ -114,15 +116,20 @@ interface TimelineResponse {
 }
 
 async function fetchTimelineAPI(agentId: string, limit = 50): Promise<TimelineSummary[]> {
-  const response = await fetch(`${API_BASE}/api/prompt/inspector/${agentId}/timeline?limit=${limit}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch timeline: ${response.statusText}`);
-  }
-  const result: TimelineResponse = await response.json();
-  if (!result.success) {
-    throw new Error(result.error ?? 'Failed to fetch timeline');
-  }
-  return result.data;
+  return localPromptLogs()
+    .filter((log) => log.agentId === agentId)
+    .slice(0, limit)
+    .map((log) => ({
+      id: log.id,
+      agentId: log.agentId,
+      tick: log.tick,
+      llmType: log.llmType,
+      action: log.decision?.action ?? null,
+      processingTimeMs: log.processingTimeMs,
+      usedFallback: log.usedFallback,
+      usedCache: log.usedCache,
+      createdAt: log.createdAt,
+    }));
 }
 
 interface LogResponse {
@@ -132,27 +139,73 @@ interface LogResponse {
 }
 
 async function fetchLogByTickAPI(agentId: string, tick: number): Promise<PromptLog | null> {
-  const response = await fetch(`${API_BASE}/api/prompt/inspector/${agentId}/tick/${tick}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch log: ${response.statusText}`);
-  }
-  const result: LogResponse = await response.json();
-  if (!result.success) {
-    throw new Error(result.error ?? 'Failed to fetch log');
-  }
-  return result.data;
+  return localPromptLogs().find((log) => log.agentId === agentId && log.tick === tick) ?? null;
 }
 
 async function fetchCurrentLogAPI(agentId: string): Promise<PromptLog | null> {
-  const response = await fetch(`${API_BASE}/api/prompt/inspector/${agentId}/current`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch current log: ${response.statusText}`);
+  return localPromptLogs().find((log) => log.agentId === agentId) ?? null;
+}
+
+function localPromptLogs(): PromptLog[] {
+  const stored = loadPromptLogs();
+  if (stored.length > 0) {
+    return stored.slice().sort((a, b) => b.tick - a.tick || b.id - a.id);
   }
-  const result: LogResponse = await response.json();
-  if (!result.success) {
-    throw new Error(result.error ?? 'Failed to fetch current log');
-  }
-  return result.data;
+
+  const { events, agents } = useWorldStore.getState();
+  const agentById = new Map(agents.map((agent) => [agent.id, agent]));
+  return events
+    .filter(isDecisionEvent)
+    .slice(-500)
+    .reverse()
+    .map((event, index) => {
+      const agent = event.agentId ? agentById.get(event.agentId) : undefined;
+      const action = typeof event.payload.action === 'string'
+        ? event.payload.action
+        : event.type.replace(/^agent_/, '');
+      const reasoning = typeof event.payload.reasoning === 'string'
+        ? event.payload.reasoning
+        : typeof event.payload.error === 'string'
+          ? event.payload.error
+          : undefined;
+      const systemPrompt = getDefaultSystemPrompt(agent?.personality as Parameters<typeof getDefaultSystemPrompt>[0]);
+      const observationPrompt = `Tick ${event.tick}\nAgent ${event.agentId ?? 'unknown'} selected ${action}.`;
+      const fullPrompt = `${systemPrompt}\n\n${observationPrompt}`;
+      return {
+        id: index + 1,
+        agentId: event.agentId ?? 'unknown',
+        tick: event.tick,
+        systemPrompt,
+        observationPrompt,
+        fullPrompt,
+        decision: {
+          action,
+          params: typeof event.payload.params === 'object' && event.payload.params !== null
+            ? event.payload.params as Record<string, unknown>
+            : undefined,
+          reasoning,
+        },
+        rawResponse: null,
+        llmType: agent?.llmType ?? 'unknown',
+        personality: agent?.personality ?? null,
+        promptMode: 'emergent',
+        safetyLevel: 'standard',
+        inputTokens: typeof event.payload.tokens === 'object' && event.payload.tokens !== null
+          ? (event.payload.tokens as { input?: number }).input ?? null
+          : null,
+        outputTokens: typeof event.payload.tokens === 'object' && event.payload.tokens !== null
+          ? (event.payload.tokens as { output?: number }).output ?? null
+          : null,
+        processingTimeMs: typeof event.payload.processingTimeMs === 'number' ? event.payload.processingTimeMs : null,
+        usedFallback: event.payload.usedFallback === true || event.type === 'action_failed',
+        usedCache: false,
+        createdAt: new Date(event.timestamp).toISOString(),
+      } satisfies PromptLog;
+    });
+}
+
+function isDecisionEvent(event: WorldEvent): boolean {
+  return !!event.agentId && (event.type.startsWith('agent_') || event.type === 'action_failed');
 }
 
 // =============================================================================

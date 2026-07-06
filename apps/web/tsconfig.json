@@ -8,8 +8,9 @@
     "types": ["vite/client", "bun-types"],
     "baseUrl": ".",
     "paths": {
-      "@server/*": ["../server/src/*"]
+      "@simagents/engine": ["../../packages/engine/src/index.ts"],
+      "@simagents/engine/*": ["../../packages/engine/src/*"]
     }
   },
-  "include": ["src/**/*", "../server/src/engine/**/*", "../server/src/engine-memory/**/*"]
+  "include": ["src/**/*", "../../packages/engine/src/**/*"]
 }

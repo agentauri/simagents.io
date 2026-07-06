@@ -11,8 +11,7 @@ import {
   type PuzzleStats,
   type PuzzleFilter,
 } from '../stores/puzzles';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+import { getEngineClient } from '../engine-host/engine-client';
 
 // Get stable action references from the store (not reactive, actions don't change)
 const getStoreActions = () => {
@@ -39,18 +38,8 @@ export function usePuzzlesAPI() {
     setError(null);
 
     try {
-      const url = new URL(`${API_BASE}/api/puzzles`);
-      if (filter !== 'all') {
-        url.searchParams.set('status', filter);
-      }
-
-      const response = await fetch(url.toString());
-      if (!response.ok) {
-        throw new Error(`Failed to fetch puzzles: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      setPuzzles(data.puzzles as PuzzleGame[]);
+      const puzzles = await getEngineClient().getPuzzles(filter);
+      setPuzzles(puzzles as PuzzleGame[]);
       setFilter(filter);
     } catch (error) {
       console.error('[usePuzzles] Error fetching puzzles:', error);
@@ -69,15 +58,7 @@ export function usePuzzlesAPI() {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE}/api/puzzles/${puzzleId}`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Puzzle not found');
-        }
-        throw new Error(`Failed to fetch puzzle details: ${response.statusText}`);
-      }
-
-      const data = await response.json();
+      const data = await getEngineClient().getPuzzleDetails(puzzleId);
       setSelectedPuzzle(puzzleId, data as PuzzleDetails);
     } catch (error) {
       console.error('[usePuzzles] Error fetching puzzle details:', error);
@@ -97,15 +78,7 @@ export function usePuzzlesAPI() {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE}/api/puzzles/${puzzleId}/results`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Puzzle not found');
-        }
-        throw new Error(`Failed to fetch puzzle results: ${response.statusText}`);
-      }
-
-      const data = await response.json();
+      const data = await getEngineClient().getPuzzleResults(puzzleId);
       setSelectedPuzzleResults(data as PuzzleResults);
     } catch (error) {
       console.error('[usePuzzles] Error fetching puzzle results:', error);
@@ -121,12 +94,7 @@ export function usePuzzlesAPI() {
   const fetchStats = useCallback(async () => {
     const { setStats } = getStoreActions();
     try {
-      const response = await fetch(`${API_BASE}/api/puzzles/stats`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch stats: ${response.statusText}`);
-      }
-
-      const data = await response.json();
+      const data = await getEngineClient().getPuzzleStats();
       setStats(data as PuzzleStats);
     } catch (error) {
       console.error('[usePuzzles] Error fetching stats:', error);

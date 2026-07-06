@@ -6,7 +6,6 @@ const sidebars: SidebarsConfig = {
     'why-simagents',
     'getting-started',
     'research-guide',
-    'api-reference',
   ],
 };
 

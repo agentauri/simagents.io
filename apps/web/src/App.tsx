@@ -10,12 +10,10 @@
  */
 
 import { useEffect, useCallback, useRef, useState } from 'react';
-import { useSSE } from './hooks/useSSE';
 import { useEngine } from './hooks/useEngine';
 import { useWorldStore, useAgents, useEvents } from './stores/world';
 import { useEditorStore, useAppMode, useIsAnalyticsMode, useIsReplayMode, useIsPromptsMode, useIsPuzzlesMode, useIsPaused, useViewMode, type AppMode } from './stores/editor';
 import { useWorldControl } from './hooks/useWorldControl';
-import { isLocalEngineMode } from './utils/env';
 import { Layout } from './components/Layout';
 import { ScientificCanvas } from './components/Canvas/ScientificCanvas';
 import { ScientificIsometricCanvas } from './components/Canvas/ScientificIsometricCanvas';
@@ -43,17 +41,9 @@ import {
 } from './services/persistence';
 import { getEngineClient } from './engine-host/engine-client';
 
-const REMOTE_ONLY_MODES = new Set<AppMode>(['replay', 'puzzles']);
-
-function isRemoteOnlyMode(mode: AppMode): boolean {
-  return REMOTE_ONLY_MODES.has(mode);
-}
-
 export default function App() {
-  const remoteConnection = useSSE();
   const localConnection = useEngine();
-  const isLocalMode = isLocalEngineMode();
-  const { status, connect, disconnect } = isLocalMode ? localConnection : remoteConnection;
+  const { status, connect, disconnect } = localConnection;
   const selectedAgentId = useWorldStore((s) => s.selectedAgentId);
   const selectedResourceId = useWorldStore((s) => s.selectedResourceId);
   const { resetWorld, setWorldState, setEvents, updateWorldState } = useWorldStore();
@@ -77,23 +67,13 @@ export default function App() {
   const events = useEvents();
   const aliveAgents = agents.filter(a => a.health > 0);
 
-  // World control hook: browser worker in local mode, backend API in remote mode.
   const { fetchState, start, pause, resume, reset, fetchRecentEvents } = useWorldControl();
 
-  // Remote-only backend sync on mount (restore running server simulation).
   useEffect(() => {
-    if (isLocalMode) {
-      setHasSynced(true);
-      return;
-    }
     if (hasSynced) return;
-
-    const syncWithBackend = async () => {
+    const syncWithWorker = async () => {
       const state = await fetchState();
       if (state && state.isRunning) {
-        console.log('[App] Restoring simulation state from backend:', state);
-
-        // Set world state with scientific model data
         setWorldState({
           tick: state.tick,
           agents: state.agents || [],
@@ -101,46 +81,24 @@ export default function App() {
           shelters: state.shelters || [],
         });
 
-        // Fetch and set recent events BEFORE switching mode
         const recentEvents = await fetchRecentEvents(100);
         if (recentEvents.length > 0) {
-          console.log('[App] Loaded', recentEvents.length, 'recent events');
           setEvents(recentEvents);
         }
 
-        // Switch to simulation mode
         setPaused(state.isPaused);
         setMode('simulation');
       }
       setHasSynced(true);
     };
 
-    syncWithBackend();
-  }, [hasSynced, fetchState, fetchRecentEvents, setMode, setPaused, setWorldState, setEvents, isLocalMode]);
+    syncWithWorker();
+  }, [hasSynced, fetchState, fetchRecentEvents, setMode, setPaused, setWorldState, setEvents]);
 
-  // Connect/disconnect SSE based on mode
-  useEffect(() => {
-    if (isLocalMode) return;
-    if (mode === 'simulation' && !isPaused) {
-      connect();
-    } else {
-      disconnect();
-    }
-    return () => disconnect();
-  }, [mode, isPaused, connect, disconnect, isLocalMode]);
-
-  useEffect(() => {
-    if (!isLocalMode) return;
-    if (isRemoteOnlyMode(mode)) {
-      setMode(agents.length > 0 ? 'simulation' : 'editor');
-    }
-  }, [isLocalMode, mode, agents.length, setMode]);
-
-  // Handle start simulation - local worker or remote backend depending on mode.
   const handleStartSimulation = useCallback(async (resumeSavedWorld = false) => {
     const result = await start({ resumeSavedWorld });
     if (!result.success) {
-      alert(result.error || 'Failed to start simulation. Is the server running?');
+      alert(result.error || 'Failed to start simulation.');
       return;
     }
 
@@ -159,13 +117,9 @@ export default function App() {
     setPaused(false);
     setMode('simulation');
 
-    // Connect SSE after setting state
-    if (!isLocalMode) {
-      connect();
-    }
-  }, [setMode, setPaused, start, setWorldState, setEvents, connect, isLocalMode]);
+    connect();
+  }, [setMode, setPaused, start, setWorldState, setEvents, connect]);
 
-  // Handle reset - calls BE to reset DB
   const handleReset = useCallback(async () => {
     disconnect();
     await reset();
@@ -196,13 +150,11 @@ export default function App() {
     }
   }, []);
 
-  // Handle pause - calls BE
   const handlePause = useCallback(async () => {
     await pause();
     disconnect();
   }, [pause, disconnect]);
 
-  // Handle resume - calls BE
   const handleResume = useCallback(async () => {
     await resume();
     connect();
@@ -275,31 +227,27 @@ export default function App() {
       {/* Right: Controls */}
       <div className="flex items-center gap-2 shrink-0">
         {/* Config button */}
-        {isLocalMode && (
-          <>
-            <button
-              onClick={() => importInputRef.current?.click()}
-              className="w-8 h-8 flex items-center justify-center rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
-              title="Import saved world"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v12m0 0 4-4m-4 4-4-4" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-              </svg>
-            </button>
-            {mode === 'simulation' && (
-              <button
-                onClick={handleExportWorld}
-                className="w-8 h-8 flex items-center justify-center rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
-                title="Export current world"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 21V9m0 0 4 4m-4-4-4 4" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2" />
-                </svg>
-              </button>
-            )}
-          </>
+        <button
+          onClick={() => importInputRef.current?.click()}
+          className="w-8 h-8 flex items-center justify-center rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
+          title="Import saved world"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v12m0 0 4-4m-4 4-4-4" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+          </svg>
+        </button>
+        {mode === 'simulation' && (
+          <button
+            onClick={handleExportWorld}
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
+            title="Export current world"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 21V9m0 0 4 4m-4-4-4 4" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2" />
+            </svg>
+          </button>
         )}
 
         {/* Config button */}
@@ -340,18 +288,16 @@ export default function App() {
         </button>
 
         {/* Puzzle Games button */}
-        {!isLocalMode && (
-          <button
-            onClick={() => setMode('puzzles')}
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
-            title="Puzzle Games"
-          >
-            <span className="text-sm">🧩</span>
-          </button>
-        )}
+        <button
+          onClick={() => setMode('puzzles')}
+          className="w-8 h-8 flex items-center justify-center rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
+          title="Puzzle Games"
+        >
+          <span className="text-sm">PZ</span>
+        </button>
 
         {/* Replay button (only in simulation mode) */}
-        {mode === 'simulation' && !isLocalMode && (
+        {mode === 'simulation' && (
           <button
             onClick={handleEnterReplay}
             className="w-8 h-8 flex items-center justify-center rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
@@ -386,7 +332,7 @@ export default function App() {
   }
 
   // Replay mode - render full-screen replay page with error boundary
-  if (isReplayMode && !isLocalMode) {
+  if (isReplayMode) {
     return (
       <ErrorBoundary sectionName="Replay" onError={handleError}>
         <ReplayPage />
@@ -404,7 +350,7 @@ export default function App() {
   }
 
   // Puzzles mode - render full-screen puzzles page with error boundary
-  if (isPuzzlesMode && !isLocalMode) {
+  if (isPuzzlesMode) {
     return (
       <ErrorBoundary sectionName="Puzzles" onError={handleError}>
         <PuzzlesPage />

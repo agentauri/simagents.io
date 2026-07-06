@@ -6,6 +6,7 @@
 
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
+import { getEngineClient } from '../engine-host/engine-client';
 
 // =============================================================================
 // Types
@@ -164,23 +165,14 @@ export const useReplayError = () => useReplayStore((s) => s.error);
 // API Functions
 // =============================================================================
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
-
 export async function fetchTickRange(): Promise<TickRange> {
-  const res = await fetch(`${API_BASE}/api/replay/ticks`);
-  const data = await res.json();
-  // API returns data directly: { minTick, maxTick, currentTick, totalEvents }
-  return data;
+  return getEngineClient().getReplayRange();
 }
 
 export async function fetchWorldSnapshot(tick: number): Promise<WorldSnapshot> {
-  const res = await fetch(`${API_BASE}/api/replay/tick/${tick}`);
-  const data = await res.json();
-  return data.snapshot;
+  return getEngineClient().getReplayFrame(tick);
 }
 
 export async function fetchAgentTimeline(agentId: string, limit = 100): Promise<AgentTimelineEntry[]> {
-  const res = await fetch(`${API_BASE}/api/replay/agent/${agentId}/timeline?limit=${limit}`);
-  const data = await res.json();
-  return data.timeline;
+  return getEngineClient().getAgentTimeline(agentId, limit);
 }

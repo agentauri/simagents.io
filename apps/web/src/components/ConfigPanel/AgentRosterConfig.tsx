@@ -10,7 +10,7 @@ import {
   type LLMType,
   type ReasoningCapability,
 } from '@simagents/shared';
-import { providerAvailability } from '@server/engine/llm/keys';
+import { providerAvailability } from '@simagents/engine/engine/llm/keys';
 import { getActiveApiKeysFromStorage, useApiKeysStore } from '../../stores/apiKeys';
 import { useAgentRoster, useRosterStore } from '../../stores/roster';
 import { useProxyUrl } from '../../stores/settings';

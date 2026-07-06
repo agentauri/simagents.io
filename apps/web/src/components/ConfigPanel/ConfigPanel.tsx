@@ -227,7 +227,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
                 {isLocalMode
                   ? localAppliedSections.length > 0
                     ? '(local overrides)'
-                    : '(remote overrides ignored)'
+                    : '(saved locally)'
                   : '(unsaved changes)'}
               </span>
             )}
@@ -447,11 +447,9 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
         )}
 
         {/* Agent System Prompt Section */}
-        {!isLocalMode && (
-          <ConfigSection title="Agent System Prompt" icon="🧠" defaultExpanded={false}>
-            <PromptEditor />
-          </ConfigSection>
-        )}
+        <ConfigSection title="Agent System Prompt" icon="🧠" defaultExpanded={false}>
+          <PromptEditor />
+        </ConfigSection>
 
         {/* Agent Deployment Section */}
         {!isLocalMode && (
@@ -867,7 +865,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
                 )}
                 {localIgnoredSections.length > 0 && (
                   <div className={localAppliedSections.length > 0 ? 'mt-1' : undefined}>
-                    <div className="text-yellow-300">Remote overrides ignored</div>
+                    <div className="text-yellow-300">Saved for next start</div>
                     <div className="truncate text-gray-500">
                       {formatSections(localIgnoredSections)}
                     </div>

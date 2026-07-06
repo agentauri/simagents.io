@@ -1,13 +1,13 @@
 # BYOK Security Notes
 
-Sim Agents browser-local mode stores provider API keys in browser `localStorage` under `simagents_api_keys`. This keeps keys off Sim Agents servers, but it also means the active browser origin is the security boundary.
+Sim Agents stores provider API keys in browser `localStorage` under `simagents_api_keys`. The active browser origin is the security boundary.
 
 ## Current Position
 
 - Keys are stored as plain `localStorage` values.
 - The Web Worker receives active keys only when a local run starts.
 - Direct-CORS providers are called from the browser.
-- Proxy-only providers are called through a user-configured stateless proxy URL.
+- Proxy-only providers are called through a user-configured proxy URL.
 - The repository does not currently implement passphrase encryption for browser-local keys.
 
 Plain `localStorage` is acceptable only with a strict XSS posture. Any script that executes on the app origin can read the keys while the app is running.
@@ -17,16 +17,15 @@ Plain `localStorage` is acceptable only with a strict XSS posture. Any script th
 - `apps/web/index.html` defines a Content Security Policy that blocks third-party scripts, objects, frames, and non-local workers.
 - React renders LLM and event text as text nodes; the app does not use `dangerouslySetInnerHTML`.
 - `apps/web/src/utils/security.ts` sanitizes displayed LLM/event strings by stripping control characters and truncating long content.
-- The local CORS proxy artifact in `infra/cors-proxy` is stateless and allowlists provider hosts.
-- The browser-local app no longer syncs local BYOK keys into the legacy server key APIs.
+- Provider keys are not written into snapshots, replay frames, prompt logs, or experiment exports.
 
 The current audit command for dangerous HTML/script sinks is:
 
 ```bash
-rg -n "dangerouslySetInnerHTML|innerHTML|outerHTML|insertAdjacentHTML|eval\\(|new Function|document\\.write|DOMParser" apps/web/src apps/web/index.html apps/server/src packages/shared/src
+rg -n "dangerouslySetInnerHTML|innerHTML|outerHTML|insertAdjacentHTML|eval\\(|new Function|document\\.write|DOMParser" apps/web/src apps/web/index.html packages/engine/src packages/shared/src
 ```
 
-As of July 3, 2026, this command returns no matches in those surfaces.
+As of July 5, 2026, this command returns no matches in those surfaces.
 
 ## CSP Notes
 
@@ -68,5 +67,5 @@ Before merging any browser-local feature that displays model output, imported wo
 1. Keep rendering as React text nodes.
 2. Do not introduce `dangerouslySetInnerHTML`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `eval`, or `new Function`.
 3. Use `sanitizeText`, `sanitizeReasoning`, or a stricter validator for visible untrusted strings.
-4. Keep provider keys out of logs, snapshots, exports, and server sync paths.
+4. Keep provider keys out of logs, snapshots, replay frames, prompt logs, and exports.
 5. Re-run the audit command above and the browser smoke test.
