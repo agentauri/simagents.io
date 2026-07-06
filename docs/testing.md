@@ -6,6 +6,7 @@ Use browser-safe gates for normal SimAgents work.
 
 ```bash
 bun typecheck
+bun run --filter @simagents/engine test
 (cd apps/web && bun run build)
 node --check scripts/browser-smoke.mjs
 ```

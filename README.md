@@ -45,6 +45,7 @@ Provider keys are plain browser storage values. See [BYOK Security Notes](docs/s
 
 ```bash
 bun typecheck
+bun run --filter @simagents/engine test
 (cd apps/web && bun run build)
 node --check scripts/browser-smoke.mjs
 ```
@@ -71,6 +72,7 @@ If Playwright is not installed in the workspace, set `PLAYWRIGHT_MODULE_DIR` to 
 |----------|-------------|
 | [Backend Zero Architecture](docs/browser-mode-plan.md) | Browser-only runtime, storage, worker APIs |
 | [Testing Matrix](docs/testing.md) | Required static and browser gates |
+| [Browser-Only Release Checklist](docs/browser-only-release-checklist.md) | Pre-tag gates, manual QA, release notes draft |
 | [BYOK Security Notes](docs/security-byok.md) | Browser key storage, CSP, XSS checklist |
 | [Documentation Index](docs/INDEX.md) | Central navigation hub |
 | [Research Guide](docs/public/research-guide.md) | Browser-local experiment posture and exports |
