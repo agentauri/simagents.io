@@ -77,15 +77,15 @@ export function PromptInspector() {
             Prompt Logging Disabled
           </h3>
           <p className="text-city-text-muted text-sm mb-4">
-            To use the Live Inspector, enable prompt logging in your server configuration.
+            To use the Live Inspector, start a simulation and let agents make decisions.
           </p>
           <div className="bg-city-bg rounded p-3 text-left">
             <code className="text-xs text-city-text font-mono">
-              PROMPT_LOGGING_ENABLED=true
+              simagents_prompt_logs_v1
             </code>
           </div>
           <p className="text-city-text-muted text-xs mt-4">
-            Note: Logging impacts performance. Use only for debugging.
+            Logs are bounded and stay in browser localStorage.
           </p>
         </div>
       </div>

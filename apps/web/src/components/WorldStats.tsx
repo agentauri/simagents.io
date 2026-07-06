@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useWorldStore, useAliveAgents } from '../stores/world';
-import type { ConnectionStatus } from '../hooks/useSSE';
+import type { ConnectionStatus } from '../hooks/useEngine';
 import { actionsPerSimMinute, useAllAgentStats } from '../stores/agentStats';
-import { isLocalEngineMode } from '../utils/env';
 
 interface WorldStatsProps {
   connectionStatus: ConnectionStatus;
@@ -13,16 +12,10 @@ export function WorldStats({ connectionStatus }: WorldStatsProps) {
   const aliveAgents = useAliveAgents();
   const allStats = useAllAgentStats();
   const [testMode, setTestMode] = useState(false);
-  const isLocalMode = isLocalEngineMode();
 
-  // Fetch test mode status on mount
   useEffect(() => {
-    if (isLocalMode) return;
-    fetch('/api/test/mode')
-      .then((res) => res.json())
-      .then((data) => setTestMode(data.testMode))
-      .catch(() => {});
-  }, [isLocalMode]);
+    setTestMode(false);
+  }, []);
 
   const getStatusConfig = () => {
     switch (connectionStatus) {

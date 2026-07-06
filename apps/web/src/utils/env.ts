@@ -1,21 +1,11 @@
-/**
- * Environment Utilities
- */
-
-export type EngineMode = 'local' | 'remote';
-
-const ENGINE_MODE: EngineMode = import.meta.env.VITE_ENGINE_MODE === 'remote' ? 'remote' : 'local';
+export type EngineMode = 'local';
 
 export function getEngineMode(): EngineMode {
-  return ENGINE_MODE;
+  return 'local';
 }
 
 export function isLocalEngineMode(): boolean {
-  return ENGINE_MODE === 'local';
-}
-
-export function isRemoteEngineMode(): boolean {
-  return ENGINE_MODE === 'remote';
+  return true;
 }
 
 /**

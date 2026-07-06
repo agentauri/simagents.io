@@ -1,40 +1,30 @@
 # Research Bundles
 
-The batch runner now exports a stable research bundle per experiment directory.
+Use browser exports as the source material for review bundles. A bundle should be small enough to inspect manually and explicit enough to reproduce the local setup.
 
-## Bundle Layout
+## Recommended Layout
 
 ```text
-results/<experiment>-<timestamp>/
-  manifest.json
-  report.json
-  report.csv
-  research-bundle.json
-  runs/
-    <condition>-run-1.json
-    <condition>-run-2.json
+bundle/
+  README.md
+  world-export.json
+  experiment-run.json
+  experiment-run.csv
+  config-notes.md
+  claim-review.md
 ```
 
-## Guaranteed Contents
+## Required Notes
 
-- experiment metadata and code version
-- resolved scientific profile and benchmark world
-- effective runtime configuration
-- cache and prompt transformation settings
-- resolved interventions
-- per-run final metrics
-- snapshot-derived survival and economic analyses
-- event trace and final state hashes
+- app commit hash
+- date and timezone
+- world seed
+- roster and provider settings
+- custom prompt state
+- runtime config overrides
+- manual interventions
+- known limitations
 
-## Operating Envelope
+## Claim Review
 
-Research mode should be validated with deterministic baseline runs before scaling up to LLM comparisons.
-
-- start with `canonical_core_benchmark.yaml`
-- increase ticks before increasing feature surface
-- treat any run with provider/network instability as exploratory
-- use `apps/server/src/scripts/validate-research-mode.ts` to record throughput and artifact hashes across a small validation matrix
-
-## Claim Review Gate
-
-Before publishing a new scientific claim, fill out `docs/templates/claim-review-template.md` and link the exact research bundle used as evidence.
+Use `docs/templates/claim-review-template.md` before publishing a result. Mark browser-local single runs as exploratory unless they are part of a replicated comparison with locked settings.

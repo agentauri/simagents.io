@@ -4,7 +4,7 @@ import type {
 } from '../engine-host/engine-client';
 import type { getEngineClient } from '../engine-host/engine-client';
 import type { WorldEvent } from '../stores/world';
-import type { WorldSnapshotV1 } from '@server/engine/persistence';
+import type { WorldSnapshotV1 } from '@simagents/engine/engine/persistence';
 
 export const WORLD_SNAPSHOT_KEY = 'simagents_world_snapshot';
 export const EVENT_RING_KEY = 'simagents_event_ring';

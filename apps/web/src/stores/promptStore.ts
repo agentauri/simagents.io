@@ -8,6 +8,11 @@
  */
 
 import { create } from 'zustand';
+import {
+  getDefaultSystemPrompt,
+  PROMPT_PLACEHOLDERS,
+} from '@simagents/engine/llm/prompt-manager';
+import { getEngineClient } from '../engine-host/engine-client';
 
 // =============================================================================
 // Types
@@ -80,11 +85,6 @@ function savePromptToStorage(prompt: string | null): void {
 }
 
 // =============================================================================
-// API Functions
-// =============================================================================
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
-
 interface PromptStatusResponse {
   customPrompt: string | null;
   defaultPrompt: string;
@@ -99,46 +99,28 @@ interface PromptResponse {
 }
 
 async function fetchPromptFromAPI(): Promise<PromptStatusResponse> {
-  const response = await fetch(`${API_BASE}/api/prompt/current`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch prompt status: ${response.statusText}`);
-  }
-  return response.json();
+  const customPrompt = loadPromptFromStorage();
+  return {
+    customPrompt,
+    defaultPrompt: getDefaultSystemPrompt(null),
+    isCustom: customPrompt !== null,
+    placeholders: PROMPT_PLACEHOLDERS.map((placeholder) => ({ ...placeholder })),
+  };
 }
 
 async function syncPromptToBackend(prompt: string | null): Promise<PromptResponse> {
-  const response = await fetch(`${API_BASE}/api/prompt/sync`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt }),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to sync prompt: ${response.statusText}`);
-  }
-  return response.json();
+  savePromptToStorage(prompt);
+  await getEngineClient().setCustomPrompt(prompt);
+  const status = await fetchPromptFromAPI();
+  return { success: true, status };
 }
 
 async function setPromptAPI(prompt: string): Promise<PromptResponse> {
-  const response = await fetch(`${API_BASE}/api/prompt`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt }),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to set prompt: ${response.statusText}`);
-  }
-  return response.json();
+  return syncPromptToBackend(prompt);
 }
 
 async function clearPromptAPI(): Promise<PromptResponse> {
-  const response = await fetch(`${API_BASE}/api/prompt/clear`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to clear prompt: ${response.statusText}`);
-  }
-  return response.json();
+  return syncPromptToBackend(null);
 }
 
 // =============================================================================

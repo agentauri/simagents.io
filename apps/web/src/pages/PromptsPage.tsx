@@ -16,7 +16,6 @@ import { useEditorStore } from '../stores/editor';
 import { useWorldStore } from '../stores/world';
 import { PromptGallery } from '../components/PromptGallery';
 import { PromptInspector } from '../components/PromptInspector';
-import { isLocalEngineMode } from '../utils/env';
 
 type TabId = 'gallery' | 'inspector';
 
@@ -24,8 +23,7 @@ export function PromptsPage() {
   const setMode = useEditorStore((s) => s.setMode);
   const agents = useWorldStore((s) => s.agents);
   const [activeTab, setActiveTab] = useState<TabId>('gallery');
-  const isLocalMode = isLocalEngineMode();
-  const visibleTab = isLocalMode && activeTab === 'inspector' ? 'gallery' : activeTab;
+  const visibleTab = activeTab;
 
   const handleBackToCity = () => {
     setMode(agents.length > 0 ? 'simulation' : 'editor');
@@ -81,22 +79,20 @@ export function PromptsPage() {
             >
               Gallery
             </button>
-            {!isLocalMode && (
-              <button
-                onClick={() => setActiveTab('inspector')}
-                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${
-                  visibleTab === 'inspector'
-                    ? 'bg-city-surface text-city-text'
-                    : 'text-city-text-muted hover:text-city-text'
-                }`}
-              >
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                </span>
-                Live Inspector
-              </button>
-            )}
+            <button
+              onClick={() => setActiveTab('inspector')}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${
+                visibleTab === 'inspector'
+                  ? 'bg-city-surface text-city-text'
+                  : 'text-city-text-muted hover:text-city-text'
+              }`}
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+              Live Inspector
+            </button>
           </div>
 
           <button
@@ -132,8 +128,8 @@ export function PromptsPage() {
       <footer className="flex-none h-10 bg-city-surface border-t border-city-border px-4 flex items-center justify-between text-xs text-city-text-muted">
         <span>
           {visibleTab === 'gallery'
-            ? 'Templates extracted from server-side prompt builders'
-            : 'Set PROMPT_LOGGING_ENABLED=true to enable logging'}
+            ? 'Templates extracted from browser prompt builders'
+            : 'Local prompt logs are stored in browser localStorage'}
         </span>
         <a
           href="https://github.com/simagents/simagents.io"

@@ -1,261 +1,110 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with this repository.
+This file provides guidance to AI coding assistants when working with this repository.
 
 ## Project Overview
 
-**Sim Agents** is now primarily a browser-local multi-agent simulation. The user opens the Vite app, configures a roster, brings their own LLM API keys, and runs a continuous-time agent world inside a Web Worker. No backend is required in local mode, and application data is stored in the browser only.
+Sim Agents is a browser-only multi-agent simulation. The user opens the Vite app, configures a roster, brings optional LLM API keys, and runs a continuous-time agent world inside a Web Worker. Application state is stored in bounded browser `localStorage`; long artifacts are exported as JSON or CSV.
 
-The legacy Fastify/PostgreSQL/Redis/BullMQ backend still exists for `VITE_ENGINE_MODE=remote`, research workflows, and server development. Treat browser-local mode as the active product path unless the task explicitly targets remote mode.
+There is no product backend path. Do not add route handlers, database clients, queues, auth enforcement, tenancy, or server-side control flows unless the user explicitly asks for a separate experimental artifact.
 
-Key differentiators:
+## Core Philosophy
 
-- **Browser-local BYOK:** LLM keys, roster, proxy URL, world snapshots, and event ring live in `localStorage`.
-- **Continuous-time engine:** `simTimeMs` advances in a worker; each agent runs an async decision loop; action application is serialized.
-- **Radical emergence:** The system validates physics and survival pressure, not morality or centralized social rules.
-- **Provider catalog:** Shared model/reasoning metadata drives UI roster controls and provider request construction.
+Always distinguish:
 
-## Browser Mode (Local)
+- **Imposed infrastructure:** grid world, movement physics, event logging, identity, survival pressure, health, resources, biomes, seasonal cycles, currency.
+- **Emergent behavior:** movement patterns, trade conventions, reputation, trust, social structures, property conventions, laws, morality.
 
-Run local mode:
+Rule: validate physics, not morality. Do not add centralized reputation, crime tracking, or justice systems.
+
+## Architecture
+
+```text
+apps/web/
+  src/engine-host/        # Worker entrypoint and main-thread client
+  src/services/           # localStorage persistence, replay, prompt logs, experiments
+  src/stores/             # Zustand state
+  src/components/         # UI
+packages/engine/
+  src/actions/            # Action handlers and types
+  src/engine/             # SimEngine, runner, executor, persistence
+  src/engine-memory/      # Browser-local store, queries, bus, projections
+  src/llm/                # Prompt construction and response parsing
+  src/config/             # Runtime config and worker overrides
+packages/shared/
+  src/llm-catalog.ts      # Provider/model/reasoning catalog
+```
+
+## Commands
 
 ```bash
 bun dev:web
+bun typecheck
+bun lint
+bun build
+(cd apps/web && bun run build)
+node --check scripts/browser-smoke.mjs
+SIMAGENTS_SMOKE_URL=http://localhost:5173/ node scripts/browser-smoke.mjs
 ```
 
-Open `http://localhost:5173`. No server, PostgreSQL, Redis, or Docker service is required for local mode.
-
-Mode flag:
+Bundle safety check after build:
 
 ```bash
-VITE_ENGINE_MODE=local   # default, Web Worker engine
-VITE_ENGINE_MODE=remote  # legacy backend/SSE mode
+rg -n "fastify|postgres|redis|bullmq|drizzle|@server|/api/|EventSource" apps/web/dist
 ```
 
-Important browser storage keys:
+Passing state is no output.
+
+## Local Storage Keys
 
 - `simagents_api_keys`
 - `simagents_agent_roster`
 - `simagents_proxy_url`
 - `simagents_world_snapshot`
 - `simagents_event_ring`
+- `simagents_custom_prompt`
+- `simagents_replay_frames_v1`
+- `simagents_prompt_logs_v1`
+- `simagents_experiment_defs_v1`
+- `simagents_experiment_runs_v1`
 
-Engine layout:
+All new keys must be versioned, validated on read, bounded by byte/count budget, and clearable/exportable where user data could become large.
 
-- `apps/web/src/engine-host/` hosts the worker and main-thread client.
-- `apps/server/src/engine/` contains the browser-safe continuous-time engine.
-- `apps/server/src/engine-memory/` replaces DB/cache/ledger/projection behavior for local mode.
-- `apps/web/vite.config.ts` aliases legacy server imports to browser-safe memory/stub modules.
-- `packages/shared/src/llm-catalog.ts` is the provider/model/reasoning catalog.
-- `apps/server/src/engine/llm/request-builder.ts` builds direct and proxied provider requests.
+## Worker Interfaces
 
-CORS proxy:
+The main-thread client in `apps/web/src/engine-host/engine-client.ts` is the public control boundary. Add browser features there instead of inventing HTTP-shaped interfaces.
 
-- Code and self-hosting docs are in `infra/cors-proxy/`.
-- The app reads the proxy origin from the Config panel and stores it in `simagents_proxy_url`.
-- The proxy is stateless and allow-lists only catalog providers with `cors: 'proxy'`.
+Current worker capabilities include:
 
-## Core Philosophy: IMPOSED vs EMERGENT
+- world init/start/pause/resume/reset/snapshot/export
+- runtime config and custom prompt application
+- local replay range/frame/agent timeline
+- local puzzle list/details/results/stats
+- local prompt log consumption
+- browser experiment run/cancel/status/export
+- browser agent adapter registration
 
-When implementing features, always distinguish:
+## Adding Actions
 
-**IMPOSED (Infrastructure):** Grid world, movement physics, event logging, agent identity, survival pressure, health system, resource distribution, biome geography, seasonal cycles, currency.
-
-**EMERGENT (Agent-Created):** Movement patterns, trade conventions, reputation, trust, social structures, property conventions, laws, morality.
-
-**Rule:** The system validates physics, not morality. Do not add central databases for reputation, crime tracking, or justice.
-
-## Tech Stack
-
-- **Runtime:** Bun + TypeScript
-- **Local frontend:** React + Vite + TailwindCSS + Zustand + HTML5 Canvas + Web Worker
-- **Local engine:** `apps/server/src/engine` plus `engine-memory`, bundled into the web app through Vite aliases
-- **Remote backend:** Fastify + PostgreSQL (Drizzle ORM) + Redis + BullMQ
-- **AI:** Claude, Gemini, OpenAI/Codex, DeepSeek, Qwen, GLM, Grok, Mistral, MiniMax, Kimi, plus baseline agents
-
-## Commands
-
-```bash
-# Local browser mode
-bun dev:web                      # Frontend only, local worker engine, localhost:5173
-
-# Remote/server development
-bun dev                          # Start all workspace dev scripts
-bun dev:server                   # Backend only, localhost:3000
-TEST_MODE=true bun dev:server    # Backend with fallback decisions
-
-# Type checking and linting
-bun typecheck                    # All workspaces
-bun lint                         # All workspaces
-
-# Build
-bun build                        # All workspaces
-(cd apps/web && bun run build)   # Web build
-
-# Database and remote-mode infra
-docker-compose up -d
-bun run infra:up
-bun run infra:down
-bun run db:push
-bun run dev:setup
-
-# Per-agent evolution, server-side
-bun run apps/server/src/evolution/orchestrator.ts --generations 10
-bun run apps/server/src/evolution/orchestrator.ts --agent claude
-bun run apps/server/src/evolution/orchestrator.ts --status
-bun run apps/server/src/evolution/orchestrator.ts --seed 42
-```
-
-## Testing
-
-Never run plain `bun test` from the repo root for browser-pivot work. The test suites must be split so browser-safe in-memory suites are not mixed with DB-backed suites.
-
-The canonical split is documented in `docs/testing.md`. Run these exact verification commands when relevant:
-
-```bash
-bun typecheck
-
-(cd apps/web && bun run build)
-grep -l "PostgresError\\|ioredis\\|bullmq\\|drizzle" apps/web/dist/assets/*.js
-
-(cd apps/server && bun test src/__tests__/engine/ src/__tests__/engine-memory/)
-(cd apps/server && bun test src/__tests__/llm/prompt-builder.test.ts)
-
-(cd apps/server && bun test src/__tests__/actions src/__tests__/agents src/__tests__/analytics src/__tests__/cache src/__tests__/crypto src/__tests__/db src/__tests__/experiments src/__tests__/integration src/__tests__/llm src/__tests__/queue src/__tests__/simulation src/__tests__/world)
-```
-
-Passing state for the bundle grep is no output.
-
-If PostgreSQL, Redis, or Docker are unavailable in the sandbox, report the exact connection-only failures instead of treating the whole verification pass as ambiguous.
-
-Uses `bun:test` with `describe`/`expect`:
-
-```typescript
-import { describe, expect, test } from 'bun:test';
-```
-
-## Initial Setup For Remote Mode
-
-```bash
-bun install
-cp .env.example apps/server/.env
-docker-compose up -d
-(cd apps/server && bunx drizzle-kit push)
-```
-
-Local browser mode only needs `bun install` and `bun dev:web`.
-
-## Project Structure
-
-```text
-apps/
-  server/src/
-    actions/handlers/       # Action implementations
-    engine/                 # Browser-safe continuous-time engine
-    engine-memory/          # In-memory store, query modules, bus, projections, ledger
-    db/                     # Drizzle schema and remote-mode queries
-    llm/                    # Legacy remote-mode LLM adapters and prompt code
-    simulation/             # Legacy tick engine and server simulation utilities
-    evolution/              # Server-side evolution workflows
-    experiments/            # Server-side experiment DSL and runner
-    routes/                 # Remote API route handlers
-    world/                  # Grid/biome utilities
-  web/src/
-    engine-host/            # Worker host, client, browser stubs
-    components/             # UI components
-    stores/                 # Zustand stores and localStorage-backed state
-    hooks/                  # Local and remote control hooks
-packages/
-  shared/                   # Shared types, schemas, constants, LLM catalog
-infra/
-  cors-proxy/               # Stateless Cloudflare Worker artifact
-```
-
-## Key Architecture Files
-
-- `apps/web/src/engine-host/worker.ts` - Browser worker entrypoint
-- `apps/web/src/engine-host/engine-client.ts` - Main-thread worker client
-- `apps/web/vite.config.ts` - Browser-mode aliases and worker dep prebundle mitigation
-- `apps/server/src/engine/engine.ts` - `SimEngine`, clock advancement, runner sync, housekeeping
-- `apps/server/src/engine/agent-runner.ts` - Per-agent async decision loop
-- `apps/server/src/engine/executor.ts` - Serialized action executor and action durations
-- `apps/server/src/engine/persistence.ts` - Versioned snapshot serialize/hydrate
-- `apps/server/src/engine/llm/request-builder.ts` - Provider request construction
-- `apps/server/src/engine-memory/store.ts` - Browser-local in-memory store
-- `apps/server/src/engine-memory/queries/` - DB-query-compatible memory modules
-- `apps/web/src/services/persistence.ts` - localStorage snapshot/event-ring persistence
-- `packages/shared/src/llm-catalog.ts` - Provider, model, CORS, and reasoning catalog
-- `infra/cors-proxy/worker.js` - Optional stateless CORS proxy
-
-Remote-mode files that still matter for backend work:
-
-- `apps/server/src/index.ts`
-- `apps/server/src/db/schema.ts`
-- `apps/server/src/simulation/tick-engine.ts`
-- `apps/server/src/agents/orchestrator.ts`
-- `apps/server/src/llm/prompt-builder.ts`
-- `apps/server/src/analysis/experiment-analysis.ts`
-- `apps/server/src/experiments/scientific-profile.ts`
-
-## Key Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `VITE_ENGINE_MODE` | `local` | `local` uses the Web Worker engine; `remote` uses backend/SSE |
-| `VITE_API_URL` | empty | Remote API base URL for backend mode |
-| `TEST_MODE` | `false` | Remote mode fallback decisions instead of LLM calls |
-| `TICK_INTERVAL_MS` | `60000` | Legacy remote tick interval |
-| `GRID_SIZE` | `100` | World grid size |
-| `DATABASE_URL` | `postgres://dev:dev@localhost:5432/simagents` | PostgreSQL connection for remote mode |
-| `REDIS_URL` | `redis://localhost:6379` | Redis connection for remote mode |
-| `RANDOM_SEED` | timestamp | Seed for reproducible server experiments |
-| `ADMIN_API_KEY` | insecure dev default | Admin endpoints in remote mode |
-
-See `apps/server/src/config/index.ts` for the full runtime configuration surface.
-
-## API Authentication
-
-Remote admin endpoints require the `X-Admin-Key` header:
-
-```bash
-curl -X POST http://localhost:3000/api/config \
-  -H "X-Admin-Key: your_admin_key" \
-  -H "Content-Type: application/json" \
-  -d '{"simulation": {"testMode": true}}'
-```
-
-Set `ADMIN_API_KEY` in production. The default is insecure and for development only.
-
-## Adding New Actions
-
-1. Create the handler in `apps/server/src/actions/handlers/`.
-2. Add the type to `apps/server/src/actions/types.ts`.
+1. Add or update the handler in `packages/engine/src/actions/handlers/`.
+2. Add the action type in `packages/engine/src/actions/types.ts`.
 3. Register it in the action dispatcher.
-4. Keep handlers backend-agnostic. Put persistence and atomic cross-entity mutations in query modules or memory-compatible helpers, not raw DB/cache imports.
-5. Add focused tests under `apps/server/src/__tests__/actions/` or `engine-memory/` depending on the behavior.
+4. Keep cross-entity mutations in browser-local query modules or engine helpers.
+5. Add focused tests under `packages/engine` when the behavior is shared or stateful.
 
-## Adding New LLM Providers
+## Adding LLM Providers
 
-1. Add provider/model/reasoning metadata to `packages/shared/src/llm-catalog.ts`.
-2. Update browser request construction in `apps/server/src/engine/llm/request-builder.ts`.
-3. If the provider needs proxy CORS, add its exact host to `infra/cors-proxy/worker.js` and docs.
-4. Keep shared schema/type unions aligned with the catalog and constants.
+1. Update `packages/shared/src/llm-catalog.ts`.
+2. Update request construction in `packages/engine/src/engine/llm/request-builder.ts`.
+3. If the provider cannot be called directly from the browser, mark it proxy-only and rely on the user-configured proxy URL.
+4. Keep keys out of logs, snapshots, replay frames, prompt logs, and exports.
 
 ## Documentation
 
-- `docs/browser-mode-plan.md` - Current browser-mode architecture
-- `docs/PRD.md` - Product Requirements Document
-- `docs/experiment-design-guide.md` - Research experiment guide
-- `docs/literature-validation-plan.md` - Literature validation progress
-- `docs/public/research-guide.md` - Research methodology guide
-- `docs/public/api-reference.md` - API reference
-- `ROADMAP.md` - Implementation progress
+- `docs/browser-mode-plan.md` - current browser-only architecture
+- `docs/testing.md` - verification gates
+- `docs/security-byok.md` - browser key storage and XSS posture
+- `docs/public/research-guide.md` - browser experiment posture
+- `docs/PRD.md` - historical requirements
 
-## Language Conventions
-
-All project artifacts must be in English:
-
-- **Code:** Variable names, function names, class names, comments, JSDoc/TSDoc
-- **Commits:** Conventional Commits format, when commits are requested
-- **Pull Requests:** English title and description
-- **Documentation:** Markdown files, README, inline docs
+All project artifacts should be in English.

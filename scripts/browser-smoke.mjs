@@ -171,6 +171,111 @@ async function verifyLocalAnalytics(page) {
   await page.waitForFunction(() => document.body.innerText.includes('Paused'));
 }
 
+async function verifyLocalReplay(page) {
+  await page.getByTitle('Time Travel Replay').first().click();
+  await page.waitForFunction(() => document.body.innerText.includes('Time Travel Replay'));
+  const visible = await page.evaluate(() => {
+    const text = document.body.innerText;
+    return {
+      replay: text.includes('Time Travel Replay'),
+      events: text.includes('Event Timeline') || text.includes('No events at this tick'),
+      frameStored: !!localStorage.getItem('simagents_replay_frames_v1'),
+    };
+  });
+  results.push({ step: 'local-replay', ...visible });
+  assertSmoke(visible.replay, 'local replay page did not render');
+  assertSmoke(visible.frameStored, 'local replay frames were not persisted');
+  await page.getByRole('button', { name: /Exit Replay/i }).click();
+  await page.waitForFunction(() => document.body.innerText.includes('Paused'));
+}
+
+async function verifyLocalPuzzles(page) {
+  await page.getByTitle('Puzzle Games').first().click();
+  await page.waitForFunction(() => document.body.innerText.includes('Puzzle Games'));
+  await page.getByRole('button', { name: /Stats/ }).click();
+  await page.waitForFunction(() => (
+    document.body.innerText.includes('Total Games') ||
+    document.body.innerText.includes('No stats available')
+  ));
+  const visible = await page.evaluate(() => {
+    const text = document.body.innerText;
+    return {
+      puzzles: text.includes('Puzzle Games'),
+      stats: text.includes('Total Games') || text.includes('No stats available'),
+    };
+  });
+  results.push({ step: 'local-puzzles', ...visible });
+  assertSmoke(visible.puzzles && visible.stats, 'local puzzles page did not render stats');
+  await page.getByRole('button', { name: /Back to City/ }).click();
+  await page.waitForFunction(() => document.body.innerText.includes('Paused'));
+}
+
+async function verifyPromptEditorAndInspector(page) {
+  await page.locator('button[title="Configuration"]:visible').first().click();
+  await page.waitForFunction(() => document.body.innerText.includes('LLM API Keys'));
+  await page.locator('button:has-text("Agent System Prompt")').click();
+  const prompt = page.locator('textarea[placeholder="Enter your custom system prompt..."]').first();
+  await prompt.fill('You are a local smoke-test agent. Return only valid action JSON.');
+  await page.getByRole('button', { name: /Apply Changes/ }).click();
+  await page.waitForFunction(() => (
+    localStorage.getItem('simagents_custom_prompt')?.includes('smoke-test') ?? false
+  ));
+  const customPromptStored = await page.evaluate(() => (
+    localStorage.getItem('simagents_custom_prompt')?.includes('smoke-test') ?? false
+  ));
+  await page.locator('button[title="Configuration"]:visible').first().click();
+
+  await page.getByTitle('Prompt Gallery').first().click();
+  await page.waitForFunction(() => document.body.innerText.includes('Prompt Gallery'));
+  await page.getByRole('button', { name: /Live Inspector/ }).click();
+  await page.waitForFunction(() => (
+    document.body.innerText.includes('Live Inspector Active') ||
+    document.body.innerText.includes('No Prompt Logs Yet')
+  ));
+  const inspector = await page.evaluate(() => {
+    const text = document.body.innerText;
+    return {
+      active: text.includes('Live Inspector Active'),
+      noData: text.includes('No Prompt Logs Yet'),
+      promptLogsStored: !!localStorage.getItem('simagents_prompt_logs_v1'),
+    };
+  });
+  results.push({ step: 'local-prompts', customPromptStored, ...inspector });
+  assertSmoke(customPromptStored, 'custom prompt was not persisted locally');
+  assertSmoke(inspector.active || inspector.noData, 'local prompt inspector did not render');
+  await page.getByRole('button', { name: /Back to City/ }).click();
+  await page.waitForFunction(() => document.body.innerText.includes('Paused'));
+}
+
+async function verifyBrowserExperiment(page) {
+  const experiment = await page.evaluate(async () => {
+    const client = window.__simagentsEngineClient;
+    if (!client) return { hasClient: false };
+    const run = await client.runExperiment({
+      id: 'smoke',
+      name: 'Smoke experiment',
+      ticks: 1,
+      wallStepMs: 6000,
+      captureEveryTicks: 1,
+    });
+    const exported = await client.exportExperiment(run.id);
+    return {
+      hasClient: true,
+      status: run.status,
+      ticksCompleted: run.ticksCompleted,
+      snapshots: run.snapshots.length,
+      stored: !!localStorage.getItem('simagents_experiment_runs_v1'),
+      csvHeader: exported.csv.startsWith('runId,tick,simTimeMs'),
+      jsonHasRun: exported.json.includes(run.id),
+    };
+  });
+  results.push({ step: 'browser-experiment', ...experiment });
+  assertSmoke(experiment.hasClient, 'dev engine client bridge is unavailable');
+  assertSmoke(experiment.status === 'completed', 'browser experiment did not complete', experiment);
+  assertSmoke(experiment.stored && experiment.csvHeader && experiment.jsonHasRun, 'browser experiment export/storage failed', experiment);
+  await page.waitForFunction(() => document.body.innerText.includes('Paused'));
+}
+
 async function runBaselinePersistence(browser) {
   const context = await createContext(browser, browserInitPayload({ roster: baselineRoster }));
   const page = await openPage(context);
@@ -191,6 +296,10 @@ async function runBaselinePersistence(browser) {
   });
   assertSmoke(afterPause.store.events.length > 0, 'baseline start produced no events');
   await verifyLocalAnalytics(page);
+  await verifyLocalReplay(page);
+  await verifyLocalPuzzles(page);
+  await verifyPromptEditorAndInspector(page);
+  await verifyBrowserExperiment(page);
 
   await clickResume(page);
   await page.waitForTimeout(600);
