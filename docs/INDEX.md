@@ -9,6 +9,7 @@ Central navigation for the browser-only Sim Agents app.
 | [README](../README.md) | Quick start and project overview |
 | [Backend Zero Architecture](browser-mode-plan.md) | Current SPA, worker, package, and storage design |
 | [Testing Matrix](testing.md) | Required static, build, bundle, and browser checks |
+| [Browser-Only Release Checklist](browser-only-release-checklist.md) | Pre-tag gates, manual QA, and release notes draft |
 | [BYOK Security Notes](security-byok.md) | Browser key storage, CSP, and XSS checklist |
 | [Public Overview](public/index.md) | User-facing docs entrypoint |
 | [Getting Started](public/getting-started.md) | Browser-only setup and first run |
