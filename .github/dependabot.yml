@@ -30,6 +30,12 @@ updates:
           - "esbuild"
           - "vite"
           - "@vitejs/*"
+    ignore:
+      # Major bumps require a dedicated migration, not an automated PR.
+      - dependency-name: "zod"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   # Web app dependencies
   - package-ecosystem: "npm"
@@ -66,6 +72,10 @@ updates:
         patterns:
           - "vite"
           - "@vitejs/*"
+    ignore:
+      # Major bumps require a dedicated migration, not an automated PR.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   # Shared package dependencies
   - package-ecosystem: "npm"
@@ -83,6 +93,10 @@ updates:
       - "dependencies"
       - "shared"
       - "automated"
+    ignore:
+      # Major bumps require a dedicated migration, not an automated PR.
+      - dependency-name: "zod"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions dependencies
   - package-ecosystem: "github-actions"

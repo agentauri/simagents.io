@@ -145,6 +145,15 @@ jobs:
         working-directory: apps/web
         run: npm run build
 
+      - name: Verify browser-only bundle (no backend leakage)
+        working-directory: apps/web
+        run: |
+          if grep -rEl "fastify|postgres|redis|bullmq|drizzle|@server|/api/|EventSource" dist; then
+            echo "::error::Backend-only code leaked into the browser bundle"
+            exit 1
+          fi
+          echo "Bundle is clean (browser-only)."
+
       - name: Upload web build artifact
         uses: actions/upload-artifact@v7
         with:
