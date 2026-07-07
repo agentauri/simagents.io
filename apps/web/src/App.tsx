@@ -67,7 +67,7 @@ export default function App() {
   const events = useEvents();
   const aliveAgents = agents.filter(a => a.health > 0);
 
-  const { fetchState, start, pause, resume, reset, fetchRecentEvents } = useWorldControl();
+  const { fetchState, start, pause, resume, reset } = useWorldControl();
 
   useEffect(() => {
     if (hasSynced) return;
@@ -81,11 +81,7 @@ export default function App() {
           shelters: state.shelters || [],
         });
 
-        const recentEvents = await fetchRecentEvents(100);
-        if (recentEvents.length > 0) {
-          setEvents(recentEvents);
-        }
-
+        // Events repopulate from the live worker event stream and the persisted event ring.
         setPaused(state.isPaused);
         setMode('simulation');
       }
@@ -93,7 +89,7 @@ export default function App() {
     };
 
     syncWithWorker();
-  }, [hasSynced, fetchState, fetchRecentEvents, setMode, setPaused, setWorldState, setEvents]);
+  }, [hasSynced, fetchState, setMode, setPaused, setWorldState]);
 
   const handleStartSimulation = useCallback(async (resumeSavedWorld = false) => {
     const result = await start({ resumeSavedWorld });
@@ -162,7 +158,7 @@ export default function App() {
 
   // Handle enter replay mode
   const handleEnterReplay = useCallback(() => {
-    disconnect(); // Disconnect SSE
+    disconnect();
     setMode('replay');
     enterReplayMode();
   }, [disconnect, setMode, enterReplayMode]);
@@ -171,12 +167,11 @@ export default function App() {
   const handleExitReplay = useCallback(() => {
     exitReplayMode();
     setMode('simulation');
-    connect(); // Reconnect SSE
+    connect();
   }, [exitReplayMode, setMode, connect]);
 
   // Error handler for logging/reporting
   const handleError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
-    // Future: Send to error reporting service (Sentry, LogRocket, etc.)
     console.error('[App] Component error caught:', {
       error: error.message,
       componentStack: errorInfo.componentStack,

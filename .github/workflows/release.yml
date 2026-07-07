@@ -28,11 +28,56 @@ env:
 
 jobs:
   # ============================================================================
+  # Job 0: Verify gates (must pass before a release is published)
+  # ============================================================================
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck all packages
+        run: bun run typecheck
+
+      - name: Run engine test suite
+        run: bun run --filter @simagents/engine test
+
+      - name: Build web frontend
+        working-directory: apps/web
+        run: npm run build
+
+      - name: Verify browser-only bundle (no backend leakage)
+        working-directory: apps/web
+        run: |
+          if grep -rEl "fastify|postgres|redis|bullmq|drizzle|@server|/api/|EventSource" dist; then
+            echo "::error::Backend-only code leaked into the browser bundle"
+            exit 1
+          fi
+          echo "Bundle is clean (browser-only)."
+
+  # ============================================================================
   # Job 1: Create Release
   # ============================================================================
   create-release:
     name: Create Release
     runs-on: ubuntu-latest
+    needs: [verify]
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag_created: ${{ steps.tag.outputs.created }}

@@ -146,7 +146,7 @@ export const useWorldStore = create<WorldState>((set) => ({
       bubbles: [], // Clear bubbles on new world state
     }),
 
-  // Update world state WITHOUT clearing events (for SSE reconnect)
+  // Update world state WITHOUT clearing events (periodic worker state sync)
   updateWorldState: (state) =>
     set({
       tick: state.tick,

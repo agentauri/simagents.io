@@ -165,12 +165,10 @@ export function useWorldControl() {
     return true;
   };
 
-  const fetchRecentEvents = async (_limit = 50): Promise<WorldEvent[]> => [];
-
   const setSpeed = async (speed: number): Promise<boolean> => {
     await getEngineClient().setSpeed(speed);
     return true;
   };
 
-  return { fetchState, start, pause, resume, reset, fetchRecentEvents, setSpeed };
+  return { fetchState, start, pause, resume, reset, setSpeed };
 }
