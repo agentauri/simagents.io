@@ -442,7 +442,9 @@ async function runLocalAgentOverrides(browser) {
     expected: 997,
     actual: agent.balance,
   });
-  assertSmoke(agent.health === 88, 'local agent health override was not applied', {
+  // A live continuous-time heartbeat can heal fractionally before Pause reaches the Worker.
+  // This still distinguishes the requested initial 88 from the default 100.
+  assertSmoke(agent.health >= 88 && agent.health < 89, 'local agent health override was not applied within the initial live interval', {
     expected: 88,
     actual: agent.health,
   });
