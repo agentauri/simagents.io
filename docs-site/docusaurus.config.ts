@@ -37,7 +37,7 @@ const config: Config = {
           path: '../docs/public', // Source from docs/public instead of docs-site/docs
           sidebarPath: './sidebars.ts',
           routeBasePath: '/', // Docs at root
-          editUrl: 'https://github.com/agentauri/simagents.io/tree/main/',
+          editUrl: ({docPath}) => `https://github.com/agentauri/simagents.io/edit/main/docs/public/${docPath}`,
         },
         blog: false, // Disable blog
         theme: {

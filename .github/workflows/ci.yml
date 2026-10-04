@@ -407,6 +407,8 @@ jobs:
       - run: node --test scripts/braces-security.test.mjs
       - run: npm run build
         working-directory: docs-site
+      - name: Verify generated documentation links and assets
+        run: node scripts/check-built-docs-links.mjs
       - uses: actions/upload-artifact@v7
         with:
           name: documentation

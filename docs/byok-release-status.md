@@ -58,6 +58,17 @@ real91-second warmup and97-second RAM-subject cleanup. This is local runtime
 evidence only. The dedicated operational secret is in a protected ignored
 file and has not been uploaded.
 
+Generated documentation continuation: the exact `59a2d16` documentation
+artifact had four broken GitHub edit targets containing `main/../docs/`.
+An actual external HTTP check returned404 for all four. The configuration
+now builds explicit `/edit/main/docs/public/<docPath>` links. The rebuilt
+site passes123 internal links,60 asset references and four locally verified
+source targets; all12 public external references returned200 (edit links
+redirect to GitHub login). The new checker rejects the previous broken
+artifact and runs in mandatory documentation CI. This documentation change
+needs a replacement exact-commit candidate; the active `59a2d16` soak keeps
+its original identity and is not restarted or relabelled.
+
 ## Implemented and covered by regression tests
 
 - Engine lifecycle: initialized/running/paused/stopped/error. Seeding and hydration do not create runners or call providers. Pausing aborts in-flight decisions; resuming explicitly starts fresh runners. Old decisions and queued ticks cannot act after reset.
