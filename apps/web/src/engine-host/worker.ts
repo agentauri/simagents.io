@@ -29,7 +29,7 @@ import type {
   BrowserExperimentSnapshot,
   BrowserExperimentSummary,
 } from '../services/experiments';
-import type { AgentTimelineEntry, ReplayEvent, TickRange, WorldSnapshot } from '../stores/replay';
+import type { AgentTimelineEntry, TickRange, WorldSnapshot } from '../stores/replay';
 import type {
   PuzzleDetails,
   PuzzleFilter,
@@ -38,6 +38,7 @@ import type {
   PuzzleStats,
 } from '../stores/puzzles';
 import type { WorldEvent } from '../stores/world';
+import { worldEventToReplayEvent } from './replay-events';
 
 interface InitPayload {
   captureRequests?: boolean;
@@ -436,18 +437,6 @@ function buildReplayFrame(state: SimEngineState): StoredReplayFrame {
       })),
       events,
     },
-  };
-}
-
-function worldEventToReplayEvent(event: WorldEvent, index: number): ReplayEvent {
-  const numericId = typeof event.id === 'number' ? event.id : index + 1;
-  return {
-    id: numericId,
-    eventType: event.type,
-    tick: event.tick,
-    agentId: event.agentId ?? null,
-    payload: event.payload,
-    createdAt: new Date(event.timestamp).toISOString(),
   };
 }
 

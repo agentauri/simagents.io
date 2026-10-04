@@ -4,6 +4,40 @@ Updated 2026-10-04. This is an implementation checkpoint, **not a completed prod
 
 Current continuation: the user subsequently authorized direct production deployment, bypassing staging. The latest checkpoint below supersedes earlier pending-work summaries. Historical sections record their own artifacts and do not transfer evidence to newer candidates. One Free Turnstile widget has been created; no Worker/Pages rollout or paid provider inference has occurred yet.
 
+Latest infrastructure decision: reuse the existing Workers Paid subscription, with no downgrade or new subscription. Dashboard verification found approximately 23,880 requests and USD 0 additional billable usage in the current cycle. Additional usage charges remain unauthorized; included allocations are not a hard spending cap. Complete 24-hour technical retention remains required, using the RAM-only coordinator described below. Earlier Free-only pending-plan statements are historical and superseded by this verification. See [production dossier](production-deployment-2026-10-04.md).
+
+Latest correctness continuation: the rollback check exposed positional replay
+event IDs that changed when new events entered the reversed/bounded history.
+Replay now preserves the engine's `store-N` identity, with three regressions
+for appending/reordering/eviction, original content and invalid identities.
+Public startup failures now carry structured error codes into the reviewed
+dialog instead of a raw browser alert. EN/IT failed-resume browser checks
+verify preserved world/accounting, no inference, no raw payload and operable
+controls; Italian passed all three engines. 420 workspace tests passed.
+
+The clean RAM candidate `7d2d40f46517c771b75ce6b934a1df67eb0e9c0e2b9530d4bbdd79e0fb9123a3`
+completed 60 real minutes with 20 agents, synthetic transport only, UI p95
+16 ms, restored counters and no unhandled errors. Native RSS passed the
+recorded plateau thresholds (net rise 8.7 MB, slope about 0.37 MB/min).
+Receipt: `.tmp/soak/2026-10-04T10-23-54-456Z-60m/summary.json`.
+The replay/startup corrections supersede that bundle and require a new
+final-candidate run; this result is not transferred to it.
+
+Remote run `37197153556` passed lint/types, tests, docs/build, Firefox and
+WebKit matrices and the Chromium public matrix. The Chromium storage-fault
+script logged both English passes and then stopped advancing. This obsolete
+run was explicitly cancelled after the replay/startup changes; its CI
+summary correctly failed. Complete logs are retained locally. The fault
+runner now uses a Node bundle, logs bounded cleanup phases and has a
+five-minute mandatory CI step deadline. Both local languages passed including
+cleanup; actual native quota refusal remains uncertified.
+
+A separate clean rollback worktree backports the replay identity correction
+to the preceding RAM candidate (`a23ada7`, artifact
+`07e6a25c48a8e6f6272e01c0175aa047c48a6f67266918ab02797721cc693f08`).
+Its data compatibility needs the new same-origin browser drill. It is retained
+locally and has not been deployed or certified by a Cloudflare rollback.
+
 ## Implemented and covered by regression tests
 
 - Engine lifecycle: initialized/running/paused/stopped/error. Seeding and hydration do not create runners or call providers. Pausing aborts in-flight decisions; resuming explicitly starts fresh runners. Old decisions and queued ticks cannot act after reset.

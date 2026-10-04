@@ -1,8 +1,9 @@
 import { useRequestCaptureStore } from '../stores/requestCapture';
-import { profileVerificationIssue } from '../services/profile-verification-gate';
+import { AppError, errorIssue, type AppIssue } from '@simagents/shared';
+import { profileVerificationProblem } from '../services/profile-verification-gate';
 import { useConnectionsStore } from '../stores/connections';
 import { useSessionLimitsStore } from '../stores/sessionLimits';
-import { byokPreflight, internalFixturesEnabled } from '../services/byok-preflight';
+import { byokPreflightIssue, internalFixturesEnabled } from '../services/byok-preflight-issue';
 import { getEngineClient } from '../engine-host/engine-client';
 import { engineStateToWorldState } from './useEngine';
 import { clearSavedWorld, loadSavedWorld } from '../services/persistence';
@@ -76,7 +77,7 @@ export interface WorldState {
 
 export interface StartResult {
   success: boolean;
-  error?: string;
+  issue?: AppIssue;
   tick?: number;
   agents?: AgentState[];
   resourceSpawns?: ResourceSpawnState[];
@@ -114,10 +115,10 @@ export function useWorldControl() {
       const roster = useRosterStore.getState().roster;
       const keys = useApiKeysStore.getState().getActiveKeys();
       const proxyUrl = useSettingsStore.getState().proxyUrl.trim();
-      const connectionIssue = byokPreflight(roster, keys, proxyUrl, internalFixturesEnabled(), useConnectionsStore.getState().profiles);
-      if (connectionIssue) throw new Error(connectionIssue);
-      const verificationIssue = profileVerificationIssue(roster, useConnectionsStore.getState().profiles);
-      if (verificationIssue) throw new Error(verificationIssue);
+      const connectionIssue = byokPreflightIssue(roster, keys, proxyUrl, internalFixturesEnabled(), useConnectionsStore.getState().profiles);
+      if (connectionIssue) throw new AppError(connectionIssue);
+      const verificationIssue = profileVerificationProblem(roster, useConnectionsStore.getState().profiles);
+      if (verificationIssue) throw new AppError(verificationIssue);
       useAgentStatsStore.getState().resetAgentStats();
       const pendingChanges = useConfigStore.getState().pendingChanges as Record<string, unknown>;
       const configOverrides = localRuntimeOverrides(pendingChanges);
@@ -149,8 +150,7 @@ export function useWorldControl() {
         events: saved?.events,
       };
     } catch (error) {
-      console.error('[useWorldControl] Failed to start local engine:', error);
-      return { success: false, error: String(error) };
+      return { success: false, issue: errorIssue(error) };
     }
   };
 

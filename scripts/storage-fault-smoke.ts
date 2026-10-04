@@ -12,6 +12,11 @@ const base=process.env.SIMAGENTS_SMOKE_URL??'http://127.0.0.1:5185/',origin=new 
 const fixture=await buildSoakWorld();
 await mkdir('.tmp/storage-faults',{recursive:true});
 const assert=(value:unknown,message:string)=>{if(!value)throw new Error(message)};
+async function deadline<T>(operation: Promise<T>, phase: string, ms = 20000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try { return await Promise.race([operation, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`Storage fault check timed out: ${phase}`)), ms); })]); }
+  finally { clearTimeout(timer); }
+}
 for(const scenario of ['quota-denied','insufficient-space']){
   const profile=await mkdtemp(path.join(tmpdir(),'simagents-quota-'));
   const context=await pw.chromium.launchPersistentContext(profile,{headless:true}),page=await context.newPage();await setSmokeLanguage(page);page.setDefaultTimeout(30000);const errors:string[]=[];page.on('pageerror',(e:Error)=>errors.push(e.message));
@@ -19,6 +24,7 @@ for(const scenario of ['quota-denied','insufficient-space']){
     const original=IDBObjectStore.prototype.put;
     IDBObjectStore.prototype.put=function(...args:any[]){if((window as any).__quotaFault && this.name==='records')throw new DOMException('Injected storage denial','QuotaExceededError');return original.apply(this,args as any);};
   });
+  await context.tracing.start({screenshots:true,snapshots:true,sources:false});let failed=false;
   await context.route('**/*',(r:any)=>new URL(r.request().url()).origin===origin?r.continue():r.abort());const cdp=await context.newCDPSession(page);
   async function stored(){return page.evaluate(async()=>{const db=await new Promise<IDBDatabase>((resolve,reject)=>{const r=indexedDB.open('simagents-app-data');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});try{return await new Promise<any>((resolve,reject)=>{const tx=db.transaction(['records','accounting']);const r=tx.objectStore('records').get('world:current'),a=tx.objectStore('accounting').get('bytes');tx.oncomplete=()=>resolve({record:r.result,accounting:a.result});tx.onabort=()=>reject(tx.error)});}finally{db.close()}})}
   async function imported(file:any){await openSimulationTool(page,'Import saved world');await page.locator('input[type=file]').setInputFiles({name:'storage-fixture.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(file))});}
@@ -34,6 +40,14 @@ for(const scenario of ['quota-denied','insufficient-space']){
    const after=await stored();assert(JSON.stringify(after)===JSON.stringify(before),`${scenario}: failed write changed committed world or accounting`);assert(!errors.length,`${scenario}: unhandled browser exception`);
    await page.screenshot({path:`.tmp/storage-faults/${scenario}-${smokeLanguage}.png`});await writeFile(`.tmp/storage-faults/${scenario}-${smokeLanguage}.json`,JSON.stringify({status:'passed-injected-fault-only',method:'Injected QuotaExceededError in real browser IndexedDB transaction; CDP quota override did not enforce rejection',scenario,language:smokeLanguage,quotaSize,browserUsageBefore:usage.usage,committedStatePreserved:true,providerTraffic:'blocked',candidate:await(await context.request.get(new URL('candidate.json',base).href)).json()},null,2));
    console.log(`PASS ${scenario} ${smokeLanguage}: injected quota denial in Chromium preserves committed world/accounting, handled visible error, no provider traffic.`);
-  }catch(error){await page.screenshot({path:`.tmp/storage-faults/${scenario}-${smokeLanguage}-failure.png`});throw error;}
-  finally{await cdp.send('Storage.overrideQuotaForOrigin',{origin}).catch(()=>{});await context.close();await rm(profile,{recursive:true,force:true});}
+  }catch(error){failed=true;await deadline(page.screenshot({path:`.tmp/storage-faults/${scenario}-${smokeLanguage}-failure.png`}), 'failure screenshot').catch(()=>{});throw error;}
+  finally{
+   console.log(`Cleanup ${scenario}/${smokeLanguage}: reset quota`);
+   await deadline(cdp.send('Storage.overrideQuotaForOrigin',{origin}), 'reset quota', 5000).catch(()=>{});
+   await deadline(context.tracing.stop(failed?{path:`.tmp/storage-faults/${scenario}-${smokeLanguage}-failure-trace.zip`}:{}), 'stop trace');
+   console.log(`Cleanup ${scenario}/${smokeLanguage}: close isolated browser`);
+   await deadline(context.close(), 'close browser');
+   await rm(profile,{recursive:true,force:true});
+   console.log(`Cleanup ${scenario}/${smokeLanguage}: complete`);
+  }
 }

@@ -312,6 +312,7 @@ jobs:
               done
               node scripts/accessibility-smoke.mjs
               node scripts/credential-smoke.mjs
+              bun scripts/start-error-smoke.ts
               node scripts/byok-production-smoke.mjs
               node scripts/connection-profile-smoke.mjs
               node scripts/setup-smoke.mjs
@@ -321,12 +322,14 @@ jobs:
 
       - name: Injected browser storage-denial handling
         if: matrix.browser == 'chromium'
+        timeout-minutes: 5
         env:
           PLAYWRIGHT_MODULE_DIR: ${{ runner.temp }}/playwright/node_modules/playwright
           SIMAGENTS_SMOKE_URL: http://127.0.0.1:5176/
         run: |
+          bun build scripts/storage-fault-smoke.ts --target=node --outfile "$RUNNER_TEMP/storage-fault-smoke.mjs"
           for language in en it; do
-            SIMAGENTS_SMOKE_LANGUAGE="$language" bun scripts/storage-fault-smoke.ts
+            SIMAGENTS_SMOKE_LANGUAGE="$language" node "$RUNNER_TEMP/storage-fault-smoke.mjs"
           done
 
       - name: Install pinned local Cloudflare runtime
@@ -364,6 +367,7 @@ jobs:
           path: |
             .tmp/public-data
             .tmp/storage-faults
+            .tmp/start-errors
             .tmp/storage-budget-driver/*-report.json
             .tmp/public-ui
             .tmp/admission-browser

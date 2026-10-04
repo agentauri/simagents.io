@@ -120,8 +120,7 @@ export default function App() {
   const handleStartSimulation = useCallback(async (resumeSavedWorld = false) => {
     const result = await start({ resumeSavedWorld });
     if (!result.success) {
-      alert(result.error || 'Failed to start simulation.');
-      return;
+      throw new AppError(result.issue ?? { code: 'INTERNAL_ERROR' });
     }
 
     // Update store with spawned entities

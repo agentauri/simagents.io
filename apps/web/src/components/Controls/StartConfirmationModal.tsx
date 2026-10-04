@@ -1,5 +1,6 @@
 import { useRelaySession } from '../../services/relay-access';
-import { formatError } from '../../i18n/errors';
+import { formatError, formatIssue } from '../../i18n/errors';
+import type { AppIssue } from '@simagents/shared';
 import { translateLabel, useLocale, translate } from '../../i18n';
 
 import { useDialogFocus } from '../../hooks/useDialogFocus';
@@ -37,6 +38,7 @@ interface StartConfirmationModalProps {
   onCancel: () => void;
   onOpenConfig?: () => void;
   isLoading: boolean;
+  startIssue?: AppIssue;
 }
 
 /** Personality trait colors */
@@ -75,6 +77,7 @@ export function StartConfirmationModal({
   onCancel,
   onOpenConfig,
   isLoading,
+  startIssue,
 }: StartConfirmationModalProps) {
   useLocale();
   useRelaySession();
@@ -426,6 +429,7 @@ export function StartConfirmationModal({
               </svg>{translate("Edit")}</button>
           )}
           {saveError && <p role="alert" className="text-yellow-300">{formatError(saveError)}</p>}
+          {startIssue && <p role="alert" className="text-yellow-300">{formatIssue(startIssue)}</p>}
           <button
             onClick={() => onConfirm(startChoice)}
             disabled={isLoading || loadingSave || !!saveError || !!connectionIssue || !limitsValid}

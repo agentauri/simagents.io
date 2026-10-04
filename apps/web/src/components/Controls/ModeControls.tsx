@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useAppMode, useIsPaused } from '../../stores/editor';
 import { StartConfirmationModal } from './StartConfirmationModal';
 import { translate, useLocale } from '../../i18n';
+import { errorIssue, type AppIssue } from '@simagents/shared';
+import { formatIssue } from '../../i18n/errors';
 interface ModeControlsProps {
   stoppedByError?: boolean;
   mutationPending?: boolean;
@@ -20,17 +22,17 @@ export function ModeControls({ onStartSimulation, onPause, onResume, onOpenConfi
   const relayBlocked = !!relayConfig && getEngineClient().usesRelay(relayConfig.relayUrl) && !relaySession.getToken();
   const mode = useAppMode(), paused = useIsPaused();
   const [loading, setLoading] = useState(false), [showStart, setShowStart] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<AppIssue>();
   const confirmStart = async (choice: 'resume' | 'new') => {
     setLoading(true); setError(undefined);
     try { await onStartSimulation(choice === 'resume'); setShowStart(false); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    catch (cause) { setError(errorIssue(cause)); }
     finally { setLoading(false); }
   };
   const toggle = async () => {
     setLoading(true); setError(undefined);
     try { if (paused) await onResume?.(); else await onPause?.(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    catch (cause) { setError(errorIssue(cause)); }
     finally { setLoading(false); }
   };
   return <div className="session-controls" aria-label={translate('Simulation controls')}>
@@ -39,7 +41,7 @@ export function ModeControls({ onStartSimulation, onPause, onResume, onOpenConfi
       {translate(loading ? 'Starting…' : mode === 'editor' ? 'Start' : paused ? 'Resume' : 'Pause')}
     </button>
     {stoppedByError && mode !== 'editor' && <button type="button" className="session-new" disabled={loading || mutationPending} onClick={() => setShowStart(true)}>{translate("New session")}</button>}
-    {error && <span role="alert">{error}</span>}
-    <StartConfirmationModal isOpen={showStart} onConfirm={confirmStart} onCancel={() => setShowStart(false)} onOpenConfig={() => { setShowStart(false); onOpenConfig?.(); }} isLoading={loading} />
+    {error && !showStart && <span role="alert">{formatIssue(error)}</span>}
+    <StartConfirmationModal isOpen={showStart} startIssue={error} onConfirm={confirmStart} onCancel={() => setShowStart(false)} onOpenConfig={() => { setShowStart(false); onOpenConfig?.(); }} isLoading={loading} />
   </div>;
 }

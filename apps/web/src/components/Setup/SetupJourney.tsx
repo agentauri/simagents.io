@@ -1,5 +1,6 @@
 import { useRelaySession } from '../../services/relay-access';
-import { formatError } from '../../i18n/errors';
+import { formatIssue } from '../../i18n/errors';
+import { errorIssue, type AppIssue } from '@simagents/shared';
 import { useLocale, translate, translateLabel } from '../../i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getDefaultModelId, type LLMType } from '@simagents/shared';
@@ -26,7 +27,7 @@ export function SetupJourney({ onClose, onStart, onAdvanced }: { onClose: () => 
   useRelaySession();
   const [step, setStep] = useState(0), [review, setReview] = useState(false), [busy, setBusy] = useState(false);
   const [limitsValid, setLimitsValid] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<AppIssue>();
   const profiles = useConnectionsStore(s => s.profiles);
   const keys = useApiKeysStore();
   const roster = useRosterStore(s => s.roster);
@@ -56,7 +57,7 @@ export function SetupJourney({ onClose, onStart, onAdvanced }: { onClose: () => 
   if (review) return <StartConfirmationModal isOpen isLoading={busy} onCancel={() => setReview(false)} onOpenConfig={() => setReview(false)} onConfirm={async choice => {
     setBusy(true);
     try { await onStart(choice === 'resume'); if (useEditorStore.getState().mode === 'simulation') onClose(); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Unable to start'); setReview(false); }
+    catch (e) { setError(errorIssue(e)); setReview(false); }
     finally { setBusy(false); }
   }} />;
   return <div className="setup-backdrop">
@@ -95,7 +96,7 @@ export function SetupJourney({ onClose, onStart, onAdvanced }: { onClose: () => 
           {issue && <div className="setup-notice" role="status"><p>{issue}</p><button onClick={() => setStep(1)}>{translate("Return to model verification")}</button><p>{translate("Changing the response token limit requires verifying the model again.")}</p></div>}
           <p>{translate("Configured:")}{" "}{limits.maxRequests}{" "}{translate("requests,")}{" "}{Math.round(limits.maxDurationSeconds / 60)}{" "}{translate("minutes,")}{" "}{limits.maxOutputTokens}{" "}{translate("tokens per response.")}</p>
         </>}
-        {error && <p role="alert">{formatError(error)}</p>}
+        {error && <p role="alert">{formatIssue(error)}</p>}
       </main>
       <footer className="setup-footer"><p>{translate("Settings are saved as you go. Closing does not start a session.")}</p><div>
         <button onClick={onAdvanced}>{translate("Advanced settings")}</button>
