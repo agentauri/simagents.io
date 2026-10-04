@@ -1,0 +1,17 @@
+{
+  "status": "proposal-not-configured",
+  "spaOrigin": "https://app.simagents.io",
+  "secretFile": ".tmp/production-private/monitoring.json",
+  "billingSnapshotFile": null,
+  "operator": null,
+  "notificationDestination": null,
+  "rules": {
+    "minimumFiveMinuteRequests": 20,
+    "maximumFiveXxFraction": 0.05,
+    "maximumFiveMinuteRequests": 5000,
+    "maximumFiveMinuteRenewalFailures": 3,
+    "maximumRelayOverheadP95Ms": 200,
+    "maximumUpstreamHttpP95Ms": 30000,
+    "additionalUsageBudgetUsd": 0
+  }
+}

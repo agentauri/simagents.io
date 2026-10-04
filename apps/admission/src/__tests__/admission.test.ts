@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createAdmission, ACCESS_TTL_SECONDS, TURNSTILE_ACTION, type AdmissionEnv } from '../worker';
 import { quotaNamespace } from '../../../relay/src/__tests__/quota-fixture';
+import { metricsOperation } from '../../../relay/src/quota';
 import { verifyRelayToken } from '../../../relay/src/access';
 const origin='https://app.example.test',secret='synthetic-signing-secret-not-for-deployment';
 const clock=()=>Math.floor(Date.now()/1000);
@@ -82,4 +83,19 @@ test('cold readiness rejects issuance before consuming a proof; status does not 
   expect((await handler(request(),settings)).status).toBe(503);expect(calls).toBe(0);
   now=90000;expect((await handler(new Request('https://admission.example.test/v1/status',{headers:{Origin:origin}}),settings)).status).toBe(200);
   expect((await handler(request(),settings)).status).toBe(200);expect(calls).toBe(1);
+});
+
+test('initial admission and renewal publish only aggregate outcomes; monitor reads never verify a proof',async()=>{
+ const quotas=quotaNamespace(),settings={...env(),SUBJECT_QUOTAS:quotas.namespace,METRICS_SECRET:'dedicated-monitor-secret-not-a-signing-key'};
+ let siteverifyCalls=0;
+ const handler=createAdmission((async()=>{siteverifyCalls++;return Response.json(result());})as unknown as typeof fetch);
+ const first=await(await handler(request(),settings)).json() as {token:string};
+ expect((await handler(request({proof:'new-proof',previousToken:first.token}),settings)).status).toBe(200);
+ const snapshot=await(await metricsOperation(quotas.namespace)).json() as {operations:Record<string,number>;requests:number};
+ expect(snapshot.requests).toBe(2);expect(snapshot.operations['admission-initial']).toBe(1);expect(snapshot.operations['admission-renewal']).toBe(1);
+ const monitor=(key:string)=>new Request('https://admission.example.test/v1/metrics',{headers:{Origin:origin,Authorization:`Bearer ${key}`}});
+ expect((await handler(monitor(secret),settings)).status).toBe(401);
+ const response=await handler(monitor(settings.METRICS_SECRET),settings);expect(response.status).toBe(200);
+ const text=await response.text();for(const value of [secret,settings.TURNSTILE_SECRET,settings.METRICS_SECRET,first.token,'192.0.2.1','new-proof'])expect(text).not.toContain(value);
+ expect(siteverifyCalls).toBe(2);expect((await(await metricsOperation(quotas.namespace)).json() as {requests:number}).requests).toBe(2);
 });

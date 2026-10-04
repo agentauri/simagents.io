@@ -111,7 +111,7 @@ jobs:
       - name: Run engine and local release/manifest tests
         run: |
           bun run test
-          node --test scripts/release-gates.test.mjs scripts/provider-attempt-journal.test.mjs
+          node --test scripts/release-gates.test.mjs scripts/provider-attempt-journal.test.mjs scripts/monitor-services.test.mjs
           bun scripts/check-provider-manifest.mjs
 
   # ============================================================================

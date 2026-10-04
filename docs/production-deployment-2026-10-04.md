@@ -29,6 +29,11 @@ This record does not claim that the original release gates have passed.
 - Private local secret references: `.tmp/production-private/relay.json` and
   `.tmp/production-private/admission.json`, directory 0700/files 0600,
   ignored by Git. Secret values must never appear in evidence or build output.
+- Operational metric reads use a separate `METRICS_SECRET`, prepared in
+  `.tmp/production-private/monitoring.json` and the two backend secret files.
+  It differs from the signing secret, is not in the SPA, and has not been
+  uploaded. An operator/notification destination and live billing signal are
+  still required; the example probe configuration does not establish them.
 
 ## Candidate and validation
 

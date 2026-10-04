@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { abuseKey, issueRelayToken, verifyRelayToken } from '../../relay/src/access';
-import { quotaOperation, type QuotaNamespace } from '../../relay/src/quota';
+import { quotaOperation, metricsOperation, type QuotaNamespace } from '../../relay/src/quota';
+import { authorizedMonitor, type TechnicalSample } from '../../relay/src/technical-metrics';
+import type { MetricsContext } from '../../relay/src/worker';
 
 export interface AdmissionEnv {
   AUTH_SECRET: string;
@@ -9,6 +11,7 @@ export interface AdmissionEnv {
   TURNSTILE_HOSTNAMES: string;
   SUBJECT_QUOTAS: QuotaNamespace;
   ADMISSION_LIMITER: { limit(input: { key: string }): Promise<{ success: boolean }> };
+  METRICS_SECRET?: string;
 }
 export const ACCESS_TTL_SECONDS = 900;
 export const TURNSTILE_ACTION = 'simagents-session';
@@ -25,10 +28,10 @@ function headers(origin?: string) {
   }
   return value;
 }
-const reply = (status: number, code: string, origin?: string) => Response.json({ error: { code } }, { status, headers: headers(origin) });
+const reply = (status: number, code: string, origin?: string) => { const value = headers(origin); value.set('X-Simagents-Admission-Error', code); return Response.json({ error: { code } }, { status, headers: value }); };
 /** Transport and time injection are for offline verification only. No inference is retried here. */
-export function createAdmission(siteverify: typeof fetch = fetch, nowSeconds = () => Math.floor(Date.now() / 1000), timeoutMs = 15000) {
-  return async (request: Request, env: AdmissionEnv): Promise<Response> => {
+export function createAdmission(siteverify: typeof fetch = fetch, nowSeconds = () => Math.floor(Date.now() / 1000), timeoutMs = 15000, nowMs = () => performance.now()) {
+  const handle = async (request: Request, env: AdmissionEnv, measurement: { renewal?: boolean }): Promise<Response> => {
     let origin: string | undefined;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -44,7 +47,15 @@ export function createAdmission(siteverify: typeof fetch = fetch, nowSeconds = (
       if (received && allowed.includes(received)) origin = received;
       if (!origin) throw new AdmissionFailure('origin-denied', 403);
       const url = new URL(request.url);
-      if (!['/v1/session', '/v1/status'].includes(url.pathname) || url.search || url.hash) throw new AdmissionFailure('not-found', 404);
+      if (!['/v1/session', '/v1/status', '/v1/metrics'].includes(url.pathname) || url.search || url.hash) throw new AdmissionFailure('not-found', 404);
+      if (url.pathname === '/v1/metrics') {
+        if (request.method !== 'GET') throw new AdmissionFailure('method-denied', 405);
+        const fingerprint = await bounded(abuseKey(env.AUTH_SECRET, `metrics:${request.headers.get('CF-Connecting-IP') ?? 'unknown'}`), controller.signal);
+        if (!(await bounded(env.ADMISSION_LIMITER.limit({ key: fingerprint }), controller.signal)).success) throw new AdmissionFailure('rate-limit', 429);
+        if (!(await authorizedMonitor(request, env.METRICS_SECRET, env.AUTH_SECRET))) throw new AdmissionFailure('access-denied', 401);
+        const response = await bounded(metricsOperation(env.SUBJECT_QUOTAS), controller.signal);
+        return new Response(await readBounded(response, 32768, controller.signal), { status: response.status, headers: headers(origin) });
+      }
       if (url.pathname === '/v1/status' && request.method === 'GET') {
         const fingerprint = await bounded(abuseKey(env.AUTH_SECRET, `status:${request.headers.get('CF-Connecting-IP') ?? 'unknown'}`), controller.signal);
         if (!(await bounded(env.ADMISSION_LIMITER.limit({ key: fingerprint }), controller.signal)).success) throw new AdmissionFailure('rate-limit', 429);
@@ -67,6 +78,7 @@ export function createAdmission(siteverify: typeof fetch = fetch, nowSeconds = (
       let body: z.infer<typeof requestSchema>;
       try { body = requestSchema.parse(JSON.parse(await readBounded(request, 8192, controller.signal))); }
       catch (error) { if (error instanceof AdmissionFailure) throw error; throw new AdmissionFailure('invalid-request', 400); }
+      measurement.renewal = !!body.previousToken;
       let subject: string = crypto.randomUUID();
       if (body.previousToken) {
         // Renewal authenticates the same subject; never silently mint a different subject.
@@ -101,6 +113,19 @@ export function createAdmission(siteverify: typeof fetch = fetch, nowSeconds = (
     } finally {
       clearTimeout(timer); request.signal.removeEventListener('abort', cancel); controller.abort();
     }
+  };
+  return async (request: Request, env: AdmissionEnv, context?: MetricsContext): Promise<Response> => {
+    const started = nowMs(), measurement: { renewal?: boolean } = {};
+    const response = await handle(request, env, measurement);
+    const elapsedMs = Math.max(0, nowMs() - started), path = new URL(request.url).pathname;
+    if (path !== '/v1/metrics' && env.SUBJECT_QUOTAS) {
+      const code = response.headers.get('X-Simagents-Admission-Error');
+      const outcome: TechnicalSample['outcome'] = code === 'warming' ? 'warming' : code === 'timeout' ? 'timeout' : response.status === 429 ? 'abuse' : response.status === 401 || response.status === 403 ? 'access' : response.status >= 400 ? 'error' : 'ok';
+      const sample: TechnicalSample = { operation: path === '/v1/status' ? 'admission-status' : measurement.renewal === undefined ? 'admission-other' : measurement.renewal ? 'admission-renewal' : 'admission-initial', outcome, status: response.status, elapsedMs };
+      const write = bounded(metricsOperation(env.SUBJECT_QUOTAS, sample), AbortSignal.timeout(1000)).then(result => { if (!result.ok) throw new Error('Metric unavailable'); }).catch(() => { /* No content logging or inference retry when technical monitoring is unavailable. */ });
+      if (context) { try { context.waitUntil(write); } catch { await write; } } else await write;
+    }
+    return response;
   };
 }
 export default { fetch: createAdmission() };

@@ -38,6 +38,26 @@ to the preceding RAM candidate (`a23ada7`, artifact
 Its data compatibility needs the new same-origin browser drill. It is retained
 locally and has not been deployed or certified by a Cloudflare rollback.
 
+Operational instrumentation continuation: the relay now measures its own
+critical-path overhead separately from upstream HTTP/network/body-transfer
+time. Provider internal processing remains unavailable. Relay/admission send
+numeric/categorical samples to the existing RAM-only coordinator; strict
+sample validation rejects keys, content and identities. Five-minute buckets
+expire after23 hours, and metrics never use SQLite or logs. Protected
+operational reads require a distinct `METRICS_SECRET`. A provider-free probe
+and alarm evaluator have tests for service/metric/billing unavailability,
+5xx, renewal failures, traffic, both latency components and extra spending.
+Owner, schedule, live billing source, notification delivery and Cloudflare
+runtime evidence remain unconfigured. These source changes supersede the
+`ff15763` candidate; its successful CI, exact-hour run and native quota/disk
+receipts stay archived and cannot be transferred to the replacement.
+429 workspace tests, ten Node release/journal/monitor contracts, TypeScript
+and ESLint passed locally. Actual local workerd verified the numeric timing
+aggregate and payload rejection with zero SQLite keys, in addition to the
+real91-second warmup and97-second RAM-subject cleanup. This is local runtime
+evidence only. The dedicated operational secret is in a protected ignored
+file and has not been uploaded.
+
 ## Implemented and covered by regression tests
 
 - Engine lifecycle: initialized/running/paused/stopped/error. Seeding and hydration do not create runners or call providers. Pausing aborts in-flight decisions; resuming explicitly starts fresh runners. Old decisions and queued ticks cannot act after reset.

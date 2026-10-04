@@ -31,6 +31,13 @@ try{
  assert((await request('forward','rolling')).status===429,'Release erased charged forwards');
  for(let i=0;i<4;i++)assert((await request('mint','issuer')).ok,'Mint refused early');assert((await request('mint','issuer')).status===429,'Issuance bypassed four/minute');
  const before=await inspect();assert(before.subjects===3&&before.durableKeys.length===0,'Active counter data was persisted');report.checks.push('50 rolling forwards/four mints; no durable keys while active');
+ const metric={operation:'relay-inference',outcome:'ok',status:200,elapsedMs:40,upstreamHttpMs:25};
+ assert((await stub.fetch('https://quota.internal/metrics/record',{method:'POST',body:JSON.stringify(metric)})).ok,'Runtime metric rejected');
+ assert((await stub.fetch('https://quota.internal/metrics/record',{method:'POST',body:JSON.stringify({...metric,key:'private-test-key'})})).status===400,'Payload entered technical metrics');
+ const measured=await(await stub.fetch('https://quota.internal/metrics/read',{method:'POST'})).json();
+ assert(measured.requests===1&&measured.relayOverhead.meanMs===15&&measured.upstreamHttp.meanMs===25,'Runtime timings were not separated');
+ assert(!JSON.stringify(measured).includes('private-test-key')&&(await inspect()).durableKeys.length===0,'Operational data leaked or entered SQLite');
+ report.checks.push('numeric-only operational timing aggregate; payload rejected; zero SQLite keys');
  const expiryBegan=Date.now();console.log('Actual workerd RAM cleanup: waiting 97 real seconds, including the longest lease.');await new Promise(resolve=>setTimeout(resolve,97000));
  const after=await inspect();assert(after.subjects===0&&after.durableKeys.length===0,'Expired identifiers remained resident or durable');report.expiryElapsedMs=Date.now()-expiryBegan;report.checks.push('RAM cleanup erased all subjects before any fresh grant; SQLite remained empty');
  const gate=new Miniflare({modules:true,script:admission,compatibilityDate:report.compatibilityDate});

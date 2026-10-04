@@ -1,4 +1,5 @@
 /** One coordinated RAM-only object. No subject/IP fingerprint is a durable object name. */
+import { TechnicalMetrics, type TechnicalSample } from './technical-metrics';
 export interface QuotaState { storage?: unknown }
 export interface QuotaStub { fetch(request: Request): Promise<Response> }
 export interface QuotaNamespace { idFromName(name: string): unknown; get(id: unknown): QuotaStub }
@@ -14,10 +15,12 @@ export class SubjectQuota {
   private readonly counters = new Map<string, Counters>();
   private readonly warmUntil: number;
   private readonly cleanupTimer: ReturnType<typeof setInterval>;
+  private readonly metrics: TechnicalMetrics;
   constructor(_state: QuotaState, _env?: unknown, private readonly now = () => performance.now()) {
     // After eviction/restart all prior 60s windows and 90s leases must finish
     // before a new grant. No persisted marker, alarm, subject or counter is used.
     this.warmUntil = this.now() + COORDINATOR_WARMUP_MS;
+    this.metrics = new TechnicalMetrics(this.now);
     this.cleanupTimer = setInterval(() => this.cleanup(), 5000);
     (this.cleanupTimer as unknown as { unref?: () => void }).unref?.();
   }
@@ -29,7 +32,13 @@ export class SubjectQuota {
   }
   private async process(request: Request): Promise<Response> {
     const path = new URL(request.url).pathname;
-    if (request.method !== 'POST' || !['/status', '/mint', '/forward', '/release'].includes(path)) return Response.json({ error: 'invalid-operation' }, { status: 400 });
+    if (request.method !== 'POST' || !['/status', '/mint', '/forward', '/release', '/metrics/read', '/metrics/record'].includes(path)) return Response.json({ error: 'invalid-operation' }, { status: 400 });
+    if (path === '/metrics/read') return Response.json(this.metrics.snapshot(), { headers: { 'Cache-Control': 'no-store' } });
+    if (path === '/metrics/record') {
+      try { const raw = await request.text(); if (new TextEncoder().encode(raw).byteLength > 2048 || !this.metrics.record(JSON.parse(raw))) throw new Error(); }
+      catch { return Response.json({ error: 'invalid-metric' }, { status: 400 }); }
+      return Response.json({ ok: true });
+    }
     const remaining = Math.max(0, this.warmUntil - this.now());
     if (path === '/status') return Response.json({ ready: remaining === 0, retryAfter: Math.ceil(remaining / 1000) }, { status: remaining ? 503 : 200, headers: { 'Cache-Control': 'no-store' } });
     if (remaining && path !== '/release') return Response.json({ error: 'warming', retryAfter: Math.ceil(remaining / 1000) }, { status: 503, headers: { 'Retry-After': String(Math.ceil(remaining / 1000)) } });
@@ -66,8 +75,11 @@ export class SubjectQuota {
     counters.leases = counters.leases.filter(lease => lease.until > now);
     if (!counters.forwards.length && !counters.mints.length && !counters.leases.length) this.counters.delete(subject);
   }
-  private cleanup(now = this.now()) { for (const [subject, counters] of this.counters) this.prune(subject, counters, now); }
+  private cleanup(now = this.now()) { for (const [subject, counters] of this.counters) this.prune(subject, counters, now); this.metrics.prune(now); }
 }
 export async function quotaOperation(namespace: QuotaNamespace, subject: string, operation: 'status' | 'mint' | 'forward' | 'release', lease?: string): Promise<Response> {
   return namespace.get(namespace.idFromName(COORDINATOR_NAME)).fetch(new Request(`https://quota.internal/${operation}`, { method: 'POST', body: JSON.stringify({ subject, ...(lease ? { lease } : {}) }) }));
+}
+export async function metricsOperation(namespace: QuotaNamespace, sample?: TechnicalSample): Promise<Response> {
+  return namespace.get(namespace.idFromName(COORDINATOR_NAME)).fetch(new Request(`https://quota.internal/metrics/${sample ? 'record' : 'read'}`, { method: 'POST', ...(sample ? { body: JSON.stringify(sample) } : {}) }));
 }

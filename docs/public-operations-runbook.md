@@ -12,6 +12,50 @@ Only technical aggregate monitoring is allowed: service availability, admission 
 
 Configure a named operator and tested alarms before opening: unavailable service, elevated 5xx, unusual request/admission growth, repeated renewal failures and infrastructure-spend anomaly. Define thresholds, interval, owner and authorized notification destination in the concrete deployment record. The code's disabled observability setting is not proof of operator/account logging configuration.
 
+## Operational instrumentation
+
+The relay exposes numeric `Server-Timing` intervals: `upstream_http` covers
+the outbound HTTP exchange, including network and bounded response-body
+transfer; `relay_overhead` covers the remaining critical path, including
+validation, coordinated admission and lease release. Provider internal
+processing time cannot be inferred and remains unavailable. Neither header
+contains a model, endpoint, key, subject or response content.
+
+Relay and admission publish only validated numeric/categorical samples to
+the same constant RAM coordinator. Five-minute bins retain at most 23 hours
+and are pruned by the existing cleanup timer. No metric enters SQLite,
+alarms, logs or a content analytics binding. Initial admission, authenticated
+renewal, warming, antiabuse refusal, safe error classes and the two latency
+components remain distinguishable. Histogram p95 values are bucket upper
+bounds, not exact percentiles. Reads do not call a provider or Siteverify.
+
+`GET /v1/metrics` requires a dedicated `METRICS_SECRET` of at least32
+characters that differs from `AUTH_SECRET`. The admission read also requires
+the configured SPA Origin. This is an operational credential; it adds no
+user account or invitation. Configure it in both backends from a protected
+local secret reference after assigning the operator. Never place it in the
+SPA or a public config. Ordinary relay tokens and provider keys cannot read
+metrics. Observability/content logging stays disabled.
+
+Coverage is the current coordinator instance and successfully recorded
+samples. Eviction/restart clears history; failed metric publication must not
+be interpreted as zero traffic or a passed availability check. Combine these
+observations with Cloudflare's aggregate invocation/availability counters
+and alert on unavailable/stale signals. No account-wide billing cap is
+implied by these counters.
+
+`scripts/monitor-services.mjs` performs a one-shot provider-free health,
+readiness and authorized aggregate read. It projects only allowed technical
+fields, rejects redirects, bounds bodies/time and never logs raw errors or
+responses. `docs/monitoring-config.example.json` is a proposal with no owner
+or notification destination. Tests cover availability, 5xx, traffic,
+renewals, both latency components, spend and unavailable billing signals.
+An optional local billing snapshot must be fresh and contain only
+`additionalUsageUsd` and `observedAt`; no live billing integration has been
+established. A missing source is unavailable, never zero. The script does
+not send notifications: the authorized destination, scheduled execution,
+delivery test and real billing source are still release prerequisites.
+
 ## Compatible rollback drill
 
 Retain the previous SPA, relay, admission, catalog and schemas as immutable release assets. Confirm IndexedDB version 2 and imported snapshot formats can be read by the rollback build; an older v1-only storage reader cannot serve as rollback. If the current migration cannot be read by the intended rollback version, block publication rather than testing a destructive downgrade.

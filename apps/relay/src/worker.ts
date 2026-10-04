@@ -1,9 +1,11 @@
-import { quotaOperation, type QuotaNamespace } from './quota';
+import { quotaOperation, metricsOperation, type QuotaNamespace } from './quota';
+import { authorizedMonitor, type TechnicalSample } from './technical-metrics';
 export { SubjectQuota } from './quota';
 import { verifyRelayToken, abuseKey } from './access';
 import { approvedRequest } from './policy';
 export interface RateLimiter { limit(input: { key: string }): Promise<{ success: boolean }> }
-export interface RelayEnv { AUTH_SECRET: string; ALLOWED_ORIGINS: string; REQUEST_LIMITER: RateLimiter; EDGE_LIMITER: RateLimiter; SUBJECT_QUOTAS?: QuotaNamespace }
+export interface RelayEnv { AUTH_SECRET: string; ALLOWED_ORIGINS: string; REQUEST_LIMITER: RateLimiter; EDGE_LIMITER: RateLimiter; SUBJECT_QUOTAS?: QuotaNamespace; METRICS_SECRET?: string }
+export interface MetricsContext { waitUntil(promise: Promise<unknown>): void }
 export const MAX_REQUEST_BYTES = 256 * 1024;
 export const MAX_RESPONSE_BYTES = 1024 * 1024;
 export const MAX_IN_FLIGHT = 6;
@@ -15,7 +17,7 @@ function responseHeaders(origin?: string): Headers {
   const headers = new Headers({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store, private', 'Pragma': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Vary': 'Origin' });
   if (origin) {
     headers.set('Access-Control-Allow-Origin', origin);
-    headers.set('Access-Control-Expose-Headers', 'X-Simagents-Relay-Error');
+    headers.set('Access-Control-Expose-Headers', 'X-Simagents-Relay-Error, Server-Timing');
   }
   return headers;
 }
@@ -57,9 +59,9 @@ async function boundedText(message: Request | Response, maximum: number, signal:
   } finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
 }
 /** Dependency injection is used only by offline tests; deployed fetch uses the runtime transport. */
-export function createRelay(upstream: typeof fetch = fetch, timeoutMs = TIMEOUT_MS, nowSeconds = () => Math.floor(Date.now() / 1000)) {
+export function createRelay(upstream: typeof fetch = fetch, timeoutMs = TIMEOUT_MS, nowSeconds = () => Math.floor(Date.now() / 1000), nowMs = () => performance.now()) {
   let inFlight = 0;
-  return async (request: Request, env: RelayEnv): Promise<Response> => {
+  const handle = async (request: Request, env: RelayEnv, measurement: { upstreamHttpMs?: number; upstreamError?: boolean; providerQuota?: boolean }): Promise<Response> => {
     let origin: string | undefined;
     let admitted = false;
     let quotaLease: string | undefined;
@@ -73,9 +75,16 @@ export function createRelay(upstream: typeof fetch = fetch, timeoutMs = TIMEOUT_
       const receivedOrigin = request.headers.get('Origin');
       if (receivedOrigin && allowed.has(receivedOrigin)) origin = receivedOrigin;
       const url = new URL(request.url);
-      if (url.search || url.hash || !['/v1/health', '/v1/inference', '/v1/models'].includes(url.pathname)) throw new RelayFailure('not-found', 404);
+      if (url.search || url.hash || !['/v1/health', '/v1/inference', '/v1/models', '/v1/metrics'].includes(url.pathname)) throw new RelayFailure('not-found', 404);
       const edgeKey = await abuseKey(env.AUTH_SECRET, `edge:${request.headers.get('CF-Connecting-IP') ?? 'unknown'}`);
       if (!(await abortable(env.EDGE_LIMITER.limit({ key: edgeKey }), controller.signal)).success) throw new RelayFailure('rate-limit', 429);
+      if (url.pathname === '/v1/metrics') {
+        if (request.method !== 'GET') throw new RelayFailure('method-denied', 405);
+        if (!(await authorizedMonitor(request, env.METRICS_SECRET, env.AUTH_SECRET))) throw new RelayFailure('access-denied', 401);
+        if (!env.SUBJECT_QUOTAS) throw new RelayFailure('not-configured', 503);
+        const result = await abortable(metricsOperation(env.SUBJECT_QUOTAS), controller.signal);
+        return new Response(await boundedText(result, MAX_RESPONSE_BYTES, controller.signal), { status: result.status, headers: responseHeaders(origin) });
+      }
       if (url.pathname === '/v1/health' && request.method === 'GET') return new Response('{"status":"ok","version":1}', { headers: responseHeaders(origin) });
       if (!origin) throw new RelayFailure('origin-denied', 403);
       if (request.method === 'OPTIONS') {
@@ -114,16 +123,22 @@ export function createRelay(upstream: typeof fetch = fetch, timeoutMs = TIMEOUT_
       else if (approved.protocol === 'gemini-generate-content') headers.set('X-Goog-Api-Key', providerKey);
       else headers.set('Authorization', `Bearer ${providerKey}`);
       if (controller.signal.aborted) throw new RelayFailure('timeout', 504);
-      const result = await abortable(upstream(approved.url, { method: approved.body ? 'POST' : 'GET', headers, body: approved.body ? JSON.stringify(approved.body) : undefined,
-        redirect: 'manual', cache: 'no-store', signal: controller.signal }), controller.signal);
-      if (result.status >= 300 && result.status < 400) { void result.body?.cancel().catch(() => undefined); throw new RelayFailure('upstream-redirect', 502); }
-      const raw = await boundedText(result, MAX_RESPONSE_BYTES, controller.signal);
+      const upstreamStarted = nowMs();
+      let result: Response, raw: string;
+      try {
+        result = await abortable(upstream(approved.url, { method: approved.body ? 'POST' : 'GET', headers, body: approved.body ? JSON.stringify(approved.body) : undefined,
+          redirect: 'manual', cache: 'no-store', signal: controller.signal }), controller.signal);
+        measurement.upstreamError = !result.ok;
+        if (result.status >= 300 && result.status < 400) { void result.body?.cancel().catch(() => undefined); throw new RelayFailure('upstream-redirect', 502); }
+        raw = await boundedText(result, MAX_RESPONSE_BYTES, controller.signal);
+      } finally { measurement.upstreamHttpMs = Math.max(0, nowMs() - upstreamStarted); }
       let parsed: unknown;
       try { parsed = JSON.parse(raw); } catch { if (result.ok) throw new RelayFailure('upstream-format', 502); }
       if (!result.ok) {
         const code = (parsed as { error?: { code?: unknown; type?: unknown } } | null)?.error;
         const category = String(code?.code ?? code?.type ?? '');
         const safe = ['insufficient_quota', 'quota_exceeded', 'billing_hard_limit_reached'].includes(category) ? category : 'provider_error';
+        measurement.providerQuota = safe !== 'provider_error';
         return new Response(JSON.stringify({ error: { code: safe } }), { status: result.status >= 400 && result.status <= 599 ? result.status : 502, headers: responseHeaders(origin) });
       }
       return new Response(raw, { status: 200, headers: responseHeaders(origin) });
@@ -137,6 +152,22 @@ export function createRelay(upstream: typeof fetch = fetch, timeoutMs = TIMEOUT_
         try { await abortable(quotaOperation(env.SUBJECT_QUOTAS, quotaSubject, 'release', quotaLease), AbortSignal.timeout(2000)); } catch { /* Lease expiry recovers failed releases without re-forwarding. */ }
       }
       if (admitted) inFlight--; controller.abort(); clearTimeout(timer); request.signal.removeEventListener('abort', cancel); }
+  };
+  return async (request: Request, env: RelayEnv, context?: MetricsContext): Promise<Response> => {
+    const started = nowMs(), measurement: { upstreamHttpMs?: number; upstreamError?: boolean; providerQuota?: boolean } = {};
+    const response = await handle(request, env, measurement);
+    const elapsedMs = Math.max(0, nowMs() - started), upstreamHttpMs = measurement.upstreamHttpMs;
+    const overhead = Math.max(0, elapsedMs - (upstreamHttpMs ?? 0));
+    if (Number.isFinite(elapsedMs) && Number.isFinite(overhead)) response.headers.set('Server-Timing', `relay_overhead;dur=${overhead.toFixed(2)}${upstreamHttpMs === undefined ? '' : `, upstream_http;dur=${upstreamHttpMs.toFixed(2)}`}`);
+    const path = new URL(request.url).pathname;
+    if (path !== '/v1/metrics' && env.SUBJECT_QUOTAS) {
+      const code = response.headers.get('X-Simagents-Relay-Error');
+      const outcome: TechnicalSample['outcome'] = code === 'warming' ? 'warming' : code === 'timeout' ? 'timeout' : code === 'rate-limit' ? 'abuse' : measurement.providerQuota ? 'quota' : measurement.upstreamError ? 'upstream-error' : response.status === 401 || response.status === 403 ? 'access' : response.status >= 400 ? 'error' : 'ok';
+      const sample: TechnicalSample = { operation: path === '/v1/inference' ? 'relay-inference' : path === '/v1/models' ? 'relay-models' : path === '/v1/health' ? 'relay-health' : 'relay-other', outcome, status: response.status, elapsedMs, ...(upstreamHttpMs === undefined ? {} : { upstreamHttpMs }) };
+      const write = abortable(metricsOperation(env.SUBJECT_QUOTAS, sample), AbortSignal.timeout(1000)).then(result => { if (!result.ok) throw new Error('Metric unavailable'); }).catch(() => { /* Anonymous metrics may be unavailable; never retry inference or log payloads. */ });
+      if (context) { try { context.waitUntil(write); } catch { await write; } } else await write;
+    }
+    return response;
   };
 }
 export default { fetch: createRelay() };
