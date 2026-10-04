@@ -116,3 +116,18 @@ test('denied renewal needs explicit new admission and never silently replaces it
     await f.session.start(); expect(f.bodies[1].previousToken).toBeUndefined(); expect(f.session.snapshot().status).toBe('ready');
   } finally { f.session.clear(); }
 });
+test('readiness warmup suspends new requests before obtaining a proof and makes only one admission POST', async () => {
+  let checks=0,posts=0;
+  const f=fixture({readinessUrl:'https://admission.example.test/v1/status',transport:(async(_url,init)=>{
+    if(init?.method==='GET')return Response.json(++checks===1?{ready:false,retryAfter:90}:{ready:true,retryAfter:0},{status:checks===1?503:200});
+    posts++;return Response.json({token:'after-warmup',expiresAt:990,renewAt:870});
+  }) as typeof fetch});
+  try {
+    const pending=f.session.start();await new Promise(resolve=>setTimeout(resolve,0));
+    expect(checks).toBe(1);expect(posts).toBe(0);expect(f.counts().proofs).toBe(0);expect(f.counts().suspensions).toBe(1);
+    expect(f.session.snapshot().warmUntil).toBe(90000);expect(f.session.getToken()).toBeUndefined();
+    await f.advance(89999);expect(posts).toBe(0);
+    await f.advance(90000);await pending;
+    expect(checks).toBe(2);expect(posts).toBe(1);expect(f.counts().proofs).toBe(1);expect(f.session.getToken()).toBe('after-warmup');
+  }finally{f.session.clear();}
+});

@@ -28,7 +28,7 @@ export function SessionLimitsForm({ onValidityChange }: { onValidityChange: (val
             onValidityChange(allValid);
             if (allValid) setLimits({ ...limits, maxRequests: Number(next.maxRequests), maxDurationSeconds: Number(next.maxDurationSeconds), maxOutputTokens: Number(next.maxOutputTokens) });
           }}
-          className="mt-1 w-full rounded border border-gray-600 bg-gray-900 px-2 py-2 text-white" />
+          className="min-h-11 mt-1 w-full rounded border border-gray-600 bg-gray-900 px-2 py-2 text-white" />
         {!valid(draft[key], min, max) && <span id={`limit-${key}-error`} className="text-yellow-200">{translate("Enter a whole number from")}{" "}{min}{" "}{translate("to")}{" "}{max}.</span>}
       </label>)}
     </div>

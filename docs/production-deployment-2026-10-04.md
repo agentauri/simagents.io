@@ -2,7 +2,8 @@
 
 The user explicitly requested direct production deployment (`vai direttamente
 in produzione`), bypassing staging. Deployment is authorized; paid provider
-inference and an infrastructure-spend ceiling have not yet been authorized.
+inference has not been authorized. Infrastructure is explicitly limited to
+the Free plan/USD 0; the user kept complete retention at 24 hours.
 This record does not claim that the original release gates have passed.
 
 ## Destinations and configuration
@@ -47,10 +48,10 @@ Available OAuth can read Worker settings but receives HTTP 403 for account
 subscriptions. `default_usage_model=standard` does not establish the active
 billing plan. The [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/)
 requires distinguishing Free from Paid; a Paid plan starts at USD 5/month and
-can incur usage charges. A proposed SimAgents incremental infrastructure
-budget is USD 10/month, subject to explicit authorization, plan verification
-and operational monitoring. This is not a platform-enforced invoice cap.
-No plan upgrade or spend has been performed.
+can incur usage charges. The user authorized only the Free plan and USD 0. Do not activate Paid or
+use chargeable capacity. Free quotas must fail closed instead of producing
+overage charges. The actual account plan still needs verification; no upgrade
+or Worker rollout has occurred.
 
 Active application counters are deleted as minute windows/90-second leases
 expire. However, SQLite Durable Objects expose
@@ -76,3 +77,7 @@ unexecuted; its separate proposed inference budget is USD 5 with dedicated
 keys, no retries/fallbacks and stop on the first failure. Human usability and
 public-beta/stable criteria remain open. A production URL is not release
 certification.
+
+## Retention solution under verification
+
+SQLite counter persistence has been replaced with RAM-only state and a fixed object name. No IP fingerprint/subject/counter is durably stored or included in PITR. The 90-second cold-start barrier covers every old rolling window and lease; a five-second GC removes inactive entries. The SPA waits for readiness before obtaining a proof and suspends new model work while warming. Local workerd passed real warmup/expiry tests with zero durable keys during activity and after cleanup. Real Free-plan/runtime/log validation and the replacement clean candidate are still pending.

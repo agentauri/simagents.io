@@ -9,6 +9,7 @@ export const admissionConfig = officialAdmissionConfig;
 const config = admissionConfig();
 export const relaySession = new RelaySession({
   admissionUrl: config?.admissionUrl ?? '',
+  readinessUrl: config?.admissionUrl.replace(/\/session$/, '/status'),
   obtainProof: requestTurnstileProof,
   onSuspend: async () => {
     const client = getEngineClient();

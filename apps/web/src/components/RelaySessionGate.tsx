@@ -19,7 +19,7 @@ export function RelaySessionGate() {
   const proof = useSyncExternalStore(subscribeProof, proofSnapshot, proofSnapshot);
   const container = useRef<HTMLDivElement>(null), dialog = useRef<HTMLDivElement>(null);
   const [dismissed, setDismissed] = useState(false);
-  const visible = !dismissed && (state.status === 'interaction-required' || state.status === 'failed' || state.status === 'expired' || (state.status === 'checking' && !state.renewing));
+  const visible = !dismissed && (!!state.warmUntil || state.status === 'interaction-required' || state.status === 'failed' || state.status === 'expired' || (state.status === 'checking' && !state.renewing));
   const close = useCallback(() => { relaySession.cancel(); setDismissed(true); }, []);
   useDialogFocus(dialog, visible, close);
   useEffect(() => { if (state.status === 'checking' || state.status === 'interaction-required') setDismissed(false); }, [state.status]);
@@ -55,7 +55,7 @@ export function RelaySessionGate() {
   return createPortal(<div className={visible ? 'relay-access-backdrop' : 'relay-access-background'} aria-hidden={!visible}>
     <div ref={dialog} role={visible ? 'dialog' : undefined} aria-modal={visible || undefined} aria-labelledby="relay-access-title" tabIndex={-1} className="relay-access-dialog">
       {visible && <><h2 id="relay-access-title">{translate('Public relay access')}</h2>
-        <p>{translate(state.status === 'interaction-required' ? 'Complete the security check. New requests are paused.' : state.status === 'expired' ? 'Relay access expired. Get new access, then resume explicitly.' : state.status === 'failed' ? 'Relay access could not be verified. No inference was retried.' : 'Checking relay access…')}</p>
+        <p>{translate(state.warmUntil && state.status === 'checking' ? 'Preparing relay access. This can take up to 90 seconds after a restart. No new inference will be retried.' : state.status === 'interaction-required' ? 'Complete the security check. New requests are paused.' : state.status === 'expired' ? 'Relay access expired. Get new access, then resume explicitly.' : state.status === 'failed' ? 'Relay access could not be verified. No inference was retried.' : 'Checking relay access…')}</p>
         {state.failure && <p role="alert">{translate(state.failure === 'rate-limit' ? 'Too many access attempts. Wait before trying again.' : state.failure === 'not-configured' ? 'Public relay access is not configured for this build.' : 'Security verification is unavailable or was cancelled.')}</p>}
         <p>{translate('Security verification connects to Cloudflare. Provider keys and experiment content are not sent to the admission service.')}</p></>}
       <div ref={container} />

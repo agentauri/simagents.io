@@ -199,10 +199,14 @@ jobs:
   # Job 4: Browser Smoke
   # ============================================================================
   browser-smoke:
-    name: Browser Smoke
+    name: Browser Smoke (${{ matrix.browser }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
     needs: build-web
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
 
     steps:
       - name: Checkout repository
@@ -282,6 +286,7 @@ jobs:
           exit 1
 
       - name: Run browser smoke
+        if: matrix.browser == 'chromium'
         env:
           PLAYWRIGHT_MODULE_DIR: ${{ runner.temp }}/playwright/node_modules/playwright
           SIMAGENTS_SMOKE_URL: http://127.0.0.1:5175/
@@ -291,8 +296,9 @@ jobs:
         env:
           PLAYWRIGHT_MODULE_DIR: ${{ runner.temp }}/playwright/node_modules/playwright
           SIMAGENTS_SMOKE_URL: http://127.0.0.1:5176/
+          SIMAGENTS_BROWSER_UNDER_TEST: ${{ matrix.browser }}
         run: |
-          for browser in chromium firefox webkit; do
+          for browser in "$SIMAGENTS_BROWSER_UNDER_TEST"; do
             export SIMAGENTS_SMOKE_BROWSER="$browser"
             bun scripts/storage-budget-browser.ts
             node scripts/header-smoke.mjs
@@ -314,6 +320,7 @@ jobs:
           done
 
       - name: Injected browser storage-denial handling
+        if: matrix.browser == 'chromium'
         env:
           PLAYWRIGHT_MODULE_DIR: ${{ runner.temp }}/playwright/node_modules/playwright
           SIMAGENTS_SMOKE_URL: http://127.0.0.1:5176/
@@ -323,11 +330,13 @@ jobs:
           done
 
       - name: Install pinned local Cloudflare runtime
+        if: matrix.browser == 'chromium'
         run: |
           npm ci --prefix scripts/fixtures/cloudflare-runtime
           npm audit --prefix scripts/fixtures/cloudflare-runtime --audit-level=high
 
-      - name: Local workerd entrypoints, SQLite quotas and real alarm
+      - name: Local workerd RAM quotas, restart barrier and zero durable data
+        if: matrix.browser == 'chromium'
         env:
           MINIFLARE_MODULE_DIR: ${{ github.workspace }}/scripts/fixtures/cloudflare-runtime/node_modules/miniflare
         run: node scripts/cloudflare-runtime-smoke.mjs
@@ -337,8 +346,9 @@ jobs:
           PLAYWRIGHT_MODULE_DIR: ${{ runner.temp }}/playwright/node_modules/playwright
           SIMAGENTS_ADMISSION_TEST_DIST: apps/web/dist
           SIMAGENTS_ADMISSION_TEST_APP_ORIGIN: https://app.simagents.io
+          SIMAGENTS_BROWSER_UNDER_TEST: ${{ matrix.browser }}
         run: |
-          for browser in chromium firefox webkit; do
+          for browser in "$SIMAGENTS_BROWSER_UNDER_TEST"; do
             for language in en it; do
               for width in 1440 768 390; do
                 SIMAGENTS_SMOKE_BROWSER="$browser" SIMAGENTS_SMOKE_LANGUAGE="$language" SIMAGENTS_SMOKE_WIDTH="$width" bun scripts/admission-browser-smoke.ts
@@ -350,7 +360,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: browser-evidence
+          name: browser-evidence-${{ matrix.browser }}
           path: |
             .tmp/public-data
             .tmp/storage-faults

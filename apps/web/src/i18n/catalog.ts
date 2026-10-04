@@ -1037,6 +1037,8 @@ export const en = {
   'Agent details and events': 'Agent details and events',
   'Open tools': 'Open tools', 'English': 'English', 'Italian': 'Italian',
   "World export failed. Your saved world was preserved. Try exporting again explicitly.": "World export failed. Your saved world was preserved. Try exporting again explicitly.",
+  "The relay is preparing its temporary request limits. Wait before resuming explicitly; no inference was retried.": "The relay is preparing its temporary request limits. Wait before resuming explicitly; no inference was retried.",
+  "Preparing relay access. This can take up to 90 seconds after a restart. No new inference will be retried.": "Preparing relay access. This can take up to 90 seconds after a restart. No new inference will be retried.",
 } as const;
 export type TranslationKey = keyof typeof en;
 export const it: Record<TranslationKey, string> = {
@@ -2077,4 +2079,6 @@ export const it: Record<TranslationKey, string> = {
   'Agent details and events': 'Dettagli degli agenti ed eventi',
   'Open tools': 'Apri strumenti', 'English': 'Inglese', 'Italian': 'Italiano',
   "World export failed. Your saved world was preserved. Try exporting again explicitly.": "Esportazione del mondo non riuscita. Il mondo salvato è stato conservato. Riprova a esportarlo esplicitamente.",
+  "The relay is preparing its temporary request limits. Wait before resuming explicitly; no inference was retried.": "Il relay sta preparando i limiti temporanei delle richieste. Attendi prima di riprendere esplicitamente; nessuna inferenza è stata ritentata.",
+  "Preparing relay access. This can take up to 90 seconds after a restart. No new inference will be retried.": "Preparazione dell’accesso al relay. Può richiedere fino a 90 secondi dopo un riavvio. Nessuna nuova inferenza verrà ritentata.",
 };

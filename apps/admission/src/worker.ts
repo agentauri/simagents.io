@@ -20,7 +20,7 @@ function headers(origin?: string) {
   const value = new Headers({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store, private', 'X-Content-Type-Options': 'nosniff', Vary: 'Origin' });
   if (origin) {
     value.set('Access-Control-Allow-Origin', origin);
-    value.set('Access-Control-Allow-Methods', 'POST');
+    value.set('Access-Control-Allow-Methods', 'GET, POST');
     value.set('Access-Control-Allow-Headers', 'Content-Type');
   }
   return value;
@@ -44,7 +44,13 @@ export function createAdmission(siteverify: typeof fetch = fetch, nowSeconds = (
       if (received && allowed.includes(received)) origin = received;
       if (!origin) throw new AdmissionFailure('origin-denied', 403);
       const url = new URL(request.url);
-      if (url.pathname !== '/v1/session' || url.search || url.hash) throw new AdmissionFailure('not-found', 404);
+      if (!['/v1/session', '/v1/status'].includes(url.pathname) || url.search || url.hash) throw new AdmissionFailure('not-found', 404);
+      if (url.pathname === '/v1/status' && request.method === 'GET') {
+        const fingerprint = await bounded(abuseKey(env.AUTH_SECRET, `status:${request.headers.get('CF-Connecting-IP') ?? 'unknown'}`), controller.signal);
+        if (!(await bounded(env.ADMISSION_LIMITER.limit({ key: fingerprint }), controller.signal)).success) throw new AdmissionFailure('rate-limit', 429);
+        const response = await bounded(quotaOperation(env.SUBJECT_QUOTAS, '', 'status'), controller.signal);
+        return Response.json(await bounded(response.json(), controller.signal), { status: response.status, headers: headers(origin) });
+      }
       if (request.method === 'OPTIONS') {
         if (request.headers.get('Access-Control-Request-Method') !== 'POST') throw new AdmissionFailure('method-denied', 405);
         const requested = (request.headers.get('Access-Control-Request-Headers') ?? '').toLowerCase().split(',').map(value => value.trim()).filter(Boolean);
@@ -56,7 +62,8 @@ export function createAdmission(siteverify: typeof fetch = fetch, nowSeconds = (
       const now = nowSeconds();
       const fingerprint = await bounded(abuseKey(env.AUTH_SECRET, `admission:${Math.floor(now / 86400)}:${request.headers.get('CF-Connecting-IP') ?? 'unknown'}`), controller.signal);
       if (!(await bounded(env.ADMISSION_LIMITER.limit({ key: fingerprint }), controller.signal)).success) throw new AdmissionFailure('rate-limit', 429);
-      if (!(await bounded(quotaOperation(env.SUBJECT_QUOTAS, `ip_${fingerprint}`, 'mint'), controller.signal)).ok) throw new AdmissionFailure('rate-limit', 429);
+      const issuance = await bounded(quotaOperation(env.SUBJECT_QUOTAS, `ip_${fingerprint}`, 'mint'), controller.signal);
+      if (!issuance.ok) throw new AdmissionFailure(issuance.status === 503 ? 'warming' : 'rate-limit', issuance.status === 503 ? 503 : 429);
       let body: z.infer<typeof requestSchema>;
       try { body = requestSchema.parse(JSON.parse(await readBounded(request, 8192, controller.signal))); }
       catch (error) { if (error instanceof AdmissionFailure) throw error; throw new AdmissionFailure('invalid-request', 400); }

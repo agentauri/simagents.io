@@ -25,7 +25,7 @@ test('hostile origin and missing configuration fail before siteverify',async()=>
  let calls=0;const handler=createAdmission((async()=>{calls++;return Response.json(result());})as unknown as typeof fetch);expect((await handler(request({}, {Origin:'https://evil.test'}),env())).status).toBe(403);expect((await handler(request(),{...env(),TURNSTILE_SECRET:''})).status).toBe(503);expect(calls).toBe(0);
 });
 test('token issuance has coordinated IP-fingerprint limits and stores no raw IP or proof',async()=>{
- const quotas=quotaNamespace(),settings={...env(),SUBJECT_QUOTAS:quotas.namespace};const handler=createAdmission((async()=>Response.json(result()))as unknown as typeof fetch);for(let i=0;i<4;i++)expect((await handler(request({proof:`proof-${i}`}),settings)).status).toBe(200);expect((await handler(request(),settings)).status).toBe(429);const saved=JSON.stringify([...quotas.entries].map(([name,value])=>[name,[...value.counters]]));expect(saved).not.toContain('192.0.2.1');expect(saved).not.toContain('proof-');expect(saved).not.toContain('synthetic-turnstile-secret');
+ const quotas=quotaNamespace(),settings={...env(),SUBJECT_QUOTAS:quotas.namespace};const handler=createAdmission((async()=>Response.json(result()))as unknown as typeof fetch);for(let i=0;i<4;i++)expect((await handler(request({proof:`proof-${i}`}),settings)).status).toBe(200);expect((await handler(request(),settings)).status).toBe(429);const saved=JSON.stringify([...quotas.entries.keys()]);expect([...quotas.entries.keys()]).toEqual(['simagents-quota-coordinator-v2']);expect(saved).not.toContain('192.0.2.1');expect(saved).not.toContain('proof-');expect(saved).not.toContain('synthetic-turnstile-secret');
 });
 test('CORS preflight permits only POST and Content-Type', async () => {
   let calls = 0;
@@ -70,4 +70,16 @@ test('stalled coordinators and siteverify cannot hold an admission request indef
   const settings = env();
   settings.ADMISSION_LIMITER = { limit: () => new Promise(() => {}) };
   expect((await handler(request(), settings)).status).toBe(504);
+});
+test('cold readiness rejects issuance before consuming a proof; status does not disclose a subject', async () => {
+  const { SubjectQuota } = await import('../../../relay/src/quota');
+  let now=0,calls=0;const coordinator=new SubjectQuota({},undefined,()=>now);
+  const namespace={idFromName:(name:string)=>name,get:(_id:unknown)=>({fetch:(r:Request)=>coordinator.fetch(r)})};
+  const settings={...env(),SUBJECT_QUOTAS:namespace};
+  const handler=createAdmission((async()=>{calls++;return Response.json(result());}) as unknown as typeof fetch);
+  const status=await handler(new Request('https://admission.example.test/v1/status',{headers:{Origin:origin}}),settings);
+  expect(status.status).toBe(503);expect(await status.json()).toEqual({ready:false,retryAfter:90});
+  expect((await handler(request(),settings)).status).toBe(503);expect(calls).toBe(0);
+  now=90000;expect((await handler(new Request('https://admission.example.test/v1/status',{headers:{Origin:origin}}),settings)).status).toBe(200);
+  expect((await handler(request(),settings)).status).toBe(200);expect(calls).toBe(1);
 });

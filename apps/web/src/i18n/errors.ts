@@ -7,6 +7,7 @@ export const ERROR_TEXT = {
   PROVIDER_UNAVAILABLE: 'The provider or model is unavailable. Check the selected model and endpoint. No automatic retry was made.',
   PROVIDER_INCOMPATIBLE: 'The response or request format is incompatible. Check model parameters and the output token limit. No automatic retry was made.',
   PROVIDER_NETWORK: 'The request outcome is unknown. Check the network and relay before resuming explicitly. No automatic retry was made.',
+  RELAY_WARMING: 'The relay is preparing its temporary request limits. Wait before resuming explicitly; no inference was retried.',
   RELAY_ACCESS: 'Relay access is invalid or expired. Renew access, then resume explicitly. No inference was retried.',
   RELAY_RATE_LIMIT: 'Official relay rate limit reached. Wait before resuming explicitly; no retry was made.',
   RELAY_SIZE_LIMIT: 'Official relay payload limit exceeded (256 KiB request / 1 MiB response). Shorten the prompt or lower the output limit.',

@@ -1,9 +1,10 @@
 /** Short-lived relay authorization. No browser storage, provider keys or inference retries. */
 export type RelaySessionStatus = 'idle' | 'checking' | 'ready' | 'interaction-required' | 'failed' | 'expired';
 export type RelaySessionFailure = 'not-configured' | 'proof-unavailable' | 'access-denied' | 'rate-limit' | 'unavailable' | 'invalid-response' | 'cancelled';
-export interface RelaySessionState { status: RelaySessionStatus; renewing: boolean; expiresAt?: number; failure?: RelaySessionFailure }
+export interface RelaySessionState { status: RelaySessionStatus; renewing: boolean; expiresAt?: number; warmUntil?: number; failure?: RelaySessionFailure }
 export interface RelaySessionOptions {
   admissionUrl: string;
+  readinessUrl?: string;
   obtainProof: (interact: () => void, signal: AbortSignal) => Promise<string>;
   onSuspend: () => Promise<void>;
   onToken: (token: string) => Promise<void>;
@@ -33,7 +34,7 @@ export class RelaySession {
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   snapshot = () => this.state;
   getToken(): string | undefined {
-    return this.token && (this.state.expiresAt ?? 0) * 1000 > this.now() && ['ready', 'checking'].includes(this.state.status) ? this.token : undefined;
+    return this.token && !this.state.warmUntil && (this.state.expiresAt ?? 0) * 1000 > this.now() && ['ready', 'checking'].includes(this.state.status) ? this.token : undefined;
   }
   /** An explicit new admission after expiry is distinct from an authenticated renewal. */
   start(): Promise<void> {
@@ -82,6 +83,7 @@ export class RelaySession {
     try {
       const url = new URL(this.options.admissionUrl);
       if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/v1/session') throw new RelaySessionError('not-configured');
+      if (this.options.readinessUrl) await this.waitForReadiness(controller);
       const proof = await abortable(this.options.obtainProof(() => {
         if (controller.signal.aborted || this.controller !== controller) return;
         this.publish({ ...this.state, status: 'interaction-required' }); this.suspendRequests();
@@ -113,6 +115,27 @@ export class RelaySession {
       this.publish({ ...this.state, status: 'failed', renewing: false, failure: controller.signal.aborted ? 'cancelled' : error instanceof RelaySessionError ? error.code : 'unavailable' });
       this.suspendRequests();
     } finally { if (timer !== undefined) this.unschedule(timer); if (this.controller === controller) this.controller = undefined; }
+  }
+  private async waitForReadiness(controller: AbortController) {
+    if (!this.options.readinessUrl) return;
+    const url = new URL(this.options.readinessUrl), admission = new URL(this.options.admissionUrl);
+    if (url.origin !== admission.origin || url.pathname !== '/v1/status' || url.search || url.hash) throw new RelaySessionError('not-configured');
+    for (let check = 0; check < 2; check++) {
+      const timeout = this.schedule(() => controller.abort(), 20000);
+      let body: { ready?: unknown; retryAfter?: unknown };
+      try {
+        const response = await abortable((this.options.transport ?? fetch)(url.href, { method: 'GET', credentials: 'omit', redirect: 'error', cache: 'no-store', signal: controller.signal }), controller.signal);
+        if (!response.ok && response.status !== 503) throw new RelaySessionError(response.status === 429 ? 'rate-limit' : 'unavailable');
+        body = await boundedJson(response, controller.signal) as typeof body;
+      } finally { this.unschedule(timeout); }
+      if (body?.ready === true) { this.publish({ ...this.state, warmUntil: undefined }); return; }
+      if (check || body?.ready !== false || !Number.isInteger(body.retryAfter) || (body.retryAfter as number) < 1 || (body.retryAfter as number) > 90) throw new RelaySessionError('invalid-response');
+      this.publish({ ...this.state, warmUntil: this.now() + (body.retryAfter as number) * 1000 });
+      this.suspendRequests();
+      let waiting: ReturnType<typeof setTimeout> | undefined;
+      try { await abortable(new Promise<void>(resolve => { waiting = this.schedule(resolve, (body.retryAfter as number) * 1000); }), controller.signal); }
+      finally { if (waiting !== undefined) this.unschedule(waiting); }
+    }
   }
 }
 async function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {

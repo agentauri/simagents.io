@@ -30,6 +30,7 @@ export function relayModelsEndpoint(endpoint: string, protocol: TextProtocol): s
 
 export function relayErrorMessage(code: string | null): string {
   switch (code) {
+    case 'warming': return 'The relay is preparing its temporary request limits. Wait before resuming explicitly; no inference was retried.';
     case 'access-denied': return 'Relay access is invalid or expired. Renew access, then resume explicitly. No inference was retried.';
     case 'rate-limit': return 'Official relay rate limit reached. Wait before resuming explicitly; no retry was made.';
     case 'size-limit': return 'Official relay payload limit exceeded (256 KiB request / 1 MiB response). Shorten the prompt or lower the output limit.';
@@ -41,6 +42,7 @@ export function relayErrorMessage(code: string | null): string {
 
 export function relayErrorIssue(code: string | null): AppIssue {
   switch (code) {
+    case 'warming': return { code: 'RELAY_WARMING' };
     case 'access-denied': return { code: 'RELAY_ACCESS' };
     case 'rate-limit': return { code: 'RELAY_RATE_LIMIT' };
     case 'size-limit': return { code: 'RELAY_SIZE_LIMIT' };

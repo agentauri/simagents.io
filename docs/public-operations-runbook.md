@@ -23,3 +23,9 @@ In staging, load representative existing/new worlds, replay/trace records, vault
 Open beta only after all original gates pass on the same candidate and deployment/opening authority is granted. Keep the beta label and conservative budgets; no invitation/account requirement is added. Infrastructure rollout, paid model checks and participant contact remain separate approvals.
 
 Stable requires a separately reviewed beta exit record: public opening and observed timestamps at least seven days apart, at least 20 completed sessions from five distinct humans, zero open critical/high issues, compatible rollback passed, candidate identity and linked receipts. Do not infer humans from relay tokens/IP fingerprints or count automated fixtures as sessions. The release gate checker requires this record for stable versions; elapsed time alone is insufficient.
+
+## User decisions and RAM coordinator (2026-10-04)
+
+The user authorized direct production instead of staging, restricted infrastructure to Free/USD 0, and kept complete technical retention at 24 hours. No paid upgrade or relaxation of retention is authorized. The pending deployment must verify Free-plan eligibility.
+
+The new coordinator keeps per-subject and daily address-fingerprint state only in memory, under one constant object ID. It does not read/write durable storage or alarms. After restart it blocks new grants for 90 real seconds; the client checks readiness before obtaining a fresh proof. This availability tradeoff preserves limits without recoverable SQLite history. GC runs every five seconds and never evicts active entries to free capacity. Validate restart behavior, zero stored data, 6/50/4 limits and platform logging on the real Free runtime before declaring the gate passed. The local workerd test uses real 91/97-second waits and checks zero SQLite keys both while counters are active and after GC.

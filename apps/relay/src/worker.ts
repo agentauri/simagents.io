@@ -107,7 +107,7 @@ export function createRelay(upstream: typeof fetch = fetch, timeoutMs = TIMEOUT_
       if (!env.SUBJECT_QUOTAS) throw new RelayFailure('not-configured', 503);
       quotaSubject = subject;
       const quota = await abortable(quotaOperation(env.SUBJECT_QUOTAS, subject, 'forward'), controller.signal);
-      if (!quota.ok) throw new RelayFailure('rate-limit', 429);
+      if (!quota.ok) throw new RelayFailure(quota.status === 503 ? 'warming' : 'rate-limit', quota.status === 503 ? 503 : 429);
       quotaLease = (await quota.json() as { lease: string }).lease;
       const headers = new Headers({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       if (approved.protocol === 'anthropic-messages') { headers.set('X-Api-Key', providerKey); headers.set('Anthropic-Version', '2023-06-01'); }

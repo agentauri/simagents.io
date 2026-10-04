@@ -101,6 +101,7 @@ function assertSmoke(condition, message, details = {}) {
 
 async function createContext(browser, payload, options = {}) {
   const context = await browser.newContext({ acceptDownloads: true, ...options });
+  context.setDefaultTimeout(20000); context.setDefaultNavigationTimeout(30000);
   await context.route('**/*', (route) => {
     const url = new URL(route.request().url());
     return url.origin === new URL(baseUrl).origin ? route.continue() : route.abort();
@@ -136,7 +137,7 @@ async function clickStart(page, choice = 'new') {
     await page.getByRole('button', { name: /^Start$/ }).last().click();
   }
 
-  await page.waitForFunction(() => document.body.innerText.includes('Running'));
+  await page.getByRole('button', { name: /Pause/ }).waitFor();
 }
 
 async function clickPause(page) {
@@ -147,7 +148,7 @@ async function clickPause(page) {
 
 async function clickResume(page) {
   await page.getByRole('button', { name: /Resume/ }).click();
-  await page.waitForFunction(() => document.body.innerText.includes('Running'));
+  await page.getByRole('button', { name: /Pause/ }).waitFor();
 }
 
 async function readData(page, key) {
@@ -320,6 +321,7 @@ async function runBaselinePersistence(browser) {
 
   await clickStart(page, 'new');
   await page.waitForTimeout(2_200);
+  if (!(await page.getByRole('button', { name: /Pause/ }).count())) console.error('Baseline state before Pause:', await page.locator('body').innerText());
   await clickPause(page);
   const afterPause = await snapshot(page);
   results.push({
@@ -383,18 +385,14 @@ async function runBaselinePersistence(browser) {
   await openSimulationTool(page, 'Reset');
   await page.waitForFunction(() => document.body.innerText.includes('Ready'));
 
-  const imported = new Promise((resolve, reject) => page.once('dialog', async (dialog) => {
-    const message = dialog.message();
-    results.push({ step: 'import-dialog', message });
-    await dialog.accept();
-    if (message.startsWith('World imported.')) resolve(); else reject(new Error(message));
-  }));
   await page.locator('input[type="file"]').setInputFiles({
     name: 'simagents-world-smoke.json',
     mimeType: 'application/json',
     buffer: Buffer.from(exportJson),
   });
-  await imported;
+  await page.getByRole('status').filter({ hasText: 'World imported. Use Start to resume the saved world.' }).waitFor();
+  results.push({ step: 'import-notice', structured: true });
+  await page.getByRole('status').filter({ hasText: 'World imported. Use Start to resume the saved world.' }).getByRole('button', { name: 'Close', exact: true }).click();
   await waitForSavedWorld(page);
   await clickStart(page, 'resume');
   await page.waitForTimeout(500);
@@ -611,10 +609,15 @@ async function runProxyLlm(browser) {
 
 const browser = await browserType.launch({ headless: true });
 try {
+  console.log('Internal smoke: baseline persistence');
   await runBaselinePersistence(browser);
+  console.log('Internal smoke: local overrides');
   await runLocalAgentOverrides(browser);
+  console.log('Internal smoke: missing relay');
   await runProxyMissing(browser);
+  console.log('Internal smoke: direct fixtures');
   await runDirectLlm(browser);
+  console.log('Internal smoke: relay fixtures');
   await runProxyLlm(browser);
 } finally {
   await browser.close();

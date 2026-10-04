@@ -197,3 +197,18 @@ accelerated clock. Local workerd evidence remains distinct from Cloudflare
 runtime/location/PITR evidence. Documentation additionally requires
 `node --test scripts/braces-security.test.mjs`; the private fork and its
 upstream hashes/security scope are documented in `docs-site/vendor/braces`.
+
+### RAM-only counter replacement
+
+The current workerd runner verifies a global RAM coordinator, not persistent
+SQLite counters/alarms. It waits 91 real seconds for restart safety and 97
+seconds for the longest lease plus GC. The test-only subclass reads live RAM
+size and SQLite key names; counter activity and expiry must both leave zero
+stored keys. Production code never accesses the storage API. Only one constant
+object ID is used, so opaque subjects and address fingerprints are not durable
+object names. Local proof is distinct from deployed Free-plan/log evidence.
+
+The internal baseline smoke now waits for the real inline import status,
+not an obsolete browser alert; Playwright waits are bounded. It remains a
+separate development-only build with baseline agents. Public candidate tests
+must use the exact production artifact and simulated transport.
