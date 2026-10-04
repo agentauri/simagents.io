@@ -1,3 +1,4 @@
+import { useLocale, translate } from '../../../i18n';
 /**
  * SurvivalPanel - Survival metrics visualization
  */
@@ -7,13 +8,12 @@ import { MetricCard } from '../MetricCard';
 import { BarChart } from '../charts/BarChart';
 
 export function SurvivalPanel() {
+  useLocale();
   const survival = useSurvivalMetrics();
 
   if (!survival) {
     return (
-      <div className="flex items-center justify-center h-32 text-city-text-muted text-sm">
-        Loading survival metrics...
-      </div>
+      <div className="flex items-center justify-center h-32 text-city-text-muted text-sm">{translate("Loading survival metrics...")}</div>
     );
   }
 
@@ -22,9 +22,7 @@ export function SurvivalPanel() {
   // Handle empty data case
   if (!byLlmType.length || !overall) {
     return (
-      <div className="flex items-center justify-center h-32 text-city-text-muted text-sm">
-        No survival data available yet...
-      </div>
+      <div className="flex items-center justify-center h-32 text-city-text-muted text-sm">{translate("No survival data available yet...")}</div>
     );
   }
 
@@ -53,49 +51,44 @@ export function SurvivalPanel() {
       {/* Overview cards */}
       <div className="grid grid-cols-3 gap-2">
         <MetricCard
-          label="Alive"
+          label={translate("Alive")}
           value={overall.totalAlive}
           color="success"
         />
         <MetricCard
-          label="Dead"
+          label={translate("Dead")}
           value={overall.totalDead}
           color={overall.totalDead > 0 ? 'error' : 'default'}
         />
         <MetricCard
-          label="Total"
+          label={translate("Total")}
           value={overall.totalAgents}
         />
       </div>
 
       {/* Death causes */}
-      {(deathCauses.starvation > 0 || deathCauses.exhaustion > 0) && (
+      {(deathCauses.starvation > 0 || deathCauses.exhaustion > 0 || (deathCauses.other ?? 0) > 0) && (
         <div className="bg-city-surface-hover/20 rounded-lg p-2">
-          <div className="text-xs text-city-text-muted mb-1">Death Causes</div>
+          <div className="text-xs text-city-text-muted mb-1">{translate("Death Causes")}</div>
           <div className="flex gap-4 text-sm">
-            <span className="text-status-warning">
-              🍽️ Starvation: {deathCauses.starvation}
+            <span className="text-status-warning">{translate("🍽️ Starvation:")}{" "}{deathCauses.starvation}
             </span>
-            <span className="text-status-error">
-              ⚡ Exhaustion: {deathCauses.exhaustion}
+            <span className="text-status-error">{translate("⚡ Exhaustion:")}{" "}{deathCauses.exhaustion}
             </span>
+            <span>{translate("Other / unspecified:")}{" "}{deathCauses.other ?? 0}</span>
           </div>
         </div>
       )}
 
       {/* Alive agents by LLM */}
       <div>
-        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">
-          Alive Agents by LLM
-        </div>
+        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">{translate("Alive Agents by LLM")}</div>
         <BarChart data={aliveData} height={100} />
       </div>
 
       {/* Health by LLM */}
       <div>
-        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">
-          Avg Health by LLM
-        </div>
+        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">{translate("Avg Health by LLM")}</div>
         <BarChart
           data={healthData}
           height={100}
@@ -105,9 +98,7 @@ export function SurvivalPanel() {
 
       {/* Balance ranking */}
       <div>
-        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">
-          Avg Balance by LLM (CITY)
-        </div>
+        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">{translate("Avg Balance by LLM (CITY)")}</div>
         <BarChart
           data={balanceData}
           height={100}
@@ -117,7 +108,7 @@ export function SurvivalPanel() {
 
       {/* Vitals summary */}
       <div className="bg-city-surface-hover/20 rounded-lg p-2">
-        <div className="text-xs text-city-text-muted mb-2">Average Vitals by LLM</div>
+        <div className="text-xs text-city-text-muted mb-2">{translate("Average Vitals by LLM")}</div>
         <div className="space-y-1">
           {byLlmType.map((d) => (
             <div key={d.llmType} className="flex items-center gap-2 text-xs">

@@ -1,17 +1,8 @@
+import { eventLabel, eventKindLabel } from '../i18n/events';
+import { useLocale, translate } from '../i18n';
 import { useMemo, memo } from 'react';
 import { useEvents, useAgents, type WorldEvent, type Agent } from '../stores/world';
 import { useEventFilters, mapEventToFilterType } from '../stores/visualization';
-
-// Format event type for display
-function formatEventType(type: string | undefined): string {
-  if (!type) return 'Unknown';
-  return type
-    .replace('agent_', '')
-    .replace(/_/g, ' ')
-    .split(' ')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-}
 
 // Event item component (memoized)
 const EventItem = memo(function EventItem({
@@ -21,14 +12,15 @@ const EventItem = memo(function EventItem({
   event: WorldEvent;
   agent: Agent | undefined;
 }) {
+  useLocale();
+  useLocale();
   const reasoning = event.payload?.reasoning as string | undefined;
 
   return (
     <div className="px-4 py-3 border-b border-city-border/20 hover:bg-city-surface-hover/30 transition-colors">
       <div className="flex items-center gap-2 mb-1">
         {/* Tick badge */}
-        <span className="text-[10px] text-city-text-muted font-mono bg-city-bg/50 px-1.5 py-0.5 rounded">
-          T{event.tick}
+        <span className="text-[10px] text-city-text-muted font-mono bg-city-bg/50 px-1.5 py-0.5 rounded">{translate("T")}{" "}{event.tick}
         </span>
 
         {/* Agent indicator */}
@@ -39,20 +31,21 @@ const EventItem = memo(function EventItem({
               style={{ backgroundColor: agent.color }}
             />
             <span className="text-city-text text-xs font-medium capitalize">
-              {agent.llmType}
+              {agent.name ?? agent.llmType}
             </span>
           </div>
         )}
       </div>
 
+      <span className="text-[10px] text-city-text-muted">{eventKindLabel(event)}</span>
       {/* Event type */}
       <div className="text-city-accent text-xs font-medium">
-        {formatEventType(event.type)}
+        {eventLabel(event)}
       </div>
 
       {/* Reasoning if present */}
       {reasoning && (
-        <div className="mt-1 text-[11px] text-city-text-muted/70 italic line-clamp-2">
+        <div className="mt-1 text-[11px] text-city-text-muted italic line-clamp-2">
           {reasoning}
         </div>
       )}
@@ -62,6 +55,7 @@ const EventItem = memo(function EventItem({
 
 
 export function EventFeed() {
+  useLocale();
   const events = useEvents();
   const agents = useAgents();
   const { visibleTypes, enabled: filterEnabled } = useEventFilters();
@@ -101,19 +95,15 @@ export function EventFeed() {
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-city-accent">
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
           </svg>
-          <h4 className="text-xs font-medium text-city-text uppercase tracking-wider">
-            Events
-          </h4>
+          <h4 className="text-xs font-medium text-city-text uppercase tracking-wider">{translate("Events")}</h4>
           {recentEvents.length > 0 && (
             <span className="text-xs text-city-text-muted">({recentEvents.length})</span>
           )}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div tabIndex={0} aria-label={translate("Event Feed")} className="flex-1 overflow-y-auto">
         {recentEvents.length === 0 ? (
-          <div className="p-4 text-city-text-muted text-xs text-center">
-            No events yet...
-          </div>
+          <div className="p-4 text-city-text-muted text-xs text-center">{translate("No events yet...")}</div>
         ) : (
           recentEvents.map((event) => (
             <EventItem

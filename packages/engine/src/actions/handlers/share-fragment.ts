@@ -28,7 +28,7 @@ import {
 } from '../../db/queries/puzzles';
 import { getAgentById } from '../../db/queries/agents';
 import { storeMemory, updateRelationshipTrust } from '../../db/queries/memories';
-import { CONFIG } from '../../config';
+import { getRuntimeConfig } from '../../config';
 
 export async function handleShareFragment(
   intent: ActionIntent<ShareFragmentParams>,
@@ -37,7 +37,7 @@ export async function handleShareFragment(
   const { fragmentId, targetAgentId } = intent.params;
 
   // Check if puzzle system is enabled
-  if (!CONFIG.puzzle.enabled) {
+  if (!getRuntimeConfig().puzzle.enabled) {
     return {
       success: false,
       error: 'Puzzle game system is not enabled',
@@ -136,7 +136,7 @@ export async function handleShareFragment(
   }
 
   // Check energy cost
-  const energyCost = CONFIG.puzzle.energyCosts.shareFragment;
+  const energyCost = getRuntimeConfig().puzzle.energyCosts.shareFragment;
   if (agent.energy < energyCost) {
     return {
       success: false,
@@ -149,10 +149,10 @@ export async function handleShareFragment(
 
   // Update contribution score for sharer
   await incrementFragmentsShared(agentParticipant.id);
-  await addContributionScore(agentParticipant.id, CONFIG.puzzle.scoring.fragmentShared);
+  await addContributionScore(agentParticipant.id, getRuntimeConfig().puzzle.scoring.fragmentShared);
 
   // Update trust between agents (sharing builds trust)
-  const trustGain = CONFIG.actions.shareInfo.trustGainPositive * 2; // Double trust gain for puzzle sharing
+  const trustGain = getRuntimeConfig().actions.shareInfo.trustGainPositive * 2; // Double trust gain for puzzle sharing
   await updateRelationshipTrust(agent.id, targetAgentId, trustGain, intent.tick);
   await updateRelationshipTrust(targetAgentId, agent.id, trustGain, intent.tick);
 
@@ -203,7 +203,7 @@ export async function handleShareFragment(
           toAgentId: targetAgentId,
           hint: fragment.hint,
           trustGain,
-          contributionScoreGain: CONFIG.puzzle.scoring.fragmentShared,
+          contributionScoreGain: getRuntimeConfig().puzzle.scoring.fragmentShared,
         },
       },
     ],

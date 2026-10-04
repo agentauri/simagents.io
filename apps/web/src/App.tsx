@@ -1,3 +1,19 @@
+import { AppError, errorIssue, type AppIssue } from '@simagents/shared';
+import { formatIssue } from './i18n/errors';
+import { EntitySelector } from './components/EntitySelector';
+import { MobileResourceList } from './components/Mobile/MobileResourceList';
+import { formatError } from './i18n/errors';
+import { importWorld } from './services/import-world';
+import { APP_DATA_BUDGET } from './services/app-data';
+import { reportSecondaryFailure } from './services/secondary-data';
+import { translate, useLocale } from './i18n';
+import { SimulationHeader } from './components/SimulationHeader';
+
+import { SetupJourney } from './components/Setup/SetupJourney';
+import { clearReplayFrames } from './services/replayFrames';
+import { clearPromptLogs } from './services/promptLogs';
+import { StorageNotice } from './components/StorageNotice';
+import { migrateLegacyRuntime } from './services/migrate-legacy-runtime';
 /**
  * SimAgents - Scientific Mode
  *
@@ -39,10 +55,14 @@ import {
   parseWorldExportFile,
   saveImportedWorld,
 } from './services/persistence';
+import { useSessionLimitsStore } from './stores/sessionLimits';
 import { getEngineClient } from './engine-host/engine-client';
 
 export default function App() {
+  useLocale();
+  useEffect(() => { migrateLegacyRuntime(); }, []);
   const localConnection = useEngine();
+  const usage = useSessionLimitsStore((state) => state.usage);
   const { status, connect, disconnect } = localConnection;
   const selectedAgentId = useWorldStore((s) => s.selectedAgentId);
   const selectedResourceId = useWorldStore((s) => s.selectedResourceId);
@@ -60,8 +80,14 @@ export default function App() {
 
   // Mobile navigation state
   const [mobileView, setMobileView] = useState<MobileView>('canvas');
+  const [importBusy, setImportBusy] = useState(false), [importComplete, setImportComplete] = useState(false);
+  const [importIssue, setImportIssue] = useState<AppIssue>();
+  const [exportIssue, setExportIssue] = useState<AppIssue>();
   // Config panel state
+  const setupTrigger = useRef<HTMLButtonElement>(null);
+  const [showSetup, setShowSetup] = useState(false);
   const [showConfigPanel, setShowConfigPanel] = useState(false);
+  const configReturnFocus = useRef<HTMLElement | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const agents = useAgents();
   const events = useEvents();
@@ -125,26 +151,35 @@ export default function App() {
   }, [disconnect, reset, resetWorld, setMode, setPaused]);
 
   const handleExportWorld = useCallback(async () => {
+    setExportIssue(undefined);
     try {
       const exported = await getEngineClient().exportWorld();
       downloadWorldExport(exported);
-    } catch (error) {
-      alert(`Failed to export world: ${String(error)}`);
+    } catch {
+      setExportIssue({ code: 'EXPORT_FAILED' });
     }
   }, []);
 
   const handleImportFile = useCallback(async (file: File | undefined) => {
-    if (!file) return;
+    if (!file || importBusy) return;
+    setImportBusy(true); setImportIssue(undefined); setImportComplete(false); setExportIssue(undefined);
     try {
-      const parsed = parseWorldExportFile(JSON.parse(await file.text()));
-      saveImportedWorld(parsed);
-      alert('World imported. Use Start to resume the saved world.');
+      if (file.size > APP_DATA_BUDGET) throw new AppError({ code: 'STORAGE_BUDGET' });
+      await importWorld(JSON.parse(await file.text()), getEngineClient());
+      disconnect();
+      resetWorld();
+      setPaused(false);
+      setMode('editor');
+      // History is indexed by world/agent. Import must not silently delete another world's archives.
+      useReplayStore.getState().reset();
+      setImportComplete(true);
     } catch (error) {
-      alert(`Failed to import world: ${String(error)}`);
+      setImportIssue(errorIssue(error));
     } finally {
+      setImportBusy(false);
       if (importInputRef.current) importInputRef.current.value = '';
     }
-  }, []);
+  }, [disconnect, resetWorld, setMode, setPaused, importBusy]);
 
   const handlePause = useCallback(async () => {
     await pause();
@@ -157,7 +192,8 @@ export default function App() {
   }, [resume, connect]);
 
   // Handle enter replay mode
-  const handleEnterReplay = useCallback(() => {
+  const handleEnterReplay = useCallback(async () => {
+    if (getEngineClient().isRunning()) await getEngineClient().pause();
     disconnect();
     setMode('replay');
     enterReplayMode();
@@ -180,7 +216,7 @@ export default function App() {
 
   // Switch to profile view when agent or resource is selected (mobile)
   useEffect(() => {
-    if ((selectedAgentId || selectedResourceId) && window.innerWidth < 768) {
+    if ((selectedAgentId || selectedResourceId) && window.innerWidth < 1024) {
       setMobileView('profile');
     }
   }, [selectedAgentId, selectedResourceId]);
@@ -193,164 +229,43 @@ export default function App() {
     return <ScientificCanvas />;
   };
 
-  // Header content - responsive
-  const headerContent = (
-    <div className="flex items-center justify-between w-full gap-4">
-      {/* Left: Logo + Title */}
-      <div className="flex items-center gap-2 shrink-0">
-        <div className="w-7 h-7 bg-city-accent rounded-lg flex items-center justify-center">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
-            <path d="M2 12h20" />
-          </svg>
-        </div>
-        <div className="hidden sm:block">
-          <h1 className="text-sm font-semibold text-city-text leading-none">Sim Agents</h1>
-          <span className="text-[10px] text-city-text-muted">Scientific Mode</span>
+  const openConfiguration = () => { configReturnFocus.current = document.activeElement as HTMLElement; setShowConfigPanel(true); };
+  const closeConfiguration = () => {
+    setShowConfigPanel(false);
+    requestAnimationFrame(() => {
+      const previous = configReturnFocus.current;
+      if (previous?.isConnected && previous.getClientRects().length) previous.focus();
+      else [...document.querySelectorAll<HTMLElement>('.simulation-tools > summary')].find(element => element.getClientRects().length)?.focus();
+    });
+  };
+
+  const headerContent = <SimulationHeader status={status} mutationPending={importBusy} errorMessage={localConnection.error ?? undefined} onStart={handleStartSimulation}
+    onPause={handlePause} onResume={handleResume} onReset={handleReset}
+    onConfigure={openConfiguration} onImport={() => importInputRef.current?.click()}
+    onExport={() => void handleExportWorld()} onReplay={() => void handleEnterReplay()} />;
+
+  const importNotice = (importComplete || importIssue || exportIssue) && <div role={importIssue || exportIssue ? 'alert' : 'status'} tabIndex={0} className="simulation-error-notice rounded-lg border border-city-border bg-gray-950 p-4 text-sm text-white">
+    <p>{importIssue || exportIssue ? formatIssue((importIssue ?? exportIssue)!) : translate('World imported. Use Start to resume the saved world.')}</p>
+    <button type="button" className="min-h-11 mt-2 px-3 border border-city-border rounded" onClick={() => { setImportIssue(undefined); setImportComplete(false); setExportIssue(undefined); }}>{translate('Close')}</button>
+  </div>;
+
+  if (isAnalyticsMode || isReplayMode || isPromptsMode || isPuzzlesMode) {
+    const section = isAnalyticsMode ? 'Analytics' : isReplayMode ? 'Replay' : isPromptsMode ? 'Prompts' : 'Puzzles';
+    return <>
+      {importNotice}
+      <StorageNotice />
+      <SocialGraphView />
+      <input ref={importInputRef} type="file" accept="application/json,.json" className="hidden" onChange={event => void handleImportFile(event.currentTarget.files?.[0])} />
+      {showConfigPanel && <ConfigPanel onClose={closeConfiguration} />}
+      <div inert={showConfigPanel} className="feature-shell">
+        <header className="app-header shrink-0">{headerContent}</header>
+        <div className="feature-body">
+          <ErrorBoundary sectionName={translate(section)} onError={handleError}>
+            {isAnalyticsMode ? <AnalyticsPage /> : isReplayMode ? <ReplayPage /> : isPromptsMode ? <PromptsPage /> : <PuzzlesPage />}
+          </ErrorBoundary>
         </div>
       </div>
-
-      {/* Stats (only in simulation mode) - aligned left after logo */}
-      {mode === 'simulation' && (
-        <WorldStats connectionStatus={status} />
-      )}
-
-      {/* Spacer */}
-      <div className="flex-1" />
-
-      {/* Right: Controls */}
-      <div className="flex items-center gap-2 shrink-0">
-        {/* Config button */}
-        <button
-          onClick={() => importInputRef.current?.click()}
-          className="w-8 h-8 flex items-center justify-center rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
-          title="Import saved world"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v12m0 0 4-4m-4 4-4-4" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-          </svg>
-        </button>
-        {mode === 'simulation' && (
-          <button
-            onClick={handleExportWorld}
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
-            title="Export current world"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 21V9m0 0 4 4m-4-4-4 4" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2" />
-            </svg>
-          </button>
-        )}
-
-        {/* Config button */}
-        <button
-          onClick={() => setShowConfigPanel(!showConfigPanel)}
-          className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-colors ${
-            showConfigPanel
-              ? 'bg-blue-600 border-blue-500 text-white'
-              : 'bg-city-surface border-city-border hover:bg-city-border text-city-text'
-          }`}
-          title="Configuration"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        </button>
-
-        {/* View Toggle - desktop only */}
-        <div className="hidden lg:block">
-          <ViewToggle />
-        </div>
-
-        {/* Social Graph button (only in simulation mode) */}
-        {mode === 'simulation' && (
-          <SocialGraphButton />
-        )}
-
-        {/* Prompts Gallery button */}
-        <button
-          onClick={() => setMode('prompts')}
-          className="w-8 h-8 flex items-center justify-center rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
-          title="Prompt Gallery"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        </button>
-
-        {/* Puzzle Games button */}
-        <button
-          onClick={() => setMode('puzzles')}
-          className="w-8 h-8 flex items-center justify-center rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
-          title="Puzzle Games"
-        >
-          <span className="text-sm">PZ</span>
-        </button>
-
-        {/* Replay button (only in simulation mode) */}
-        {mode === 'simulation' && (
-          <button
-            onClick={handleEnterReplay}
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
-            title="Time Travel Replay"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </button>
-        )}
-
-        {/* Mode controls */}
-        <ModeControls
-          onStartSimulation={handleStartSimulation}
-          onReset={handleReset}
-          onPause={handlePause}
-          onResume={handleResume}
-          onOpenConfig={() => setShowConfigPanel(true)}
-        />
-
-      </div>
-    </div>
-  );
-
-  // Analytics mode - render full-screen analytics page with error boundary
-  if (isAnalyticsMode) {
-    return (
-      <ErrorBoundary sectionName="Analytics" onError={handleError}>
-        <AnalyticsPage />
-      </ErrorBoundary>
-    );
-  }
-
-  // Replay mode - render full-screen replay page with error boundary
-  if (isReplayMode) {
-    return (
-      <ErrorBoundary sectionName="Replay" onError={handleError}>
-        <ReplayPage />
-      </ErrorBoundary>
-    );
-  }
-
-  // Prompts mode - render full-screen prompt gallery with error boundary
-  if (isPromptsMode) {
-    return (
-      <ErrorBoundary sectionName="Prompts" onError={handleError}>
-        <PromptsPage />
-      </ErrorBoundary>
-    );
-  }
-
-  // Puzzles mode - render full-screen puzzles page with error boundary
-  if (isPuzzlesMode) {
-    return (
-      <ErrorBoundary sectionName="Puzzles" onError={handleError}>
-        <PuzzlesPage />
-      </ErrorBoundary>
-    );
+    </>;
   }
 
   // Ready mode (before simulation starts)
@@ -361,43 +276,45 @@ export default function App() {
     switch (mobileView) {
       case 'agents':
         return (
-          <div className="h-full overflow-y-auto bg-city-bg pb-20">
-            <ErrorBoundary sectionName="Agent Summary" onError={handleError} compact>
+          <div className="h-full overflow-y-auto bg-city-bg">
+            <ErrorBoundary sectionName={translate("Agent Summary")} onError={handleError} compact>
               <MobileAgentList />
             </ErrorBoundary>
           </div>
         );
+      case 'resources':
+        return <div className="h-full overflow-y-auto"><MobileResourceList /></div>;
       case 'events':
         return (
-          <div className="h-full overflow-y-auto bg-city-bg pb-20">
-            <ErrorBoundary sectionName="Event Feed" onError={handleError} compact>
+          <div className="h-full overflow-y-auto bg-city-bg">
+            <ErrorBoundary sectionName={translate("Event Feed")} onError={handleError} compact>
               <EventFeed />
             </ErrorBoundary>
           </div>
         );
       case 'decisions':
         return (
-          <div className="h-full overflow-y-auto bg-city-bg pb-20">
-            <ErrorBoundary sectionName="Decision Log" onError={handleError} compact>
+          <div tabIndex={0} aria-label={translate('Decisions')} className="h-full overflow-y-auto bg-city-bg">
+            <ErrorBoundary sectionName={translate("Decision Log")} onError={handleError} compact>
               <MobileDecisionLog />
             </ErrorBoundary>
           </div>
         );
       case 'profile':
         return (
-          <div className="h-full overflow-y-auto bg-city-bg pb-20">
+          <div className="h-full overflow-y-auto bg-city-bg">
             {selectedAgentId ? (
-              <ErrorBoundary sectionName="Agent Profile" onError={handleError} compact>
+              <ErrorBoundary sectionName={translate("Agent Profile")} onError={handleError} compact>
                 <AgentProfile agentId={selectedAgentId} />
               </ErrorBoundary>
             ) : selectedResourceId ? (
-              <ErrorBoundary sectionName="Resource Profile" onError={handleError} compact>
+              <ErrorBoundary sectionName={translate("Resource Profile")} onError={handleError} compact>
                 <ResourceProfile />
               </ErrorBoundary>
             ) : (
               <div className="p-4 text-city-text-muted text-sm text-center">
-                <p>No agent or resource selected</p>
-                <p className="mt-2 text-xs">Tap an agent or resource on the map to view details</p>
+                <p>{translate("No agent or resource selected")}</p>
+                <p className="mt-2 text-xs">{translate("Tap an agent or resource on the map to view details")}</p>
               </div>
             )}
           </div>
@@ -405,8 +322,8 @@ export default function App() {
       case 'canvas':
       default:
         return (
-          <div className="h-full pb-16">
-            <ErrorBoundary sectionName="Canvas" onError={handleError}>
+          <div className="h-full">
+            <ErrorBoundary sectionName={translate("Canvas")} onError={handleError}>
               {renderCanvas()}
             </ErrorBoundary>
           </div>
@@ -416,6 +333,14 @@ export default function App() {
 
   return (
     <>
+      {importNotice}
+      <StorageNotice />
+      {localConnection.error && !importIssue && !exportIssue && (
+        <div role="alert" tabIndex={0} className="simulation-error-notice rounded-lg border border-red-400 bg-gray-950 p-4 text-sm text-white">
+          <strong>{translate("Simulation paused.")}</strong> {localConnection.error}
+          <p>{translate("Check the connection, model and provider quota, then resume explicitly. No fallback or automatic retry was used.")}</p>
+        </div>
+      )}
       {/* Social Graph Overlay */}
       <SocialGraphView />
 
@@ -428,58 +353,60 @@ export default function App() {
         onChange={(event) => void handleImportFile(event.currentTarget.files?.[0])}
       />
 
+      {mode === 'editor' && !showConfigPanel && <section inert={showSetup} aria-hidden={showSetup} className="setup-invitation" aria-label={translate("Simulation setup")}>
+        <h2>{translate("Start with your own AI models")}</h2><p>{translate("Connect a provider, verify your models and choose how your world begins.")}</p>
+        <button ref={setupTrigger} onClick={() => setShowSetup(true)}>{translate("Set up a simulation")}</button>
+      </section>}
+      {showSetup && <SetupJourney onClose={() => { setShowSetup(false); requestAnimationFrame(() => setupTrigger.current?.focus()); }} onStart={handleStartSimulation} onAdvanced={() => { setShowSetup(false); setShowConfigPanel(true); }} />}
       {/* Config Panel */}
       {showConfigPanel && (
-        <ConfigPanel onClose={() => setShowConfigPanel(false)} />
+        <ConfigPanel onClose={closeConfiguration} />
       )}
 
       {/* Desktop layout */}
-      <div className="hidden md:block h-screen">
+      <div inert={showConfigPanel || showSetup} className="hidden lg:block h-dvh">
         <Layout
           header={headerContent}
-          sidebar={
-            isReadyMode ? (
+          sidebar={<>
+            {!isReadyMode && <EntitySelector />}
+            {isReadyMode ? (
               <div className="p-4">
-                <h3 className="text-sm font-semibold text-city-text mb-2">Scientific Mode</h3>
-                <p className="text-xs text-city-text-muted mb-4">
-                  This experiment observes emergent behavior in an AI agent population.
-                </p>
+                <h3 className="text-sm font-semibold text-city-text mb-2">{translate("Scientific Mode")}</h3>
+                <p className="text-xs text-city-text-muted mb-4">{translate("This experiment observes emergent behavior in an AI agent population.")}</p>
                 <div className="space-y-3 text-xs text-city-text-muted">
                   <div>
-                    <h4 className="font-medium text-city-text mb-1">What's Imposed:</h4>
+                    <h4 className="font-medium text-city-text mb-1">{translate("What's Imposed:")}</h4>
                     <ul className="list-disc list-inside space-y-0.5">
-                      <li>Grid world (100x100)</li>
-                      <li>Survival needs (hunger, energy, health)</li>
-                      <li>Resource distribution</li>
+                      <li>{translate("Grid world (100x100)")}</li>
+                      <li>{translate("Survival needs (hunger, energy, health)")}</li>
+                      <li>{translate("Resource distribution")}</li>
                     </ul>
                   </div>
                   <div>
-                    <h4 className="font-medium text-city-text mb-1">What Emerges:</h4>
+                    <h4 className="font-medium text-city-text mb-1">{translate("What Emerges:")}</h4>
                     <ul className="list-disc list-inside space-y-0.5">
-                      <li>Movement patterns</li>
-                      <li>Resource gathering strategies</li>
-                      <li>Social behaviors</li>
+                      <li>{translate("Movement patterns")}</li>
+                      <li>{translate("Resource gathering strategies")}</li>
+                      <li>{translate("Social behaviors")}</li>
                     </ul>
                   </div>
                   <div className="pt-2 border-t border-city-border/30">
-                    <p className="italic">Click "Start Simulation" to begin the experiment.</p>
+                    <p className="italic">{translate("Click \"Start Simulation\" to begin the experiment.")}</p>
                   </div>
                 </div>
               </div>
             ) : selectedAgentId ? (
-              <ErrorBoundary sectionName="Agent Profile" onError={handleError} compact>
+              <ErrorBoundary sectionName={translate("Agent Profile")} onError={handleError} compact>
                 <AgentProfile agentId={selectedAgentId} />
               </ErrorBoundary>
             ) : selectedResourceId ? (
-              <ErrorBoundary sectionName="Resource Profile" onError={handleError} compact>
+              <ErrorBoundary sectionName={translate("Resource Profile")} onError={handleError} compact>
                 <ResourceProfile />
               </ErrorBoundary>
             ) : (
-              <div className="p-4 text-gray-400 text-sm">
-                Click an agent or resource on the grid to view details
-              </div>
+              <div className="p-4 text-gray-400 text-sm">{translate("Click an agent or resource on the grid to view details")}</div>
             )
-          }
+          }</>}
           feed={
             <div className="flex flex-col h-full">
               {/* Event Filters */}
@@ -488,7 +415,7 @@ export default function App() {
               </div>
               {/* Event Feed */}
               <div className="flex-1 overflow-hidden">
-                <ErrorBoundary sectionName="Event Feed" onError={handleError} compact>
+                <ErrorBoundary sectionName={translate("Event Feed")} onError={handleError} compact>
                   <EventFeed />
                 </ErrorBoundary>
               </div>
@@ -496,17 +423,17 @@ export default function App() {
           }
         >
           {/* Canvas with error boundary - switches based on view mode */}
-          <ErrorBoundary sectionName="Canvas" onError={handleError}>
+          <ErrorBoundary sectionName={translate("Canvas")} onError={handleError}>
             {renderCanvas()}
           </ErrorBoundary>
 
           {/* Floating panels with error boundaries - desktop only */}
           {!isReadyMode && (
             <>
-              <ErrorBoundary sectionName="Agent Summary" onError={handleError} compact>
+              <ErrorBoundary sectionName={translate("Agent Summary")} onError={handleError} compact>
                 <AgentSummaryTable />
               </ErrorBoundary>
-              <ErrorBoundary sectionName="Decision Log" onError={handleError} compact>
+              <ErrorBoundary sectionName={translate("Decision Log")} onError={handleError} compact>
                 <DecisionLog />
               </ErrorBoundary>
             </>
@@ -515,39 +442,37 @@ export default function App() {
       </div>
 
       {/* Mobile layout */}
-      <div className="md:hidden h-screen flex flex-col bg-city-bg">
+      <div inert={showConfigPanel || showSetup} className="lg:hidden h-dvh flex flex-col bg-city-bg">
         {/* Mobile header */}
-        <header className="h-12 px-2 bg-city-surface/80 backdrop-blur-md border-b border-city-border/50 flex items-center justify-between shrink-0 z-20">
+        <header className="app-header shrink-0 z-20">
           {headerContent}
         </header>
 
         {/* Mobile content area */}
-        <main className="flex-1 overflow-hidden relative">
+        <main className="mobile-world-content flex-1 min-h-0 overflow-hidden relative" style={{ marginBottom: isReadyMode ? 0 : "calc(var(--mobile-nav-height, 64px) + env(safe-area-inset-bottom))" }}>
           {isReadyMode ? (
-            <div className="h-full overflow-y-auto p-4">
-              <h3 className="text-base font-semibold text-city-text mb-3">Scientific Mode</h3>
-              <p className="text-sm text-city-text-muted mb-4">
-                This experiment observes emergent behavior in an AI agent population.
-              </p>
+            <div tabIndex={0} className="h-full overflow-y-auto p-4">
+              <h3 className="text-base font-semibold text-city-text mb-3">{translate("Scientific Mode")}</h3>
+              <p className="text-sm text-city-text-muted mb-4">{translate("This experiment observes emergent behavior in an AI agent population.")}</p>
               <div className="space-y-4 text-sm text-city-text-muted">
                 <div>
-                  <h4 className="font-medium text-city-text mb-2">What's Imposed:</h4>
+                  <h4 className="font-medium text-city-text mb-2">{translate("What's Imposed:")}</h4>
                   <ul className="list-disc list-inside space-y-1">
-                    <li>Grid world (100x100)</li>
-                    <li>Survival needs (hunger, energy, health)</li>
-                    <li>Resource distribution</li>
+                    <li>{translate("Grid world (100x100)")}</li>
+                    <li>{translate("Survival needs (hunger, energy, health)")}</li>
+                    <li>{translate("Resource distribution")}</li>
                   </ul>
                 </div>
                 <div>
-                  <h4 className="font-medium text-city-text mb-2">What Emerges:</h4>
+                  <h4 className="font-medium text-city-text mb-2">{translate("What Emerges:")}</h4>
                   <ul className="list-disc list-inside space-y-1">
-                    <li>Movement patterns</li>
-                    <li>Resource gathering strategies</li>
-                    <li>Social behaviors</li>
+                    <li>{translate("Movement patterns")}</li>
+                    <li>{translate("Resource gathering strategies")}</li>
+                    <li>{translate("Social behaviors")}</li>
                   </ul>
                 </div>
                 <div className="pt-4 border-t border-city-border/30">
-                  <p className="italic text-center">Tap "Start Simulation" above to begin</p>
+                  <p className="italic text-center">{translate("Tap \"Start Simulation\" above to begin")}</p>
                 </div>
               </div>
             </div>
@@ -561,7 +486,7 @@ export default function App() {
           <MobileNav
             currentView={mobileView}
             onViewChange={setMobileView}
-            hasSelectedAgent={!!selectedAgentId}
+            hasSelectedAgent={!!selectedAgentId || !!selectedResourceId}
             agentCount={aliveAgents.length}
             eventCount={events.length}
           />

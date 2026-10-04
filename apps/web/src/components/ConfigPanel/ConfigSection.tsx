@@ -1,3 +1,4 @@
+import { useLocale } from '../../i18n';
 /**
  * ConfigSection Component
  *
@@ -19,6 +20,7 @@ export function ConfigSection({
   defaultExpanded = false,
   children,
 }: ConfigSectionProps) {
+  useLocale();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const contentId = useId();
 

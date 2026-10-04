@@ -1,3 +1,9 @@
+import { useRelaySession } from '../../services/relay-access';
+import { formatError } from '../../i18n/errors';
+import { translateLabel, useLocale, translate } from '../../i18n';
+
+import { useDialogFocus } from '../../hooks/useDialogFocus';
+import { useRequestCaptureStore } from '../../stores/requestCapture';
 /**
  * StartConfirmationModal Component
  *
@@ -5,7 +11,14 @@
  * Ensures users review settings before launching.
  */
 
-import { useEffect, useState } from 'react';
+import { profileVerificationIssue } from '../../services/profile-verification-gate';
+import { useConnectionVerificationStore } from '../../stores/connectionVerification';
+import { useSessionLimitsStore } from '../../stores/sessionLimits';
+import { useConnectionsStore } from '../../stores/connections';
+import { SessionLimitsForm } from './SessionLimitsForm';
+import { byokPreflight, internalFixturesEnabled } from '../../services/byok-preflight';
+import { useProxyUrl } from '../../stores/settings';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import { useConfigStore } from '../../stores/config';
 import { useApiKeysStore, type LLMType } from '../../stores/apiKeys';
 import { useAgentRoster } from '../../stores/roster';
@@ -63,12 +76,28 @@ export function StartConfirmationModal({
   onOpenConfig,
   isLoading,
 }: StartConfirmationModalProps) {
+  useLocale();
+  useRelaySession();
+  const dialog = useRef<HTMLDivElement>(null);
+  const closeDialog = useCallback(() => { if (!isLoading) onCancel(); }, [isLoading, onCancel]);
+  useDialogFocus(dialog, isOpen, closeDialog);
   const { genesisConfig, personalityConfig, config, pendingChanges } = useConfigStore();
   const { providers, status, isSynced, fetchStatus } = useApiKeysStore();
   const roster = useAgentRoster();
+  const capture = useRequestCaptureStore();
+  useConnectionVerificationStore((s) => s.results);
+  useSessionLimitsStore((s) => s.limits);
+  const profiles = useConnectionsStore((s) => s.profiles);
+  const proxyUrl = useProxyUrl();
+  const connectionIssue = byokPreflight(roster, useApiKeysStore.getState().getActiveKeys(), proxyUrl, internalFixturesEnabled(), profiles) ?? profileVerificationIssue(roster, profiles);
   const isLocalMode = isLocalEngineMode();
   const [savedWorld, setSavedWorld] = useState<SavedWorld | undefined>();
+  const [loadingSave, setLoadingSave] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [limitsValid, setLimitsValid] = useState(true);
   const [startChoice, setStartChoice] = useState<'resume' | 'new'>('new');
+
+  useEffect(() => { if (isOpen) setLimitsValid(true); }, [isOpen]);
 
   // Fetch API keys status when modal opens if not already synced
   useEffect(() => {
@@ -83,9 +112,13 @@ export function StartConfirmationModal({
       setStartChoice('new');
       return;
     }
-    const saved = loadSavedWorld();
-    setSavedWorld(saved);
-    setStartChoice(saved ? 'resume' : 'new');
+    let cancelled = false;
+    setLoadingSave(true); setSaveError('');
+    void loadSavedWorld().then(saved => {
+      if (!cancelled) { setSavedWorld(saved); setStartChoice(saved ? 'resume' : 'new'); }
+    }).catch(() => { if (!cancelled) setSaveError('Saved world could not be read. Existing data has been preserved.'); })
+      .finally(() => { if (!cancelled) setLoadingSave(false); });
+    return () => { cancelled = true; };
   }, [isOpen, isLocalMode]);
 
   if (!isOpen) return null;
@@ -111,7 +144,8 @@ export function StartConfirmationModal({
     }
   }
 
-  const hasKeys = activeProviders.length > 0;
+  const credentialCount = Object.keys(useApiKeysStore.getState().getActiveKeys()).length;
+  const hasKeys = credentialCount > 0;
 
   // Get personality weights for display
   // Read enabled state from server config (with pending changes), not from local personalityConfig
@@ -132,10 +166,10 @@ export function StartConfirmationModal({
       />
 
       {/* Modal */}
-      <div className="relative bg-gray-900 rounded-lg border border-gray-700 shadow-2xl w-full max-w-md overflow-hidden">
+      <div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="start-dialog-title" className="relative bg-gray-900 rounded-lg border border-gray-700 shadow-2xl w-full max-w-md max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-gray-700 bg-gray-800/50">
-          <h2 className="text-lg font-semibold text-gray-100 flex items-center gap-2">
+        <div className="shrink-0 px-5 py-4 border-b border-gray-700 bg-gray-800/50">
+          <h2 id="start-dialog-title" className="text-lg font-semibold text-gray-100 flex items-center gap-2">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="20"
@@ -149,20 +183,16 @@ export function StartConfirmationModal({
               className="text-blue-400"
             >
               <polygon points="5 3 19 12 5 21 5 3" />
-            </svg>
-            Start Simulation
-          </h2>
-          <p className="text-sm text-gray-400 mt-1">
-            Review configuration before starting
-          </p>
+            </svg>{translate("Start Simulation")}</h2>
+          <p className="text-sm text-gray-400 mt-1">{translate("Review configuration before starting")}</p>
         </div>
 
         {/* Content */}
-        <div className="px-5 py-4 space-y-4">
+        <div className="min-h-0 overflow-y-auto px-5 py-4 space-y-4">
           {/* Deployment Mode */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-400">Deployment Mode</span>
+              <span className="text-sm text-gray-400">{translate("Deployment Mode")}</span>
               <span
                 className={`px-2 py-0.5 text-xs font-medium rounded ${
                   isLocalMode
@@ -172,16 +202,16 @@ export function StartConfirmationModal({
                     : 'bg-blue-500/20 text-blue-300'
                 }`}
               >
-                {isLocalMode ? 'Local roster' : genesisConfig.enabled ? 'Genesis' : 'Standard'}
+                {isLocalMode ? translate("Local roster") : genesisConfig.enabled ? translate("Genesis") : translate("Standard")}
               </span>
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-400">Total Agents</span>
+              <span className="text-sm text-gray-400">{translate("Total Agents")}</span>
               <span className="text-sm font-mono text-gray-200">
                 {displayedAgentCount}
                 {!isLocalMode && genesisConfig.enabled && (
-                  <span className="text-gray-500 ml-1">
+                  <span className="text-gray-400 ml-1">
                     ({genesisConfig.childrenPerMother} × {genesisConfig.mothers.length})
                   </span>
                 )}
@@ -203,7 +233,7 @@ export function StartConfirmationModal({
                       />
                       <div className="min-w-0 flex-1">
                         <div className="text-xs text-gray-200 truncate">{entry.name}</div>
-                        <div className="text-[10px] text-gray-500 truncate">
+                        <div className="text-[10px] text-gray-400 truncate">
                           {rosterProviderLabel(entry)} · {rosterModelLabel(entry)}
                           {reasoning ? ` · ${reasoning}` : ''}
                         </div>
@@ -216,7 +246,7 @@ export function StartConfirmationModal({
 
             {!isLocalMode && genesisConfig.enabled && (
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-400">Mother LLMs</span>
+                <span className="text-sm text-gray-400">{translate("Mother LLMs")}</span>
                 <div className="flex gap-1">
                   {genesisConfig.mothers.map((m) => (
                     <span
@@ -235,10 +265,12 @@ export function StartConfirmationModal({
             <>
               <div className="border-t border-gray-700/50" />
               <div className="space-y-2">
-                <span className="text-sm text-gray-400">World</span>
+                <span className="text-sm text-gray-400">{translate("World")}</span>
+                {!savedWorld.snapshot.random?.complete && <p role="note" className="text-xs text-yellow-300">{translate("Original random history is unavailable for this save. Random sequence continuity is preserved only from its first updated save.")}</p>}
                 <div className="grid grid-cols-1 gap-2">
                   <button
                     type="button"
+                    aria-pressed={startChoice === 'resume'}
                     onClick={() => setStartChoice('resume')}
                     className={`text-left rounded border px-3 py-2 transition-colors ${
                       startChoice === 'resume'
@@ -246,15 +278,12 @@ export function StartConfirmationModal({
                         : 'border-gray-700 bg-gray-800/50 text-gray-300 hover:bg-gray-800'
                     }`}
                   >
-                    <span className="block text-xs font-medium">
-                      Resume saved world
-                    </span>
-                    <span className="block text-[11px] text-gray-500 mt-0.5">
-                      tick {String(savedWorld.snapshot.store.worldState.currentTick)} · {savedWorld.snapshot.store.agents.length} agents
-                    </span>
+                    <span className="block text-xs font-medium">{translate("Resume saved world")}</span>
+                    <span className="block text-[11px] text-gray-400 mt-0.5">{translate("tick")}{" "}{String(savedWorld.snapshot.store.worldState.currentTick)} · {savedWorld.snapshot.store.agents.length}{" "}{translate("agents")}</span>
                   </button>
                   <button
                     type="button"
+                    aria-pressed={startChoice === 'new'}
                     onClick={() => setStartChoice('new')}
                     className={`text-left rounded border px-3 py-2 transition-colors ${
                       startChoice === 'new'
@@ -262,10 +291,8 @@ export function StartConfirmationModal({
                         : 'border-gray-700 bg-gray-800/50 text-gray-300 hover:bg-gray-800'
                     }`}
                   >
-                    <span className="block text-xs font-medium">Start new world</span>
-                    <span className="block text-[11px] text-gray-500 mt-0.5">
-                      clears the saved world snapshot
-                    </span>
+                    <span className="block text-xs font-medium">{translate("Start new world")}</span>
+                    <span className="block text-[11px] text-gray-400 mt-0.5">{translate("clears the saved world snapshot")}</span>
                   </button>
                 </div>
               </div>
@@ -278,7 +305,7 @@ export function StartConfirmationModal({
           {/* Personalities */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-400">Personalities</span>
+              <span className="text-sm text-gray-400">{translate("Personalities")}</span>
               <span
                 className={`px-2 py-0.5 text-xs font-medium rounded ${
                   personalitiesEnabled
@@ -286,7 +313,7 @@ export function StartConfirmationModal({
                     : 'bg-gray-600/30 text-gray-400'
                 }`}
               >
-                {personalitiesEnabled ? 'Enabled' : 'Disabled'}
+                {personalitiesEnabled ? translate("Enabled") : translate("Disabled")}
               </span>
             </div>
 
@@ -301,7 +328,7 @@ export function StartConfirmationModal({
                         width: `${weight * 100}%`,
                         backgroundColor: PERSONALITY_COLORS[trait] || '#6b7280',
                       }}
-                      title={`${trait}: ${Math.round(weight * 100)}%`}
+                      title={`${translateLabel(trait.charAt(0).toUpperCase() + trait.slice(1))}: ${Math.round(weight * 100)}%`}
                     />
                   ))}
                 </div>
@@ -312,7 +339,7 @@ export function StartConfirmationModal({
                         className="w-2 h-2 rounded-full"
                         style={{ backgroundColor: PERSONALITY_COLORS[trait] }}
                       />
-                      <span className="text-[10px] text-gray-500 capitalize">
+                      <span className="text-[10px] text-gray-400 capitalize">
                         {trait}: {Math.round(weight * 100)}%
                       </span>
                     </div>
@@ -325,14 +352,17 @@ export function StartConfirmationModal({
           {/* Divider */}
           <div className="border-t border-gray-700/50" />
 
+          {connectionIssue && <p role="alert" className="text-sm text-yellow-200">{connectionIssue}</p>}
+          <SessionLimitsForm onValidityChange={setLimitsValid} />
+          <label className="block text-xs text-gray-300">
+            <input type="checkbox" aria-label={translate("Capture actual requests for this session")} aria-describedby="request-capture-description" checked={capture.enabled} onChange={event => capture.setEnabled(event.target.checked)} className="mr-2" />{translate("Capture actual requests for this session")}<span id="request-capture-description" className="block mt-1 text-gray-400">{translate("Optional local diagnostics: prompts and responses are saved on this device. Up to 100 completed attempts per session, up to 16,384 characters per request/response body; truncation is marked. Authentication headers and URLs are excluded; known session keys are redacted. Shared storage budget applies. Applies when starting a session.")}</span>
+          </label>
           {/* API Keys Status */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-400">API Keys</span>
+              <span className="text-sm text-gray-400">{translate("API Keys")}</span>
               {!isSynced ? (
-                <span className="px-2 py-0.5 text-xs font-medium rounded bg-gray-600/30 text-gray-400">
-                  Loading...
-                </span>
+                <span className="px-2 py-0.5 text-xs font-medium rounded bg-gray-600/30 text-gray-400">{translate("Loading...")}</span>
               ) : (
                 <span
                   className={`px-2 py-0.5 text-xs font-medium rounded ${
@@ -341,16 +371,14 @@ export function StartConfirmationModal({
                       : 'bg-yellow-500/20 text-yellow-300'
                   }`}
                 >
-                  {hasKeys ? `${activeProviders.length} Active` : 'Fallback Mode'}
+                  {hasKeys ? translate("{count} Active", { count: credentialCount }) : translate("No keys configured")}
                 </span>
               )}
             </div>
 
             {isSynced && !hasKeys && (
               <div className="p-2 rounded bg-yellow-900/20 border border-yellow-700/30">
-                <p className="text-xs text-yellow-300">
-                  No API keys configured. Agents will use rule-based fallback decisions.
-                </p>
+                <p className="text-xs text-yellow-300">{translate("LLM agents require provider credentials. Missing keys pause the session; no fallback is used.")}</p>
               </div>
             )}
 
@@ -370,14 +398,12 @@ export function StartConfirmationModal({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-gray-700 bg-gray-800/30 flex gap-3">
+        <div className="shrink-0 px-5 py-4 border-t border-gray-700 bg-gray-800/30 flex gap-3">
           <button
             onClick={onCancel}
             disabled={isLoading}
             className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 hover:bg-gray-600 rounded transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
+          >{translate("Cancel")}</button>
           {onOpenConfig && (
             <button
               onClick={onOpenConfig}
@@ -397,20 +423,17 @@ export function StartConfirmationModal({
               >
                 <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
                 <circle cx="12" cy="12" r="3" />
-              </svg>
-              Edit
-            </button>
+              </svg>{translate("Edit")}</button>
           )}
+          {saveError && <p role="alert" className="text-yellow-300">{formatError(saveError)}</p>}
           <button
             onClick={() => onConfirm(startChoice)}
-            disabled={isLoading}
-            className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            disabled={isLoading || loadingSave || !!saveError || !!connectionIssue || !limitsValid}
+            className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-700 hover:bg-blue-600 rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {isLoading ? (
               <>
-                <span className="animate-spin">...</span>
-                Starting...
-              </>
+                <span className="animate-spin">...</span>{translate("Starting...")}</>
             ) : (
               <>
                 <svg
@@ -423,7 +446,7 @@ export function StartConfirmationModal({
                 >
                   <polygon points="5 3 19 12 5 21 5 3" />
                 </svg>
-                {startChoice === 'resume' ? 'Resume' : 'Start'}
+                {startChoice === 'resume' ? translate("Resume") : translate("Start")}
               </>
             )}
           </button>

@@ -86,9 +86,7 @@ export interface GatherParams {
   quantity?: number; // How much to try to gather (default: 1)
 }
 
-export interface ForageParams {
-  // No params needed - just forage at current location
-}
+export type ForageParams = Record<string, never>;
 
 export interface PublicWorkParams {
   taskType?: 'road_maintenance' | 'resource_survey' | 'shelter_cleanup';
@@ -322,6 +320,7 @@ export interface ActionValidation {
 // =============================================================================
 
 export interface ActionResult {
+  durationMs?: number;
   success: boolean;
   changes?: Partial<Agent>;
   events?: WorldEvent[];

@@ -2,6 +2,9 @@
  * Action Registry and Dispatcher
  */
 
+import { getRuntimeConfig } from '../config';
+import { store } from '../engine-memory/store';
+import { validateActionParams } from './validation';
 import type { Agent } from '../db/schema';
 import type { ActionType, ActionParams, ActionIntent, ActionResult, ActionHandler } from './types';
 import { handleMove } from './handlers/move';
@@ -90,6 +93,9 @@ handlers.set('form_team', handleFormTeam as ActionHandler);
 handlers.set('join_team', handleJoinTeam as ActionHandler);
 handlers.set('submit_solution', handleSubmitSolution as ActionHandler);
 
+/** Public action coverage is derived from this registry, including future additions. */
+export function getRegisteredActionTypes(): ActionType[] { return [...handlers.keys()]; }
+
 /**
  * Register a custom action handler
  */
@@ -111,6 +117,17 @@ export async function executeAction(
   intent: ActionIntent,
   agent: Agent
 ): Promise<ActionResult> {
+  const invalid = validateActionParams(intent.type, intent.params);
+  if (invalid) return { success: false, error: `Invalid action parameters: ${invalid}` };
+  const params = intent.params as Record<string, unknown>;
+  for (const key of ['targetAgentId', 'subjectAgentId', 'partnerId']) {
+    if (typeof params[key] === 'string' && !store.agents.has(params[key])) {
+      return { success: false, error: `Unknown agent reference: ${key}` };
+    }
+  }
+  if (typeof params.locationId === 'string' && !store.shelters.has(params.locationId)) {
+    return { success: false, error: 'Unknown location reference' };
+  }
   const handler = handlers.get(intent.type);
 
   if (!handler) {
@@ -126,6 +143,16 @@ export async function executeAction(
       success: false,
       error: 'Agent is dead',
     };
+  }
+
+  const focused = [...store.puzzleParticipants.values()].some((p) => {
+    const game = store.puzzleGames.get(p.gameId);
+    return p.agentId === agent.id && p.status === 'active' && game &&
+      (game.status === 'open' || game.status === 'active') &&
+      (game.endsAtTick === null || intent.tick < game.endsAtTick);
+  });
+  if (focused && !(getRuntimeConfig().puzzle.focusLock.allowedActions as readonly string[]).includes(intent.type)) {
+    return { success: false, error: 'Leave the puzzle before performing this action' };
   }
 
   try {

@@ -1,9 +1,9 @@
+import { IndexedCollection, legacyArray } from './secondary-data';
 export const EXPERIMENT_DEFS_KEY = 'simagents_experiment_defs_v1';
 export const EXPERIMENT_RUNS_KEY = 'simagents_experiment_runs_v1';
 
-const MAX_DEFINITIONS = 50;
-const MAX_RUNS = 20;
-const MAX_RUNS_BYTES = 1_500_000;
+const definitions = new IndexedCollection<BrowserExperimentDefinition>(EXPERIMENT_DEFS_KEY, value => legacyArray(value, isExperimentDefinition), definition => definition.id ?? 'default');
+const runs = new IndexedCollection<BrowserExperimentRun>(EXPERIMENT_RUNS_KEY, value => legacyArray(value, isExperimentRun), run => run.id);
 
 export interface BrowserExperimentDefinition {
   id?: string;
@@ -59,33 +59,13 @@ export interface BrowserExperimentExport {
   csv: string;
 }
 
-export function loadExperimentDefinitions(): BrowserExperimentDefinition[] {
-  return readArray(EXPERIMENT_DEFS_KEY, isExperimentDefinition);
-}
-
-export function saveExperimentDefinition(definition: BrowserExperimentDefinition): void {
-  const definitions = [definition, ...loadExperimentDefinitions().filter((item) => item.id !== definition.id)]
-    .slice(0, MAX_DEFINITIONS);
-  localStorage.setItem(EXPERIMENT_DEFS_KEY, JSON.stringify(definitions));
-}
-
-export function loadExperimentRuns(): BrowserExperimentRun[] {
-  return readArray(EXPERIMENT_RUNS_KEY, isExperimentRun);
-}
-
-export function saveExperimentRun(run: BrowserExperimentRun): void {
-  let runs = [run, ...loadExperimentRuns().filter((item) => item.id !== run.id)].slice(0, MAX_RUNS);
-  let json = JSON.stringify(runs);
-  while (byteLength(json) > MAX_RUNS_BYTES && runs.length > 1) {
-    runs = runs.slice(0, -1);
-    json = JSON.stringify(runs);
-  }
-  localStorage.setItem(EXPERIMENT_RUNS_KEY, json);
-}
-
-export function clearExperimentRuns(): void {
-  localStorage.removeItem(EXPERIMENT_RUNS_KEY);
-}
+export const loadExperimentDefinitions = () => definitions.load();
+export const saveExperimentDefinition = (definition: BrowserExperimentDefinition) =>
+  definitions.put(definition, false);
+export const loadExperimentRuns = () => runs.load();
+export const saveExperimentRun = (run: BrowserExperimentRun) =>
+  runs.put(run, false);
+export const clearExperimentRuns = () => runs.clear();
 
 export function exportExperimentRun(run: BrowserExperimentRun): BrowserExperimentExport {
   return {
@@ -125,20 +105,11 @@ export function experimentRunToCsv(run: BrowserExperimentRun): string {
   return [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\n');
 }
 
-function readArray<T>(key: string, guard: (value: unknown) => value is T): T[] {
-  const json = localStorage.getItem(key);
-  if (!json) return [];
-  try {
-    const parsed = JSON.parse(json);
-    return Array.isArray(parsed) ? parsed.filter(guard) : [];
-  } catch {
-    localStorage.removeItem(key);
-    return [];
-  }
-}
-
 function isExperimentDefinition(value: unknown): value is BrowserExperimentDefinition {
-  return !!value && typeof value === 'object';
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const definition = value as BrowserExperimentDefinition;
+  return ['id', 'name', 'notes'].every(key => (definition as Record<string, unknown>)[key] === undefined || typeof (definition as Record<string, unknown>)[key] === 'string') &&
+    [definition.ticks, definition.wallStepMs, definition.captureEveryTicks].every(number => number === undefined || (Number.isFinite(number) && number > 0));
 }
 
 function isExperimentRun(value: unknown): value is BrowserExperimentRun {
@@ -147,18 +118,16 @@ function isExperimentRun(value: unknown): value is BrowserExperimentRun {
     !!run &&
     run.schemaVersion === 1 &&
     typeof run.id === 'string' &&
-    typeof run.startedAt === 'number' &&
-    typeof run.targetTicks === 'number' &&
-    typeof run.ticksCompleted === 'number' &&
-    Array.isArray(run.snapshots)
+    Number.isFinite(run.startedAt) &&
+    Number.isSafeInteger(run.targetTicks) && run.targetTicks! >= 0 &&
+    Number.isSafeInteger(run.ticksCompleted) && run.ticksCompleted! >= 0 &&
+    ['running', 'completed', 'cancelled', 'failed'].includes(run.status ?? '') &&
+    isExperimentDefinition(run.definition) &&
+    Array.isArray(run.snapshots) && run.snapshots.every(snapshot => !!snapshot && ['tick', 'simTimeMs', 'capturedAt', 'agentCount', 'aliveAgents', 'avgHunger', 'avgEnergy', 'avgHealth', 'totalBalance', 'resourceAmount', 'eventCount'].every(key => Number.isFinite((snapshot as unknown as Record<string, unknown>)[key])))
   );
 }
 
 function csvCell(value: unknown): string {
   const text = String(value ?? '');
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
-function byteLength(value: string): number {
-  return new Blob([value]).size;
 }

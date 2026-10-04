@@ -1,3 +1,4 @@
+import { useLocale, translate } from '../../i18n';
 /**
  * TemplateViewer - Code viewer for prompt templates
  *
@@ -23,6 +24,7 @@ export function TemplateViewer({
   maxHeight = '500px',
   showLineNumbers = true,
 }: TemplateViewerProps) {
+  useLocale();
   const [copied, setCopied] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -49,14 +51,13 @@ export function TemplateViewer({
             <span className="text-sm font-medium text-city-text">{title}</span>
           )}
           <span className="text-xs text-city-text-muted">
-            {lineCount} lines, {charCount.toLocaleString()} chars
-          </span>
+            {lineCount}{" "}{translate("lines,")}{" "}{charCount.toLocaleString()}{" "}{translate("chars")}</span>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsExpanded(!isExpanded)}
             className="p-1.5 rounded hover:bg-city-border/50 text-city-text-muted hover:text-city-text transition-colors"
-            title={isExpanded ? 'Collapse' : 'Expand'}
+            title={isExpanded ? translate("Collapse") : translate("Expand")}
           >
             <svg
               className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
@@ -79,7 +80,7 @@ export function TemplateViewer({
                 ? 'bg-green-600/20 text-green-400'
                 : 'hover:bg-city-border/50 text-city-text-muted hover:text-city-text'
             }`}
-            title={copied ? 'Copied!' : 'Copy to clipboard'}
+            title={copied ? translate("Copied!") : translate("Copy to clipboard")}
           >
             {copied ? (
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -137,9 +138,7 @@ export function TemplateViewer({
           <button
             onClick={() => setIsExpanded(true)}
             className="text-xs text-city-accent hover:underline"
-          >
-            Show all {lineCount} lines
-          </button>
+          >{translate("Show all")}{" "}{lineCount}{" "}{translate("lines")}</button>
         </div>
       )}
     </div>

@@ -20,11 +20,12 @@ on:
         type: boolean
 
 permissions:
+  actions: read
   contents: write
   pull-requests: read
 
 env:
-  BUN_VERSION: "1.1.42"
+  BUN_VERSION: "1.2.14"
 
 jobs:
   # ============================================================================
@@ -42,34 +43,70 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          node-version: "24.11.1"
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Require candidate release evidence
+        env:
+          SIMAGENTS_RELEASE_EVIDENCE: ${{ vars.SIMAGENTS_RELEASE_EVIDENCE }}
+          SIMAGENTS_RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+        run: node scripts/check-release-gates.mjs
+
+      - name: Verify the exact successful CI run
+        id: candidate-ci
+        env:
+          SIMAGENTS_RELEASE_EVIDENCE: ${{ vars.SIMAGENTS_RELEASE_EVIDENCE }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/check-ci-candidate.mjs
+
+      - name: Download the tested web candidate
+        uses: actions/download-artifact@v4
         with:
-          bun-version: ${{ env.BUN_VERSION }}
+          name: web-dist
+          path: apps/web/dist
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.candidate-ci.outputs.run-id }}
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Download the tested relay candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: relay-dist
+          path: apps/relay/dist
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.candidate-ci.outputs.run-id }}
 
-      - name: Typecheck all packages
-        run: bun run typecheck
+      - name: Download the tested admission candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: admission-dist
+          path: apps/admission/dist
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.candidate-ci.outputs.run-id }}
 
-      - name: Run engine test suite
-        run: bun run --filter @simagents/engine test
-
-      - name: Build web frontend
-        working-directory: apps/web
-        run: npm run build
-
-      - name: Verify browser-only bundle (no backend leakage)
-        working-directory: apps/web
+      - name: Verify tested candidate identity and all artifact hashes
+        env:
+          SIMAGENTS_RELEASE_EVIDENCE: ${{ vars.SIMAGENTS_RELEASE_EVIDENCE }}
         run: |
-          if grep -rEl "fastify|postgres|redis|bullmq|drizzle|@server|/api/|EventSource" dist; then
-            echo "::error::Backend-only code leaked into the browser bundle"
-            exit 1
-          fi
-          echo "Bundle is clean (browser-only)."
+          node scripts/release-candidate.mjs --verify
+          node scripts/check-browser-bundle.mjs
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const candidate = JSON.parse(readFileSync('apps/web/dist/candidate.json', 'utf8'));
+          const evidence = JSON.parse(process.env.SIMAGENTS_RELEASE_EVIDENCE);
+          if (candidate.identity.dirty || candidate.id !== evidence.candidateId) throw new Error('Release evidence does not match the clean tested artifact.');
+          NODE
+
+      - name: Package the verified artifacts for retention
+        run: |
+          (cd apps/web/dist && zip -r ../../../web-candidate.zip .)
+          (cd apps/relay/dist && zip -r ../../../relay-candidate.zip .)
+          (cd apps/admission/dist && zip -r ../../../admission-candidate.zip .)
+
+      - name: Retain verified release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: verified-release-candidate
+          path: '*-candidate.zip'
+          retention-days: 90
 
   # ============================================================================
   # Job 1: Create Release
@@ -90,11 +127,19 @@ jobs:
 
       - name: Determine version
         id: version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+          RELEASE_REF: ${{ github.ref_name }}
+          RELEASE_EVENT: ${{ github.event_name }}
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            VERSION="${{ github.event.inputs.version }}"
+          if [[ "$RELEASE_EVENT" == "workflow_dispatch" ]]; then
+            VERSION="$REQUESTED_VERSION"
           else
-            VERSION="${{ github.ref_name }}"
+            VERSION="$RELEASE_REF"
+          fi
+          if [[ ! "$VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)([.-][0-9]+)?)?$ ]]; then
+            echo "Invalid release version"
+            exit 1
           fi
 
           # Ensure version starts with 'v'
@@ -144,12 +189,22 @@ jobs:
             echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${VERSION}" >> changelog.md
           fi
 
+      - name: Download verified candidate packages
+        uses: actions/download-artifact@v4
+        with:
+          name: verified-release-candidate
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: Release ${{ steps.version.outputs.version }}
           body_path: changelog.md
+          files: |
+            web-candidate.zip
+            relay-candidate.zip
+            admission-candidate.zip
+          fail_on_unmatched_files: true
           draft: false
           prerelease: ${{ contains(steps.version.outputs.version, '-alpha') || contains(steps.version.outputs.version, '-beta') || contains(steps.version.outputs.version, '-rc') }}
           generate_release_notes: true
@@ -174,4 +229,4 @@ jobs:
           echo "| Release Created | ${{ needs.create-release.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| GitHub Release | https://github.com/${{ github.repository }}/releases/tag/${{ needs.create-release.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Note:** SimAgents is self-hosted only. Download and run locally." >> $GITHUB_STEP_SUMMARY
+          echo "**Note:** Release artifacts are retained here. Verify the live deployment separately at https://app.simagents.io." >> $GITHUB_STEP_SUMMARY

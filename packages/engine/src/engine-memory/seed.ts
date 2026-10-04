@@ -1,3 +1,4 @@
+import { initializeRNG } from '../utils/random';
 /**
  * World seeding helpers — Phase 1 spike.
  */
@@ -155,6 +156,7 @@ const SHELTER_CONFIGS_DISTRIBUTED: ShelterConfig[] = [
 /** Build a small deterministic world for the spike. */
 export async function seedWorld(opts: SeedOptions = {}): Promise<void> {
   resetStore();
+  initializeRNG(opts.worldSeed ?? 'simagents');
 
   if (opts.roster) {
     await seedRosterWorld(opts);
@@ -239,6 +241,8 @@ async function seedRosterWorld(opts: SeedOptions): Promise<void> {
     const agent: NewAgent & { name?: string } = {
       id: uuid(),
       name: entry.name,
+      rosterEntryId: entry.id ?? `legacy:${entry.name}`,
+      connectionId: entry.connectionId,
       llmType: entry.provider,
       x: position.x,
       y: position.y,

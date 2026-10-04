@@ -14,11 +14,14 @@ import {
 } from '../engine-memory/queries/inventory';
 import { getAllResourceSpawns, updateResourceSpawn } from '../engine-memory/queries/world';
 import { getCurrentSeason } from '../simulation/seasons';
+import { recordDirectDiscovery } from '../engine-memory/queries/knowledge';
+import { decayStaleRelationships } from '../engine-memory/queries/memories';
+import { expireJobOffers } from '../engine-memory/queries/employment';
 import { completeGestations } from './reproduction';
 import { processPuzzleLifecycle } from './puzzles';
 import { materializeVitals, type MaterializedVitals } from './vitals';
 import { deleteVitalsMeta, setVitalsMeta, sweepVitalsMeta, type VitalsMeta } from './vitals-meta';
-import { deleteAgentMeta, sweepAgentMeta } from './agent-meta';
+import { deleteAgentMeta, sweepAgentMeta, setAgentBusyUntil } from './agent-meta';
 import { TICK_MS, simMinutes, tickFromSimTime } from './time';
 
 export interface HousekeepingSummary {
@@ -75,11 +78,6 @@ async function emit(event: WorldEvent, events: WorldEvent[]): Promise<void> {
     eventType: event.type,
     payload: event.payload,
   });
-}
-
-function deathCause(result: MaterializedVitals): 'starvation' | 'exhaustion' {
-  const criticalHunger = getRuntimeConfig().needs.criticalHungerThreshold ?? 10;
-  return result.newState.hunger < criticalHunger ? 'starvation' : 'exhaustion';
 }
 
 function needsWarningEvents(
@@ -230,9 +228,10 @@ async function autoConsumeWhileSleeping(
   return { agent: updated, newState: nextState, meta: nextMeta };
 }
 
-async function applyForcedSleep(agent: Agent, energy: number): Promise<Agent> {
+async function applyForcedSleep(agent: Agent, energy: number, nowMs: number): Promise<Agent> {
   const criticalEnergy = getRuntimeConfig().needs.criticalEnergyThreshold ?? 10;
   if (energy >= criticalEnergy || agent.state === 'sleeping' || agent.state === 'dead') return agent;
+  setAgentBusyUntil(agent.id, nowMs + TICK_MS);
   return (await updateAgent(agent.id, { state: 'sleeping' })) ?? agent;
 }
 
@@ -251,19 +250,6 @@ async function processVitals(nowMs: number, tick: number, events: WorldEvent[]):
       deleteVitalsMeta(initialAgent.id);
       deleteAgentMeta(initialAgent.id);
       deaths.push(initialAgent.id);
-      await emit(
-        makeEvent(
-          'agent_died',
-          tick,
-          nowMs,
-          {
-            cause: deathCause(result),
-            finalState: { ...result.newState },
-          },
-          initialAgent.id
-        ),
-        events
-      );
       continue;
     }
 
@@ -282,7 +268,7 @@ async function processVitals(nowMs: number, tick: number, events: WorldEvent[]):
       events
     );
     const finalState = consumed.newState;
-    await applyForcedSleep(consumed.agent, finalState.energy);
+    await applyForcedSleep(consumed.agent, finalState.energy, nowMs);
 
     if (result.healthRegen > 0) {
       await emit(
@@ -510,14 +496,13 @@ async function emitPuzzleLifecycleSummary(
 }
 
 /**
- * Runs one housekeeping phase in isolation: a throw in one phase must not skip
- * the remaining phases (the legacy tick engine wrapped each phase in try/catch).
+ * A failed mutation stops the session; never continue silently with partial state.
  */
 async function safePhase(name: string, phase: () => Promise<void> | void): Promise<void> {
   try {
     await phase();
   } catch (error) {
-    console.error(`[engine] housekeeping phase "${name}" failed:`, error);
+    throw new Error(`Housekeeping phase ${name} failed`, { cause: error });
   }
 }
 
@@ -554,6 +539,11 @@ export async function runHousekeeping(nowMs: number, dtMs: number): Promise<Hous
     }
   });
 
+  if (tick > previousTick) {
+    await safePhase('social-memory', () => maintainSocialMemory(tick));
+    await safePhase('relationship-decay', () => decayStaleRelationships(tick).then(() => undefined));
+  }
+  await safePhase('job-expiry', () => expireJobOffers(tick).then(() => undefined));
   await safePhase('scent-aging', () => ageScents(tick));
   await safePhase('puzzles', () => emitPuzzleLifecycleSummary(tick, nowMs, safeDtMs, events));
   await safePhase('minute-elapsed', () => emitMinuteElapsed(previousTick, tick, events));
@@ -582,4 +572,25 @@ export async function runHousekeeping(nowMs: number, dtMs: number): Promise<Hous
     deaths,
     events,
   };
+}
+
+async function maintainSocialMemory(tick: number): Promise<void> {
+  const agents = await getAliveAgents();
+  const alive = new Set(agents.map((a) => a.id));
+  const radius = getRuntimeConfig().simulation.visibilityRadius;
+  for (const agent of agents) {
+    for (const other of agents) {
+      if (agent.id !== other.id && Math.max(Math.abs(agent.x - other.x), Math.abs(agent.y - other.y)) <= radius) {
+        await recordDirectDiscovery(agent.id, other.id, { x: other.x, y: other.y }, tick);
+      }
+    }
+    const cap = getRuntimeConfig().memory.maxPerAgent;
+    const knowledge = [...store.agentKnowledge.values()].filter((k) => k.agentId === agent.id).sort((a, b) => b.informationAge - a.informationAge);
+    for (const row of knowledge.slice(cap)) store.agentKnowledge.delete(row.id);
+    const relationships = [...store.relationships.entries()].filter(([, r]) => r.agentId === agent.id).sort(([, a], [, b]) => (b.lastInteractionTick ?? 0) - (a.lastInteractionTick ?? 0));
+    for (const [key] of relationships.slice(cap)) store.relationships.delete(key);
+  }
+  for (const [id, row] of store.memories) if (!alive.has(row.agentId)) store.memories.delete(id);
+  for (const [id, row] of store.agentKnowledge) if (!alive.has(row.agentId)) store.agentKnowledge.delete(id);
+  for (const [id, row] of store.relationships) if (!alive.has(row.agentId)) store.relationships.delete(id);
 }

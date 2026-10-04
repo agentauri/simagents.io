@@ -1,10 +1,14 @@
-import type { AgentRosterEntry, LLMType } from '@simagents/shared';
+import { AppError, errorIssue } from '@simagents/shared';
+import { MAX_SESSION_TRACES } from '@simagents/engine/engine/llm/request-trace';
+import { RequestBudget, DEFAULT_SESSION_LIMITS, RequestBudgetError, validateSessionLimits, type SessionLimits } from '@simagents/engine/engine/llm/request-budget';
+import { byokPreflightIssue, internalFixturesEnabled } from '../services/byok-preflight-issue';
+import { validateRoster, validateConnectionProfile, type AgentRosterEntry, type LLMType, type ConnectionProfile } from '@simagents/shared';
 import {
   createBrowserAgentDecisionProvider,
   registerBrowserAgentAdapter as registerEngineBrowserAgentAdapter,
 } from '@simagents/engine/engine/browser-agent-adapter';
 import { fallbackDecisionFor, toActionDecision, type DecisionInput } from '@simagents/engine/engine/decision';
-import { resetRuntimeConfig, setRuntimeConfig } from '@simagents/engine/config';
+import { getRuntimeOverrides, resetRuntimeConfig, setRuntimeConfig } from '@simagents/engine/config';
 import {
   SimEngine,
   createRosterProviderFactory,
@@ -18,7 +22,7 @@ import {
   type WorldSnapshotV1,
 } from '@simagents/engine/engine/persistence';
 import { setCustomSystemPrompt } from '@simagents/engine/llm/prompt-manager';
-import type { BrowserAgentAdapterRegistration } from './engine-client';
+import type { WorkerCommand as ClientCommand, BrowserAgentAdapterRegistration } from './engine-client';
 import type {
   BrowserExperimentDefinition,
   BrowserExperimentRun,
@@ -36,8 +40,11 @@ import type {
 import type { WorldEvent } from '../stores/world';
 
 interface InitPayload {
+  captureRequests?: boolean;
+  limits?: SessionLimits;
   roster: AgentRosterEntry[];
-  keys: Partial<Record<LLMType, string>>;
+  connections?: import('@simagents/shared').ConnectionProfile[];
+  keys: Partial<Record<string, string>>;
   proxyUrl?: string;
   speed: number;
   worldSeed?: string;
@@ -46,32 +53,10 @@ interface InitPayload {
   resume?: WorldSnapshotV1;
 }
 
-type WorkerCommand =
-  | { cmd: 'init'; payload: InitPayload }
-  | { cmd: 'start' }
-  | { cmd: 'pause' }
-  | { cmd: 'resume' }
-  | { cmd: 'reset' }
-  | { cmd: 'setSpeed'; speed: number }
-  | { cmd: 'getState' }
-  | { cmd: 'snapshot' }
-  | { cmd: 'export' }
-  | { cmd: 'setRuntimeConfig'; updates: Record<string, unknown> }
-  | { cmd: 'setCustomPrompt'; prompt: string | null }
-  | { cmd: 'getReplayRange'; requestId: string }
-  | { cmd: 'getReplayFrame'; requestId: string; tick: number }
-  | { cmd: 'getAgentTimeline'; requestId: string; agentId: string; limit?: number }
-  | { cmd: 'getPuzzles'; requestId: string; filter?: PuzzleFilter }
-  | { cmd: 'getPuzzleDetails'; requestId: string; puzzleId: string }
-  | { cmd: 'getPuzzleResults'; requestId: string; puzzleId: string }
-  | { cmd: 'getPuzzleStats'; requestId: string }
-  | { cmd: 'runExperiment'; requestId: string; definition: BrowserExperimentDefinition }
-  | { cmd: 'cancelExperiment'; requestId: string; runId?: string }
-  | { cmd: 'getExperimentStatus'; requestId: string; runId?: string }
-  | { cmd: 'exportExperiment'; requestId: string; runId: string }
-  | { cmd: 'registerBrowserAgentAdapter'; requestId: string; registration: BrowserAgentAdapterRegistration };
+type WorkerCommand = ClientCommand & { requestId: string; sessionId: string };
 
 interface StoredReplayFrame {
+  worldSeed?: string;
   schemaVersion: 1;
   tick: number;
   simTimeMs: number;
@@ -80,6 +65,11 @@ interface StoredReplayFrame {
 }
 
 let engine: SimEngine | undefined;
+let requestBudget: RequestBudget | undefined;
+let activeProfiles: ConnectionProfile[] = [];
+let activeRoster: AgentRosterEntry[] = [];
+const relayTokens = new Map<string, string>();
+const blockedRelays = new Set<string>();
 let unsubscribe: (() => void) | undefined;
 let stateTimer: ReturnType<typeof setInterval> | undefined;
 let snapshotTimer: ReturnType<typeof setInterval> | undefined;
@@ -88,11 +78,12 @@ let activeExperimentRun: BrowserExperimentRun | undefined;
 let cancelExperimentRequested = false;
 let browserAdapterRegistrations: BrowserAgentAdapterRegistration[] = [];
 
-const MAX_REPLAY_FRAMES = 240;
+// Durable replay lives in IndexedDB; retain only a short resident window.
+const MAX_REPLAY_FRAMES = 32;
 const MAX_EXPERIMENT_TICKS = 500;
 
-const keySource = (keys: Partial<Record<LLMType, string>>) => ({
-  getKey(provider: LLMType): string | undefined {
+const keySource = (keys: Partial<Record<string, string>>) => ({
+  getKey(provider: string): string | undefined {
     return keys[provider];
   },
 });
@@ -108,100 +99,148 @@ function createBrowserAwareProviderFactory(rosterProviderFactory: ProviderFactor
   };
 }
 
+let sessionId = '';
+let replayWorldSeed = '';
+let experimentBusy = false;
+let commandTail: Promise<unknown> = Promise.resolve();
+function send(message: object): void {
+  self.postMessage({ ...message, sessionId });
+}
+
 self.onmessage = (message: MessageEvent<WorkerCommand>) => {
-  void handleCommand(message.data).catch((error) => {
-    postError(error, 'requestId' in message.data ? message.data.requestId : undefined);
-  });
+  const command = message.data;
+  if (command.cmd === 'init' && !sessionId) sessionId = command.sessionId;
+  if (command.sessionId !== sessionId) return;
+  const execute = async () => {
+    let ownsExperiment = false;
+    try {
+      if (experimentBusy && !['cancelExperiment', 'getExperimentStatus', 'getState', 'updateRelayToken', 'suspendRelayAccess'].includes(command.cmd)) {
+        throw new Error('An experiment is running. Cancel it before changing the world.');
+      }
+      if (command.cmd === 'runExperiment') { experimentBusy = true; ownsExperiment = true; cancelExperimentRequested = false; }
+      const payload = await handleCommand(command);
+      postResponse(command.requestId, payload);
+    } catch (error) { postError(error, command.requestId); }
+    finally { if (ownsExperiment) experimentBusy = false; }
+  };
+  // Experiments yield to the event loop and must not block their cancel command.
+  if (command.cmd === 'cancelExperiment' || command.cmd === 'getExperimentStatus') void execute();
+  else if (command.cmd === 'runExperiment') {
+    commandTail = commandTail.then(() => { void execute(); });
+  } else commandTail = commandTail.then(execute);
 };
 
-async function handleCommand(command: WorkerCommand): Promise<void> {
+async function handleCommand(command: WorkerCommand): Promise<unknown> {
   switch (command.cmd) {
+    case 'validateSnapshot':
+      validateWorldSnapshotV1(command.snapshot);
+      return;
     case 'init':
       await init(command.payload);
-      break;
+      return liveState();
+    case 'suspendRelayAccess': {
+      const matching = activeProfiles.filter(profile => profile.transport === 'official-relay' && profile.relayUrl === command.relayUrl);
+      if (!matching.length) throw new Error('Relay destination does not match this session');
+      blockedRelays.add(command.relayUrl); relayTokens.delete(command.relayUrl);
+      requireEngine().pause();
+      await requireEngine().getExecutor().onDrain();
+      stopStateTimer(); stopSnapshotTimer(); postState(); postSnapshot();
+      return;
+    }
+    case 'updateRelayToken': {
+      requireEngine();
+      // The sessionId envelope authenticates the current Worker session. Destination is immutable.
+      if (typeof command.token !== 'string' || !command.token.trim() || command.token.length > 4096 || /[\r\n]/.test(command.token)) throw new Error('Invalid relay access token');
+      const matching = activeProfiles.filter(profile => profile.transport === 'official-relay' && profile.relayUrl === command.relayUrl);
+      if (!matching.length) throw new Error('Relay destination does not match this session');
+      relayTokens.set(command.relayUrl, command.token); blockedRelays.delete(command.relayUrl);
+      return { updated: matching.length };
+    }
     case 'start':
+      if (blockedRelays.size) throw new AppError({ code: 'RELAY_ACCESS' });
+      requestBudget?.start();
       requireEngine().resume();
       await requireEngine().start();
       startStateTimer();
       startSnapshotTimer();
+      postState();
       break;
     case 'pause':
       requireEngine().pause();
+      await requireEngine().getExecutor().onDrain();
       stopStateTimer();
       stopSnapshotTimer();
       postState();
       postSnapshot();
       break;
     case 'resume':
-      requireEngine().resume();
+      if (blockedRelays.size) throw new AppError({ code: 'RELAY_ACCESS' });
+      requestBudget?.start();
+      await requireEngine().start();
       startStateTimer();
       startSnapshotTimer();
       postState();
       break;
     case 'reset':
+      requestBudget?.dispose();
       stopStateTimer();
       stopSnapshotTimer();
       await requireEngine().reset();
       postState();
-      break;
+      return liveState();
     case 'setSpeed':
       requireEngine().setSpeed(command.speed);
       break;
     case 'getState':
-      postState();
-      break;
+      return liveState();
     case 'snapshot':
-      postSnapshot();
-      break;
+      return requireEngine().getExecutor().mutate(() => ({ snapshot: captureSnapshot(), recentEvents: getStoredWorldEvents(1000) }));
     case 'export':
-      postExport();
-      break;
+      return requireEngine().getExecutor().mutate(() => ({ snapshot: captureSnapshot(), events: getStoredWorldEvents() }));
     case 'setRuntimeConfig':
-      setRuntimeConfig(command.updates as Parameters<typeof setRuntimeConfig>[0]);
+      await requireEngine().getExecutor().mutate(() => setRuntimeConfig(command.updates as Parameters<typeof setRuntimeConfig>[0]));
       break;
     case 'setCustomPrompt':
-      setCustomSystemPrompt(command.prompt);
+      await requireEngine().getExecutor().mutate(() => setCustomSystemPrompt(command.prompt));
       break;
     case 'getReplayRange':
-      postResponse(command.requestId, getReplayRange());
-      break;
+      return getReplayRange();
     case 'getReplayFrame':
-      postResponse(command.requestId, getReplayFrame(command.tick));
-      break;
+      return getReplayFrame(command.tick);
     case 'getAgentTimeline':
-      postResponse(command.requestId, getAgentTimeline(command.agentId, command.limit));
-      break;
+      return getAgentTimeline(command.agentId, command.limit);
     case 'getPuzzles':
-      postResponse(command.requestId, getPuzzles(command.filter ?? 'all'));
-      break;
+      return getPuzzles(command.filter ?? 'all');
     case 'getPuzzleDetails':
-      postResponse(command.requestId, getPuzzleDetails(command.puzzleId));
-      break;
+      return getPuzzleDetails(command.puzzleId);
     case 'getPuzzleResults':
-      postResponse(command.requestId, getPuzzleResults(command.puzzleId));
-      break;
+      return getPuzzleResults(command.puzzleId);
     case 'getPuzzleStats':
-      postResponse(command.requestId, getPuzzleStats());
-      break;
+      return getPuzzleStats();
     case 'runExperiment':
-      postResponse(command.requestId, await runExperiment(command.definition));
-      break;
+      return await runExperiment(command.definition);
     case 'cancelExperiment':
-      postResponse(command.requestId, cancelExperiment(command.runId));
-      break;
+      return cancelExperiment(command.runId);
     case 'getExperimentStatus':
-      postResponse(command.requestId, getExperimentStatus(command.runId));
-      break;
+      return getExperimentStatus(command.runId);
     case 'exportExperiment':
-      postResponse(command.requestId, exportExperiment(command.runId));
-      break;
+      return exportExperiment(command.runId);
     case 'registerBrowserAgentAdapter':
-      postResponse(command.requestId, registerBrowserAgentAdapter(command.registration));
-      break;
+      if (!internalFixturesEnabled()) throw new Error('Browser test adapters are unavailable in public builds');
+      return registerBrowserAgentAdapter(command.registration);
   }
 }
 
 async function init(payload: InitPayload): Promise<void> {
+  payload.roster = validateRoster(payload.roster);
+  const limits = validateSessionLimits(payload.limits ?? DEFAULT_SESSION_LIMITS);
+  const profiles = (payload.connections ?? []).map(validateConnectionProfile);
+  if (profiles.length > 100 || new Set(profiles.map((p) => p.id)).size !== profiles.length) throw new Error('Invalid or duplicate connection profiles');
+  if (payload.roster.length) {
+    const issue = byokPreflightIssue(payload.roster, payload.keys, payload.proxyUrl ?? '', internalFixturesEnabled(), payload.connections);
+    if (issue) throw new AppError(issue);
+  }
+  if (payload.resume) validateWorldSnapshotV1(payload.resume);
   stopStateTimer();
   stopSnapshotTimer();
   unsubscribe?.();
@@ -209,6 +248,13 @@ async function init(payload: InitPayload): Promise<void> {
     await engine.reset();
   }
 
+  activeProfiles = profiles;
+  relayTokens.clear(); blockedRelays.clear();
+  for (const profile of profiles) if (profile.transport === 'official-relay') {
+    const token = profile.relayCredentialRef ? payload.keys[profile.relayCredentialRef] : undefined;
+    if (token) relayTokens.set(profile.relayUrl!, token);
+  }
+  activeRoster = structuredClone(payload.roster);
   resetRuntimeConfig();
   if (payload.configOverrides) {
     setRuntimeConfig(payload.configOverrides as Parameters<typeof setRuntimeConfig>[0]);
@@ -216,10 +262,25 @@ async function init(payload: InitPayload): Promise<void> {
   setCustomSystemPrompt(payload.customPrompt ?? null);
   replayFrames = [];
 
+  requestBudget?.dispose();
+  requestBudget = new RequestBudget(limits, () => {
+    engine?.pause();
+    stopStateTimer();
+    stopSnapshotTimer();
+    postError(new RequestBudgetError('duration-limit'));
+    void engine?.getExecutor().mutate(() => { postState(); postSnapshot(); }).catch((error) => postError(error));
+  });
+  let tracesCaptured = 0;
   const rosterProviderFactory = createRosterProviderFactory(
     payload.roster,
     keySource(payload.keys),
-    { proxyUrl: payload.proxyUrl || undefined }
+    { proxyUrl: payload.proxyUrl || undefined, maxTokens: limits.maxOutputTokens, budget: requestBudget, connections: payload.connections,
+      getRelayAccessToken: profile => relayTokens.get(profile.relayUrl!),
+      traceSecrets: Object.values(payload.keys).filter((key): key is string => typeof key === 'string'),
+      onTrace: payload.captureRequests === true ? trace => {
+        if (!experimentBusy && tracesCaptured < MAX_SESSION_TRACES) { tracesCaptured++; send({ type: 'requestTrace', trace: { ...trace, sessionId, worldSeed: replayWorldSeed } }); }
+      } : undefined,
+    }
   );
   const providerFactory = createBrowserAwareProviderFactory(rosterProviderFactory);
 
@@ -231,7 +292,10 @@ async function init(payload: InitPayload): Promise<void> {
       // The worker console is invisible to users: surface background engine
       // failures (interval tick, agent runner crashes) to the UI.
       onError: (error, context) => {
-        postError(error instanceof Error ? new Error(`[${context}] ${error.message}`) : error);
+        stopStateTimer();
+        stopSnapshotTimer();
+        postError(error);
+        postState();
       },
     });
 
@@ -244,39 +308,20 @@ async function init(payload: InitPayload): Promise<void> {
     }
   }
 
+  replayWorldSeed = resumeSnapshot?.worldSeed ?? payload.worldSeed ?? 'browser-local';
   engine = createEngine(
     resumeSnapshot?.speed ?? payload.speed,
     resumeSnapshot?.worldSeed ?? payload.worldSeed ?? 'browser-local'
   );
 
   unsubscribe = engine.subscribe((event) => {
-    self.postMessage({ type: 'event', event } satisfies { type: 'event'; event: WorldEvent });
+    if (!experimentBusy) send({ type: 'event', event } satisfies { type: 'event'; event: WorldEvent });
   });
 
-  if (resumeSnapshot) {
-    try {
-      await engine.hydrate(resumeSnapshot);
-    } catch (error) {
-      postWarning(`Saved world could not be loaded; starting a new world. ${formatError(error)}`);
-      await engine.reset();
-      engine = createEngine(payload.speed, payload.worldSeed ?? 'browser-local');
-      unsubscribe?.();
-      unsubscribe = engine.subscribe((event) => {
-        self.postMessage({ type: 'event', event } satisfies { type: 'event'; event: WorldEvent });
-      });
-      await engine.seed({
-        roster: payload.roster,
-        worldSeed: payload.worldSeed,
-      });
-    }
-  } else {
-    await engine.seed({
-      roster: payload.roster,
-      worldSeed: payload.worldSeed,
-    });
-  }
+  if (resumeSnapshot) await engine.hydrate(resumeSnapshot);
+  else await engine.seed({ roster: payload.roster, worldSeed: payload.worldSeed });
 
-  self.postMessage({ type: 'ready', state: engine.getState() } satisfies {
+  send({ type: 'ready', state: engine.getState() } satisfies {
     type: 'ready';
     state: SimEngineState;
   });
@@ -288,46 +333,40 @@ function requireEngine(): SimEngine {
   return engine;
 }
 
+function captureSnapshot(): WorldSnapshotV1 {
+  const snapshot = requireEngine().snapshot();
+  snapshot.configuration = { ...snapshot.configuration!, connections: activeProfiles, roster: activeRoster };
+  return JSON.parse(JSON.stringify(snapshot)) as WorldSnapshotV1;
+}
+
+function liveState(): SimEngineState { return { ...requireEngine().getState(), usage: requestBudget?.snapshot() }; }
+
 function postState(): void {
-  const current = requireEngine().getState();
-  self.postMessage({ type: 'state', state: current } satisfies { type: 'state'; state: SimEngineState });
+  const current = liveState();
+  send({ type: 'state', state: current } satisfies { type: 'state'; state: SimEngineState });
   recordReplayFrame(current);
 }
 
 function postError(error: unknown, requestId?: string): void {
-  const message = error instanceof Error ? error.message : String(error);
-  self.postMessage({ type: 'error', message, requestId } satisfies {
-    type: 'error';
-    message: string;
-    requestId?: string;
-  });
+  send({ type: 'error', issue: errorIssue(error), message: 'Engine operation failed. No automatic retry was made.', requestId });
 }
 
 function postWarning(message: string): void {
-  self.postMessage({ type: 'warning', message } satisfies { type: 'warning'; message: string });
+  send({ type: 'warning', message } satisfies { type: 'warning'; message: string });
 }
 
 function postSnapshot(): void {
-  const snapshot = requireEngine().snapshot();
+  const snapshot = captureSnapshot();
   recordReplayFrame();
-  self.postMessage({
+  send({
     type: 'snapshot',
     snapshot,
     recentEvents: getStoredWorldEvents(1000),
   } satisfies { type: 'snapshot'; snapshot: WorldSnapshotV1; recentEvents: WorldEvent[] });
 }
 
-function postExport(): void {
-  const snapshot = requireEngine().snapshot();
-  self.postMessage({
-    type: 'export',
-    snapshot,
-    events: getStoredWorldEvents(),
-  } satisfies { type: 'export'; snapshot: WorldSnapshotV1; events: WorldEvent[] });
-}
-
 function postResponse(requestId: string, payload: unknown): void {
-  self.postMessage({ type: 'response', requestId, payload } satisfies {
+  send({ type: 'response', requestId, payload } satisfies {
     type: 'response';
     requestId: string;
     payload: unknown;
@@ -335,6 +374,7 @@ function postResponse(requestId: string, payload: unknown): void {
 }
 
 function recordReplayFrame(state = requireEngine().getState()): void {
+  if (experimentBusy) return;
   const frame = buildReplayFrame(state);
   const existingIndex = replayFrames.findIndex((item) => item.tick === frame.tick);
   if (existingIndex >= 0) {
@@ -346,7 +386,7 @@ function recordReplayFrame(state = requireEngine().getState()): void {
   if (replayFrames.length > MAX_REPLAY_FRAMES) {
     replayFrames = replayFrames.slice(-MAX_REPLAY_FRAMES);
   }
-  self.postMessage({ type: 'replayFrame', frame } satisfies {
+  send({ type: 'replayFrame', frame } satisfies {
     type: 'replayFrame';
     frame: StoredReplayFrame;
   });
@@ -363,10 +403,13 @@ function buildReplayFrame(state: SimEngineState): StoredReplayFrame {
     tick: state.tick,
     simTimeMs: state.simTimeMs,
     capturedAt: Date.now(),
+    worldSeed: replayWorldSeed,
     snapshot: {
       tick: state.tick,
       agents: state.agents.map((agent) => ({
         id: agent.id,
+        name: agent.name ?? undefined,
+        modelId: state.metrics?.agents.find(metrics => metrics.agentId === agent.id)?.lastModelId,
         llmType: agent.llmType,
         x: agent.x,
         y: agent.y,
@@ -424,8 +467,7 @@ function getReplayFrame(tick: number): WorldSnapshot {
   if (replayFrames.length === 0) recordReplayFrame();
   const exact = replayFrames.find((frame) => frame.tick === tick);
   if (exact) return exact.snapshot;
-  const prior = replayFrames.filter((frame) => frame.tick <= tick).at(-1);
-  return (prior ?? replayFrames[replayFrames.length - 1] ?? buildReplayFrame(requireEngine().getState())).snapshot;
+  throw new Error(`Replay frame missing at tick ${tick}. No substitute frame was used.`);
 }
 
 function getAgentTimeline(agentId: string, limit = 100): AgentTimelineEntry[] {
@@ -577,7 +619,7 @@ function getPuzzleResults(puzzleId: string): PuzzleResults {
       contributionScore: participant.contributionScore,
       fragmentsShared: participant.fragmentsShared,
       attemptsMade: participant.attemptsMade,
-      prizeAmount: details.puzzle.status === 'completed' ? details.puzzle.prizePool / Math.max(1, details.participants.length) : 0,
+      prizeAmount: (engineStore.puzzleGames.get(puzzleId)?.prizeDistribution ?? []).filter((p) => p.agentId === participant.agentId).reduce((sum, p) => sum + p.amount, 0),
       isWinner: winningAttempt?.submitterId === participant.agentId,
     })),
   };
@@ -593,7 +635,7 @@ function getPuzzleStats(): PuzzleStats {
     expiredGames: puzzles.filter((puzzle) => puzzle.status === 'expired').length,
     totalPrizeDistributed: puzzles
       .filter((puzzle) => puzzle.status === 'completed')
-      .reduce((sum, puzzle) => sum + puzzle.prizePool, 0),
+      .reduce((sum, puzzle) => sum + (engineStore.puzzleGames.get(puzzle.id)?.prizeDistribution ?? []).reduce((total, p) => total + p.amount, 0), 0),
     averageParticipants: puzzles.length === 0 ? 0 : totalParticipants / puzzles.length,
   };
 }
@@ -604,13 +646,14 @@ async function runExperiment(definition: BrowserExperimentDefinition): Promise<B
   }
 
   const currentEngine = requireEngine();
+  const savedConfig = structuredClone(getRuntimeOverrides());
+  const savedWorld = await currentEngine.getExecutor().mutate(() => currentEngine.snapshot());
   const startedState = currentEngine.getState();
   const targetTicks = clampInt(definition.ticks ?? 10, 1, MAX_EXPERIMENT_TICKS);
   const wallStepMs = clampInt(definition.wallStepMs ?? 6000, 1, 60_000);
   const captureEveryTicks = clampInt(definition.captureEveryTicks ?? 1, 1, targetTicks);
-  const startedEventCount = getStoredWorldEvents().length;
+  const startedEventCount = engineStore.metrics.totalEvents;
   const shouldRestartRuntime = stateTimer !== undefined;
-  const wasPaused = currentEngine.isPaused();
 
   if (definition.configOverrides) {
     setRuntimeConfig(definition.configOverrides as Parameters<typeof setRuntimeConfig>[0]);
@@ -633,7 +676,6 @@ async function runExperiment(definition: BrowserExperimentDefinition): Promise<B
   };
 
   activeExperimentRun = run;
-  cancelExperimentRequested = false;
   stopStateTimer();
   stopSnapshotTimer();
   currentEngine.stop();
@@ -650,6 +692,8 @@ async function runExperiment(definition: BrowserExperimentDefinition): Promise<B
         break;
       }
 
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (cancelExperimentRequested) { run.status = 'cancelled'; break; }
       iterations += 1;
       await currentEngine.tickWall(wallStepMs);
       const state = currentEngine.getState();
@@ -668,7 +712,8 @@ async function runExperiment(definition: BrowserExperimentDefinition): Promise<B
     }
 
     if (run.status === 'running') {
-      run.status = 'completed';
+      if (run.ticksCompleted >= targetTicks) run.status = 'completed';
+      else throw new Error('Experiment did not reach its target within the iteration limit');
     }
   } catch (error) {
     run.status = 'failed';
@@ -684,8 +729,10 @@ async function runExperiment(definition: BrowserExperimentDefinition): Promise<B
     cancelExperimentRequested = false;
 
     currentEngine.stop();
-    if (wasPaused) currentEngine.pause();
-    else currentEngine.resume();
+    resetRuntimeConfig();
+    setRuntimeConfig(savedConfig);
+    await currentEngine.hydrate(savedWorld);
+    if (startedState.lifecycle === 'paused' || startedState.lifecycle === 'error') currentEngine.pause();
     if (shouldRestartRuntime) {
       await currentEngine.start();
       startStateTimer();
@@ -699,6 +746,7 @@ async function runExperiment(definition: BrowserExperimentDefinition): Promise<B
 }
 
 function cancelExperiment(runId?: string): BrowserExperimentRun | undefined {
+  if (experimentBusy && !runId) cancelExperimentRequested = true;
   if (!activeExperimentRun) return undefined;
   if (runId && activeExperimentRun.id !== runId) return activeExperimentRun;
   if (activeExperimentRun.status === 'running') {
@@ -730,7 +778,7 @@ function buildExperimentSnapshot(state: SimEngineState): BrowserExperimentSnapsh
     avgHealth: round2(aliveAgents.reduce((sum, agent) => sum + agent.health, 0) / count),
     totalBalance: round2(state.agents.reduce((sum, agent) => sum + agent.balance, 0)),
     resourceAmount: round2(state.resources.reduce((sum, resource) => sum + resource.currentAmount, 0)),
-    eventCount: getStoredWorldEvents().length,
+    eventCount: engineStore.metrics.totalEvents,
   };
 }
 
@@ -831,22 +879,14 @@ function round2(value: number): number {
 function startStateTimer(): void {
   if (stateTimer) return;
   stateTimer = setInterval(() => {
-    try {
-      postState();
-    } catch (error) {
-      postError(error);
-    }
+    void requireEngine().getExecutor().mutate(() => postState()).catch((error) => postError(error));
   }, 2000);
 }
 
 function startSnapshotTimer(): void {
   if (snapshotTimer) return;
   snapshotTimer = setInterval(() => {
-    try {
-      postSnapshot();
-    } catch (error) {
-      postError(error);
-    }
+    void requireEngine().getExecutor().mutate(() => postSnapshot()).catch((error) => postError(error));
   }, 10_000);
 }
 

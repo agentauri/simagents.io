@@ -1,202 +1,45 @@
+import { admissionConfig, relaySession, useRelaySession } from '../../services/relay-access';
+import { getEngineClient } from '../../engine-host/engine-client';
 import { useState } from 'react';
-import { useEditorStore, useAppMode, useIsPaused } from '../../stores/editor';
-import { useSettingsStore, useSoundEnabled } from '../../stores/settings';
-import { isLocalEngineMode } from '../../utils/env';
+import { useAppMode, useIsPaused } from '../../stores/editor';
 import { StartConfirmationModal } from './StartConfirmationModal';
-
+import { translate, useLocale } from '../../i18n';
 interface ModeControlsProps {
+  stoppedByError?: boolean;
+  mutationPending?: boolean;
   onStartSimulation: (resumeSavedWorld?: boolean) => Promise<void>;
   onReset: () => void;
   onPause?: () => Promise<void>;
   onResume?: () => Promise<void>;
   onOpenConfig?: () => void;
 }
-
-export function ModeControls({ onStartSimulation, onReset, onPause, onResume, onOpenConfig }: ModeControlsProps) {
-  const mode = useAppMode();
-  const isPaused = useIsPaused();
-  const { setMode, setPaused } = useEditorStore();
-  const [isLoading, setIsLoading] = useState(false);
-  const [showStartModal, setShowStartModal] = useState(false);
-  const soundEnabled = useSoundEnabled();
-  const { toggleSound } = useSettingsStore();
-  const isLocalMode = isLocalEngineMode();
-  // Handle confirmed start
-  const handleConfirmedStart = async (choice: 'resume' | 'new') => {
-    setIsLoading(true);
-    try {
-      await onStartSimulation(choice === 'resume');
-      setShowStartModal(false);
-    } finally {
-      setIsLoading(false);
-    }
+export function ModeControls({ onStartSimulation, onPause, onResume, onOpenConfig, stoppedByError, mutationPending }: ModeControlsProps) {
+  useLocale();
+  useRelaySession();
+  const relayConfig = admissionConfig();
+  const relayBlocked = !!relayConfig && getEngineClient().usesRelay(relayConfig.relayUrl) && !relaySession.getToken();
+  const mode = useAppMode(), paused = useIsPaused();
+  const [loading, setLoading] = useState(false), [showStart, setShowStart] = useState(false);
+  const [error, setError] = useState<string>();
+  const confirmStart = async (choice: 'resume' | 'new') => {
+    setLoading(true); setError(undefined);
+    try { await onStartSimulation(choice === 'resume'); setShowStart(false); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { setLoading(false); }
   };
-
-  // Handle pause/resume with BE sync
-  const handlePauseToggle = async () => {
-    setIsLoading(true);
-    try {
-      if (isPaused) {
-        await onResume?.();
-        setPaused(false);
-      } else {
-        await onPause?.();
-        setPaused(true);
-      }
-    } finally {
-      setIsLoading(false);
-    }
+  const toggle = async () => {
+    setLoading(true); setError(undefined);
+    try { if (paused) await onResume?.(); else await onPause?.(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { setLoading(false); }
   };
-
-  // Ready mode (waiting to start) - scientific model doesn't need editor
-  if (mode === 'editor') {
-    return (
-      <div className="flex items-center gap-1 sm:gap-2">
-        {/* Mode badge - hidden on mobile */}
-        <span className="hidden sm:inline-flex items-center h-8 px-3 bg-city-accent/20 text-city-accent text-xs font-medium rounded-lg">
-          Ready
-        </span>
-
-        <button
-          type="button"
-          disabled={isLoading}
-          onClick={() => setShowStartModal(true)}
-          className="h-8 px-3 bg-city-accent hover:bg-city-accent-light text-white text-xs font-medium rounded-lg flex items-center gap-1.5 disabled:opacity-50"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-            <polygon points="5 3 19 12 5 21 5 3" />
-          </svg>
-          <span className="hidden xs:inline">Start</span>
-          <span className="xs:hidden">Go</span>
-        </button>
-
-        {/* Start Confirmation Modal */}
-        <StartConfirmationModal
-          isOpen={showStartModal}
-          onConfirm={handleConfirmedStart}
-          onCancel={() => setShowStartModal(false)}
-          onOpenConfig={() => {
-            setShowStartModal(false);
-            onOpenConfig?.();
-          }}
-          isLoading={isLoading}
-        />
-      </div>
-    );
-  }
-
-  // Simulation mode controls
-  return (
-    <div className="flex items-center gap-1 sm:gap-2">
-      {/* Mode badge - hidden on mobile */}
-      <span className={`hidden sm:inline-flex px-2.5 py-1 text-xs font-medium rounded-md ${
-        isPaused
-          ? 'bg-yellow-500/20 text-yellow-400'
-          : 'bg-green-500/20 text-green-400'
-      }`}>
-        {isPaused ? 'Paused' : 'Running'}
-      </span>
-
-      {/* Mobile status indicator */}
-      <span className={`sm:hidden w-2 h-2 rounded-full ${
-        isPaused ? 'bg-yellow-400' : 'bg-green-400 animate-pulse'
-      }`} />
-
-      {/* Pause/Resume button */}
-      <button
-        type="button"
-        onClick={handlePauseToggle}
-        disabled={isLoading}
-        className="px-2 py-1.5 sm:px-3 bg-city-surface-hover hover:bg-city-border/50 text-city-text text-[11px] sm:text-xs font-medium rounded border border-city-border/50 flex items-center gap-1 disabled:opacity-50"
-      >
-        {isPaused ? (
-          <>
-            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="none" className="sm:w-3 sm:h-3">
-              <polygon points="5 3 19 12 5 21 5 3" />
-            </svg>
-            <span className="hidden xs:inline">Resume</span>
-          </>
-        ) : (
-          <>
-            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="none" className="sm:w-3 sm:h-3">
-              <rect x="6" y="4" width="4" height="16" />
-              <rect x="14" y="4" width="4" height="16" />
-            </svg>
-            <span className="hidden xs:inline">Pause</span>
-          </>
-        )}
-      </button>
-
-      {/* Sound toggle button */}
-      <button
-        type="button"
-        onClick={toggleSound}
-        className={`px-2 py-1.5 sm:px-3 text-[11px] sm:text-xs font-medium rounded border flex items-center gap-1 ${
-          soundEnabled
-            ? 'bg-city-accent/20 text-city-accent border-city-accent/30 hover:bg-city-accent/30'
-            : 'bg-city-surface-hover text-city-text-muted border-city-border/50 hover:bg-city-border/50'
-        }`}
-        title={soundEnabled ? 'Sound enabled' : 'Sound disabled'}
-      >
-        {soundEnabled ? (
-          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sm:w-3 sm:h-3">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-            <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-          </svg>
-        ) : (
-          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sm:w-3 sm:h-3">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-            <line x1="23" y1="9" x2="17" y2="15" />
-            <line x1="17" y1="9" x2="23" y2="15" />
-          </svg>
-        )}
-      </button>
-
-      {/* Analytics button - icon only on mobile */}
-      <button
-        type="button"
-        onClick={() => setMode('analytics')}
-        className="px-2 py-1.5 sm:px-3 bg-city-accent/20 hover:bg-city-accent/30 text-city-accent text-[11px] sm:text-xs font-medium rounded border border-city-accent/30 flex items-center gap-1"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sm:w-3 sm:h-3">
-          <path d="M3 3v18h18" />
-          <path d="m19 9-5 5-4-4-3 3" />
-        </svg>
-        <span className="hidden sm:inline">Analytics</span>
-      </button>
-
-      {/* Replay button - icon only on mobile */}
-      {!isLocalMode && (
-        <button
-          type="button"
-          onClick={() => setMode('replay')}
-          className="px-2 py-1.5 sm:px-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 text-[11px] sm:text-xs font-medium rounded border border-purple-500/30 flex items-center gap-1"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sm:w-3 sm:h-3">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-          <span className="hidden sm:inline">Replay</span>
-        </button>
-      )}
-
-      {/* Reset button - icon only on mobile */}
-      <button
-        type="button"
-        onClick={() => {
-          if (confirm('Reset simulation? This will clear all agents and resources.')) {
-            onReset();
-          }
-        }}
-        className="px-2 py-1.5 sm:px-3 bg-city-surface-hover hover:bg-red-500/20 text-city-text-muted hover:text-red-400 text-[11px] sm:text-xs font-medium rounded border border-city-border/50 flex items-center gap-1"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sm:w-3 sm:h-3">
-          <polyline points="1 4 1 10 7 10" />
-          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-        </svg>
-        <span className="hidden sm:inline">Reset</span>
-      </button>
-    </div>
-  );
+  return <div className="session-controls" aria-label={translate('Simulation controls')}>
+    <span className="session-state">{translate(mode === 'editor' ? 'Ready' : stoppedByError ? 'Error' : paused ? 'Paused' : 'Running')}</span>
+    <button className="session-primary" type="button" disabled={loading || (paused && relayBlocked) || (mode === 'editor' && mutationPending)} title={relayBlocked ? translate("Get relay access before resuming.") : undefined} onClick={mode === 'editor' ? () => setShowStart(true) : toggle}>
+      {translate(loading ? 'Starting…' : mode === 'editor' ? 'Start' : paused ? 'Resume' : 'Pause')}
+    </button>
+    {stoppedByError && mode !== 'editor' && <button type="button" className="session-new" disabled={loading || mutationPending} onClick={() => setShowStart(true)}>{translate("New session")}</button>}
+    {error && <span role="alert">{error}</span>}
+    <StartConfirmationModal isOpen={showStart} onConfirm={confirmStart} onCancel={() => setShowStart(false)} onOpenConfig={() => { setShowStart(false); onOpenConfig?.(); }} isLoading={loading} />
+  </div>;
 }

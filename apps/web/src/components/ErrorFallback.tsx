@@ -1,3 +1,6 @@
+import { formatError } from '../i18n/errors';
+import { translateLabel, useLocale, translate } from '../i18n';
+
 import { type ErrorInfo, type ReactNode } from 'react';
 
 /**
@@ -20,6 +23,7 @@ export interface ErrorFallbackProps {
  * Error icon SVG component
  */
 function ErrorIcon({ size = 24 }: { size?: number }): ReactNode {
+  useLocale();
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -44,6 +48,7 @@ function ErrorIcon({ size = 24 }: { size?: number }): ReactNode {
  * Refresh icon SVG component
  */
 function RefreshIcon(): ReactNode {
+  useLocale();
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -67,21 +72,20 @@ function RefreshIcon(): ReactNode {
  * Compact error fallback for smaller components
  */
 function CompactErrorFallback({ error, resetError, sectionName }: ErrorFallbackProps): ReactNode {
+  useLocale();
   return (
     <div className="flex items-center justify-center h-full min-h-[80px] p-4 bg-city-surface/50 rounded-lg border border-status-error/30">
       <div className="flex items-center gap-3">
         <ErrorIcon size={18} />
         <div className="flex flex-col gap-1">
           <span className="text-city-text text-xs font-medium">
-            {sectionName ? `${sectionName} failed to load` : 'Something went wrong'}
+            {sectionName ? translate("{section} failed to load", { section: translateLabel(sectionName) }) : translate("Something went wrong")}
           </span>
           <button
             onClick={resetError}
             className="text-city-accent hover:text-city-accent-light text-xs flex items-center gap-1 transition-colors"
           >
-            <RefreshIcon />
-            Retry
-          </button>
+            <RefreshIcon />{translate("Retry")}</button>
         </div>
       </div>
     </div>
@@ -106,6 +110,7 @@ export function ErrorFallback({
   sectionName,
   compact = false,
 }: ErrorFallbackProps): ReactNode {
+  useLocale();
   // Use compact version for smaller components
   if (compact) {
     return (
@@ -130,10 +135,10 @@ export function ErrorFallback({
         {/* Error message */}
         <div className="flex flex-col gap-1">
           <h3 className="text-city-text text-sm font-semibold">
-            {sectionName ? `${sectionName} encountered an error` : 'Something went wrong'}
+            {sectionName ? translate("{section} encountered an error", { section: translateLabel(sectionName) }) : translate("Something went wrong")}
           </h3>
           <p className="text-city-text-muted text-xs">
-            {error.message || 'An unexpected error occurred'}
+            {formatError(error)}
           </p>
         </div>
 
@@ -142,22 +147,16 @@ export function ErrorFallback({
           onClick={resetError}
           className="flex items-center gap-2 px-4 py-2 bg-city-accent hover:bg-city-accent-light text-city-text text-sm font-medium rounded-lg transition-colors shadow-lg shadow-city-accent/20"
         >
-          <RefreshIcon />
-          Try Again
-        </button>
+          <RefreshIcon />{translate("Try Again")}</button>
 
         {/* Technical details (collapsible) */}
         {(error.stack || errorInfo?.componentStack) && (
           <details className="w-full mt-2 text-left">
-            <summary className="text-city-text-muted text-xs cursor-pointer hover:text-city-accent transition-colors">
-              Technical details
-            </summary>
+            <summary className="text-city-text-muted text-xs cursor-pointer hover:text-city-accent transition-colors">{translate("Technical details")}</summary>
             <div className="mt-2 p-3 bg-city-bg/50 rounded-lg border border-city-border/50 overflow-auto max-h-[200px]">
               {error.stack && (
                 <div className="mb-3">
-                  <p className="text-city-text-muted text-[10px] uppercase tracking-wider mb-1 font-medium">
-                    Error Stack
-                  </p>
+                  <p className="text-city-text-muted text-[10px] uppercase tracking-wider mb-1 font-medium">{translate("Error Stack")}</p>
                   <pre className="text-status-error text-[10px] font-mono whitespace-pre-wrap break-words">
                     {error.stack}
                   </pre>
@@ -165,9 +164,7 @@ export function ErrorFallback({
               )}
               {errorInfo?.componentStack && (
                 <div>
-                  <p className="text-city-text-muted text-[10px] uppercase tracking-wider mb-1 font-medium">
-                    Component Stack
-                  </p>
+                  <p className="text-city-text-muted text-[10px] uppercase tracking-wider mb-1 font-medium">{translate("Component Stack")}</p>
                   <pre className="text-city-text-muted text-[10px] font-mono whitespace-pre-wrap break-words">
                     {errorInfo.componentStack}
                   </pre>

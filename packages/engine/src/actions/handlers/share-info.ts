@@ -24,7 +24,7 @@ import {
   type SharedInfo,
 } from '../../db/queries/knowledge';
 import { getDistance } from '../../world/grid';
-import { CONFIG } from '../../config';
+import { getRuntimeConfig } from '../../config';
 
 const VALID_INFO_TYPES = ['location', 'reputation', 'warning', 'recommendation'];
 
@@ -80,15 +80,15 @@ export async function handleShareInfo(
     { x: agent.x, y: agent.y },
     { x: targetAgent.x, y: targetAgent.y }
   );
-  if (distance > CONFIG.actions.shareInfo.maxDistance) {
+  if (distance > getRuntimeConfig().actions.shareInfo.maxDistance) {
     return {
       success: false,
-      error: `Target too far for communication (distance: ${distance}, max: ${CONFIG.actions.shareInfo.maxDistance})`,
+      error: `Target too far for communication (distance: ${distance}, max: ${getRuntimeConfig().actions.shareInfo.maxDistance})`,
     };
   }
 
   // Check energy
-  const energyCost = CONFIG.actions.shareInfo.energyCost;
+  const energyCost = getRuntimeConfig().actions.shareInfo.energyCost;
   if (agent.energy < energyCost) {
     return {
       success: false,
@@ -146,7 +146,7 @@ export async function handleShareInfo(
     await updateRelationshipTrust(
       targetAgentId,
       agent.id,
-      CONFIG.actions.shareInfo.trustGainPositive,
+      getRuntimeConfig().actions.shareInfo.trustGainPositive,
       intent.tick,
       `Shared positive info about another agent`
     );
@@ -155,7 +155,7 @@ export async function handleShareInfo(
     await updateRelationshipTrust(
       targetAgentId,
       agent.id,
-      CONFIG.actions.shareInfo.trustPenaltyNegative,
+      getRuntimeConfig().actions.shareInfo.trustPenaltyNegative,
       intent.tick,
       `Shared negative info about another agent`
     );

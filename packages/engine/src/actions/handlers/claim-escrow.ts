@@ -18,7 +18,7 @@ import type { ActionIntent, ActionResult, ClaimEscrowParams } from '../types';
 import type { Agent } from '../../db/schema';
 import {
   getEmploymentById,
-  updateEmploymentStatus,
+  updateEmploymentStatusAndPayment,
 } from '../../db/queries/employment';
 import { getAgentById, updateAgentBalance } from '../../db/queries/agents';
 import { storeMemory, updateRelationshipTrust } from '../../db/queries/memories';
@@ -81,7 +81,7 @@ export async function handleClaimEscrow(
   }
 
   // Calculate when work was completed (rough estimate)
-  const workCompletedTick = employment.startedAtTick + employment.ticksRequired;
+  const workCompletedTick = (employment.endedAtTick ?? intent.tick);
   const ticksSinceCompletion = intent.tick - workCompletedTick;
 
   // Check grace period (employer had time to pay)
@@ -101,7 +101,7 @@ export async function handleClaimEscrow(
   await updateAgentBalance(agent.id, newWorkerBalance);
 
   // Mark employment as unpaid
-  await updateEmploymentStatus(employmentId, 'unpaid', intent.tick);
+  await updateEmploymentStatusAndPayment(employmentId, 'unpaid', employment.amountPaid + escrowAmount, intent.tick);
 
   // Severe trust penalty for employer
   if (employer) {

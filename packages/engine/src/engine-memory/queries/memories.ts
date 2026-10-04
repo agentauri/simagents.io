@@ -43,6 +43,7 @@ export async function storeMemory(input: CreateMemoryInput): Promise<AgentMemory
     createdAt: new Date(),
   };
   store.memories.set(memory.id, memory);
+  await pruneOldMemories(input.agentId);
   return memory;
 }
 
@@ -252,7 +253,7 @@ export async function decayStaleRelationships(
       r.lastInteractionTick < staleThreshold &&
       Math.abs(r.trustScore) > 1
     ) {
-      const newScore = Math.max(-100, Math.min(100, r.trustScore - decayRate));
+      const newScore = Math.max(-100, Math.min(100, Math.sign(r.trustScore) * Math.max(0, Math.abs(r.trustScore) - decayRate)));
       store.relationships.set(key, { ...r, trustScore: newScore, updatedAt: new Date() });
       decayed++;
     }

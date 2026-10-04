@@ -1,3 +1,5 @@
+import type { WorldMetrics } from '@simagents/engine/engine/metrics';
+import { useAgentStatsStore } from './agentStats';
 /**
  * Analytics store for experimental metrics dashboard
  */
@@ -28,6 +30,7 @@ export interface SurvivalMetrics {
   deathCauses: {
     starvation: number;
     exhaustion: number;
+    other?: number;
   };
 }
 
@@ -58,10 +61,12 @@ export interface BehaviorMetrics {
     actions: Record<string, number>;
     fallbackRate: number;
     avgProcessingTime: number;
+    processingSamples?: number;
   }[];
 }
 
 export interface TemporalMetrics {
+  totalEvents?: number;
   tickDurations: {
     tick: number;
     duration: number;
@@ -123,24 +128,6 @@ interface LocalActionEvent {
   actionType: string;
 }
 
-const EVENT_ACTION_TYPES: Record<string, string> = {
-  agent_moved: 'move',
-  agent_worked: 'work',
-  agent_sleeping: 'sleep',
-  agent_rested: 'sleep',
-  agent_bought: 'buy',
-  agent_consumed: 'consume',
-};
-
-const ACTION_ALIASES: Record<string, string> = {
-  agent_move: 'move',
-  agent_work: 'work',
-  agent_sleep: 'sleep',
-  agent_rest: 'sleep',
-  agent_buy: 'buy',
-  agent_consume: 'consume',
-};
-
 function snapshotToState(data: AnalyticsSnapshot): AnalyticsDataState {
   return {
     survival: data.survival,
@@ -170,8 +157,8 @@ function clampRatio(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
-function calculateGini(values: number[]): number {
-  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+export function calculateGini(values: number[]): number {
+  const sorted = values.filter(value => Number.isFinite(value) && value >= 0).sort((a, b) => a - b);
   const total = sorted.reduce((sum, value) => sum + value, 0);
   if (sorted.length === 0 || total <= 0) return 0;
 
@@ -260,12 +247,11 @@ function buildSurvivalMetrics(agents: Agent[], events: WorldEvent[]): SurvivalMe
 function buildEconomyMetrics(agents: Agent[]): EconomyMetrics {
   const aliveAgents = agents.filter(isAgentAlive);
   const balances = aliveAgents.map((agent) => agent.balance);
-  const positiveBalances = balances.filter((balance) => balance > 0);
   const moneySupply = balances.reduce((sum, balance) => sum + balance, 0);
 
   return {
     moneySupply,
-    giniCoefficient: calculateGini(positiveBalances),
+    giniCoefficient: calculateGini(balances),
     balanceDistribution: {
       min: balances.length > 0 ? Math.min(...balances) : 0,
       max: balances.length > 0 ? Math.max(...balances) : 0,
@@ -283,21 +269,16 @@ function buildEconomyMetrics(agents: Agent[]): EconomyMetrics {
   };
 }
 
-function normalizeActionType(action: string): string {
-  const normalized = action.trim().toLowerCase();
-  return ACTION_ALIASES[normalized] ?? normalized.replace(/^agent_/, '');
-}
-
 function getActionType(event: WorldEvent): string | null {
-  const payloadAction = event.payload.action;
-  if (typeof payloadAction === 'string' && payloadAction.trim()) {
-    return normalizeActionType(payloadAction);
-  }
-  return EVENT_ACTION_TYPES[event.type] ?? null;
+  const action = event.payload.action;
+  return typeof action === 'string' && (event.type === `agent_${action}` || event.type === 'action_failed') ? action : null;
 }
 
 function collectActionEvents(events: WorldEvent[]): LocalActionEvent[] {
+  const seen = new Set<string>();
   return events.reduce<LocalActionEvent[]>((actions, event) => {
+    if (seen.has(event.id)) return actions;
+    seen.add(event.id);
     const actionType = getActionType(event);
     if (actionType) actions.push({ event, actionType });
     return actions;
@@ -370,6 +351,7 @@ function buildBehaviorMetrics(agents: Agent[], events: WorldEvent[]): BehaviorMe
         llmType,
         actions: bucket.actions,
         fallbackRate: bucket.totalActions === 0 ? 0 : bucket.fallbackCount / bucket.totalActions,
+        processingSamples: bucket.processingSamples,
         avgProcessingTime:
           bucket.processingSamples === 0 ? 0 : bucket.processingTotal / bucket.processingSamples,
       }))
@@ -420,13 +402,32 @@ function buildTemporalMetrics(agents: Agent[], events: WorldEvent[], currentTick
   };
 }
 
+export function cumulativeBehavior(metrics: WorldMetrics): BehaviorMetrics {
+  const counts = new Map<string, number>();
+  const groups = new Map<string, { actions: Record<string, number>; count: number; fallbacks: number; latency: number; samples: number }>();
+  for (const agent of metrics.agents) {
+    const group = groups.get(agent.llmType) ?? { actions: Object.create(null), count: 0, fallbacks: 0, latency: 0, samples: 0 };
+    for (const action of agent.actions) { counts.set(action.type, (counts.get(action.type) ?? 0) + action.count); group.actions[action.type] = (group.actions[action.type] ?? 0) + action.count; }
+    group.count += agent.actionsCount; group.fallbacks += agent.fallbackCount; group.latency += agent.latencyTotalMs; group.samples += agent.latencySamples;
+    groups.set(agent.llmType, group);
+  }
+  return { actionFrequency: [...counts].map(([actionType,count]) => ({ actionType,count,percentage: metrics.totalActions ? count / metrics.totalActions * 100 : 0 })).sort((a,b) => b.count-a.count),
+    byLlmType: [...groups].map(([llmType,g]) => ({ llmType, actions: g.actions, fallbackRate: g.count ? g.fallbacks/g.count : 0, processingSamples: g.samples, avgProcessingTime: g.samples ? g.latency/g.samples : 0 })) };
+}
+
 function buildLocalAnalyticsSnapshot(): AnalyticsSnapshot {
   const { agents, events, tick } = useWorldStore.getState();
+  const metrics = useAgentStatsStore.getState().metrics;
+  const survival = buildSurvivalMetrics(agents, events);
+  if (metrics) survival.deathCauses = { starvation: metrics.deaths.starvation, exhaustion: metrics.deaths.exhaustion, other: metrics.deaths.other };
   return {
-    survival: buildSurvivalMetrics(agents, events),
+    survival,
     economy: buildEconomyMetrics(agents),
-    behavior: buildBehaviorMetrics(agents, events),
-    temporal: buildTemporalMetrics(agents, events, tick),
+    behavior: metrics ? cumulativeBehavior(metrics) : buildBehaviorMetrics(agents, events),
+    temporal: metrics ? { currentTick: tick, totalEvents: metrics.totalEvents,
+      tickDurations: metrics.recentTicks.slice(-30).map(t => ({ tick: t.tick, duration: t.maxDecisionMs, agentCount: t.agentCount, actionsExecuted: t.actions })),
+      eventsByTick: metrics.recentTicks.slice(-30).map(t => ({ tick: t.tick, eventCount: t.events })),
+    } : buildTemporalMetrics(agents, events, tick),
     timestamp: Date.now(),
   };
 }

@@ -1,3 +1,5 @@
+import { formatActionLabel } from '../../../i18n';
+import { useLocale, translate } from '../../../i18n';
 /**
  * BehaviorPanel - Behavior metrics visualization
  */
@@ -16,13 +18,12 @@ const actionColors: Record<string, string> = {
 };
 
 export function BehaviorPanel() {
+  useLocale();
   const behavior = useBehaviorMetrics();
 
   if (!behavior) {
     return (
-      <div className="flex items-center justify-center h-32 text-city-text-muted text-sm">
-        Loading behavior metrics...
-      </div>
+      <div className="flex items-center justify-center h-32 text-city-text-muted text-sm">{translate("Loading behavior metrics...")}</div>
     );
   }
 
@@ -31,9 +32,7 @@ export function BehaviorPanel() {
   // Handle empty data case
   if (!actionFrequency.length) {
     return (
-      <div className="flex items-center justify-center h-32 text-city-text-muted text-sm">
-        No behavior data available yet...
-      </div>
+      <div className="flex items-center justify-center h-32 text-city-text-muted text-sm">{translate("No behavior data available yet...")}</div>
     );
   }
 
@@ -47,40 +46,34 @@ export function BehaviorPanel() {
   // Calculate total actions
   const totalActions = actionFrequency.reduce((sum, d) => sum + d.count, 0);
 
-  // Calculate average fallback rate
-  const avgFallbackRate = byLlmType.length > 0
-    ? byLlmType.reduce((sum, d) => sum + d.fallbackRate, 0) / byLlmType.length
-    : 0;
-
-  // Calculate average processing time
-  const avgProcessingTime = byLlmType.length > 0
-    ? byLlmType.reduce((sum, d) => sum + d.avgProcessingTime, 0) / byLlmType.length
-    : 0;
+  const avgFallbackRate = totalActions > 0
+    ? byLlmType.reduce((sum, d) => sum + d.fallbackRate * Object.values(d.actions).reduce((n, count) => n + count, 0), 0) / totalActions : 0;
+  const samples = byLlmType.reduce((sum, d) => sum + (d.processingSamples ?? 0), 0);
+  const avgProcessingTime = samples > 0
+    ? byLlmType.reduce((sum, d) => sum + d.avgProcessingTime * (d.processingSamples ?? 0), 0) / samples : 0;
 
   return (
     <div className="space-y-4">
       {/* Overview cards */}
       <div className="grid grid-cols-3 gap-2">
         <MetricCard
-          label="Total Actions"
+          label={translate("Action attempts")}
           value={totalActions.toLocaleString()}
         />
         <MetricCard
-          label="Fallback Rate"
+          label={translate("Fallback Rate")}
           value={`${(avgFallbackRate * 100).toFixed(1)}%`}
           color={avgFallbackRate > 0.3 ? 'warning' : 'success'}
         />
         <MetricCard
-          label="Avg Time"
+          label={translate("Avg Time")}
           value={`${avgProcessingTime.toFixed(0)}ms`}
         />
       </div>
 
       {/* Action frequency */}
       <div>
-        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">
-          Action Frequency
-        </div>
+        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">{translate("Action Frequency")}</div>
         <BarChart
           data={actionData}
           height={120}
@@ -90,20 +83,18 @@ export function BehaviorPanel() {
 
       {/* Action percentages */}
       <div className="bg-city-surface-hover/20 rounded-lg p-3">
-        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">
-          Action Distribution
-        </div>
+        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">{translate("Action Distribution")}</div>
         <div className="flex flex-wrap gap-2">
           {actionFrequency.map((action) => (
             <div
-              key={action.actionType}
+              key={formatActionLabel(action.actionType)}
               className="flex items-center gap-1 px-2 py-1 bg-city-surface rounded text-xs"
             >
               <div
                 className="w-2 h-2 rounded-full"
                 style={{ backgroundColor: actionColors[action.actionType] || '#888' }}
               />
-              <span className="text-city-text">{action.actionType}</span>
+              <span className="text-city-text">{formatActionLabel(action.actionType)}</span>
               <span className="text-city-text-muted">
                 {action.percentage.toFixed(1)}%
               </span>
@@ -114,9 +105,7 @@ export function BehaviorPanel() {
 
       {/* Behavior by LLM */}
       <div>
-        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">
-          Behavior by LLM
-        </div>
+        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">{translate("Behavior by LLM")}</div>
         <div className="space-y-2">
           {byLlmType.map((llm) => {
             const actions = llm.actions;
@@ -133,8 +122,7 @@ export function BehaviorPanel() {
                     {llm.llmType}
                   </span>
                   <span className="text-xs text-city-text-muted">
-                    {total} actions
-                  </span>
+                    {total}{" "}{translate("actions")}</span>
                 </div>
 
                 {/* Action breakdown bar */}
@@ -149,7 +137,7 @@ export function BehaviorPanel() {
                           width: `${(count / total) * 100}%`,
                           backgroundColor: actionColors[actionType] || '#888',
                         }}
-                        title={`${actionType}: ${count} (${((count / total) * 100).toFixed(1)}%)`}
+                        title={`${formatActionLabel(actionType)}: ${count} (${((count / total) * 100).toFixed(1)}%)`}
                       />
                     ))}
                 </div>
@@ -157,12 +145,10 @@ export function BehaviorPanel() {
                 {/* Stats */}
                 <div className="flex items-center gap-3 mt-1 text-xs text-city-text-muted">
                   {dominant && (
-                    <span>
-                      Top: <span className="text-city-text">{dominant[0]}</span>
+                    <span>{translate("Top:")}<span className="text-city-text">{dominant[0]}</span>
                     </span>
                   )}
-                  <span>
-                    Fallback: <span className={llm.fallbackRate > 0.3 ? 'text-status-warning' : 'text-status-success'}>
+                  <span>{translate("Fallback:")}<span className={llm.fallbackRate > 0.3 ? 'text-status-warning' : 'text-status-success'}>
                       {(llm.fallbackRate * 100).toFixed(0)}%
                     </span>
                   </span>

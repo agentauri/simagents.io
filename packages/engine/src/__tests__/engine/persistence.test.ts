@@ -94,3 +94,20 @@ describe('world persistence', () => {
     expect(await getPuzzleGameById(game.id)).toBeDefined();
   });
 });
+
+describe('nested import validation', () => {
+  test('rejects a missing row identity without destroying the existing world', async () => {
+    const game = await createPuzzleGame({ gameType: 'password', solution: 'test', createdAtTick: 0 });
+    const snapshot = serializeWorld({ savedAtSimTimeMs: 0, worldSeed: 'test', speed: 1 });
+    snapshot.store.agents = [{ llmType: 'fixture', x: 0, y: 0 }];
+    expect(() => hydrateWorld(snapshot)).toThrow();
+    expect(store.puzzleGames.has(game.id)).toBe(true);
+  });
+  test('rejects invalid metadata and nonfinite nested numbers before mutation', () => {
+    const snapshot = serializeWorld({ savedAtSimTimeMs: 0, worldSeed: 'test', speed: 1 });
+    snapshot.engine.agentMeta = [['x', { busyUntil: NaN }]];
+    expect(() => hydrateWorld(snapshot)).toThrow();
+    snapshot.engine.agentMeta = [['x', {} as never]];
+    expect(() => hydrateWorld(snapshot)).toThrow();
+  });
+});

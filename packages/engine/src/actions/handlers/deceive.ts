@@ -21,7 +21,7 @@ import type { Agent } from '../../db/schema';
 import { getAgentById } from '../../db/queries/agents';
 import { storeMemory, getRelationship } from '../../db/queries/memories';
 import { getDistance } from '../../world/grid';
-import { CONFIG } from '../../config';
+import { getRuntimeConfig } from '../../config';
 
 const VALID_CLAIM_TYPES = ['resource_location', 'agent_reputation', 'danger_warning', 'trade_offer', 'other'];
 
@@ -61,15 +61,15 @@ export async function handleDeceive(
     { x: agent.x, y: agent.y },
     { x: targetAgent.x, y: targetAgent.y }
   );
-  if (distance > CONFIG.actions.deceive.maxDistance) {
+  if (distance > getRuntimeConfig().actions.deceive.maxDistance) {
     return {
       success: false,
-      error: `Target too far for communication (distance: ${distance}, max: ${CONFIG.actions.deceive.maxDistance})`,
+      error: `Target too far for communication (distance: ${distance}, max: ${getRuntimeConfig().actions.deceive.maxDistance})`,
     };
   }
 
   // Check energy
-  const energyCost = CONFIG.actions.deceive.energyCost;
+  const energyCost = getRuntimeConfig().actions.deceive.energyCost;
   if (agent.energy < energyCost) {
     return {
       success: false,

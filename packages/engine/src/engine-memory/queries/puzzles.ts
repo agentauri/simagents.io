@@ -148,6 +148,12 @@ export async function expirePuzzleGames(currentTick: number): Promise<number> {
 
   for (const game of gamesToExpire) {
     store.puzzleGames.set(game.id, { ...game, status: 'expired' });
+    for (const participant of store.puzzleParticipants.values()) {
+      if (participant.gameId === game.id && participant.status === 'active') store.puzzleParticipants.set(participant.id, { ...participant, status: 'expired' });
+    }
+    for (const team of store.puzzleTeams.values()) {
+      if (team.gameId === game.id) store.puzzleTeams.set(team.id, { ...team, status: 'expired' });
+    }
   }
 
   return gamesToExpire.length;
@@ -307,7 +313,7 @@ export async function getAgentFragmentsInGame(
   gameId: string
 ): Promise<PuzzleFragment[]> {
   return [...store.puzzleFragments.values()].filter(
-    (f) => f.ownerId === agentId && f.gameId === gameId
+    (f) => (f.ownerId === agentId || f.sharedWith.includes(agentId)) && f.gameId === gameId
   );
 }
 
@@ -496,7 +502,7 @@ export async function getAgentActivePuzzleParticipations(
   agentId: string
 ): Promise<PuzzleParticipant[]> {
   return [...store.puzzleParticipants.values()].filter(
-    (p) => p.agentId === agentId && p.status === 'active'
+    (p) => p.agentId === agentId && p.status === 'active' && ['open', 'active'].includes(store.puzzleGames.get(p.gameId)?.status ?? '')
   );
 }
 
@@ -613,7 +619,9 @@ export async function getAgentPuzzleContext(
   );
 
   // Get agent's fragments (across all active games)
-  const myFragments = await getFragmentsOwnedByAgent(agentId);
+  const myFragments = [...store.puzzleFragments.values()].filter((f) =>
+    participatingGameIds.has(f.gameId) && (f.ownerId === agentId || f.sharedWith.includes(agentId))
+  );
 
   // Get agent's current team (if in a game)
   let myTeam: PuzzleTeam | undefined;

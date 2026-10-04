@@ -1,3 +1,4 @@
+import { useLocale, translate } from '../../../i18n';
 /**
  * LineChart - Simple SVG line chart for temporal data
  */
@@ -29,11 +30,10 @@ export function LineChart({
   showDots = true,
   showGrid = true,
 }: LineChartProps) {
+  useLocale();
   if (data.length === 0 || data.every((d) => d.points.length === 0)) {
     return (
-      <div className="flex items-center justify-center h-20 text-city-text-muted text-sm">
-        No data
-      </div>
+      <div className="flex items-center justify-center h-20 text-city-text-muted text-sm">{translate("No data")}</div>
     );
   }
 

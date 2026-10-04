@@ -1,3 +1,5 @@
+import { translateLabel, useLocale, translate } from '../../../i18n';
+
 /**
  * BarChart - Simple horizontal SVG bar chart
  */
@@ -31,11 +33,10 @@ export function BarChart({
   showValues = true,
   formatValue = (v) => v.toLocaleString(),
 }: BarChartProps) {
+  useLocale();
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-20 text-city-text-muted text-sm">
-        No data
-      </div>
+      <div className="flex items-center justify-center h-20 text-city-text-muted text-sm">{translate("No data")}</div>
     );
   }
 
@@ -56,7 +57,7 @@ export function BarChart({
             style={{ height: barHeight + gap, marginBottom: gap }}
           >
             <div className="w-16 text-xs text-city-text-muted truncate text-right">
-              {d.label}
+              {translateLabel(d.label)}
             </div>
             <div className="flex-1 h-full bg-city-surface-hover/30 rounded overflow-hidden">
               <div

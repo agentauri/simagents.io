@@ -4,7 +4,7 @@ import {
 } from '@simagents/shared';
 
 export interface KeySource {
-  getKey(provider: LLMType): string | undefined;
+  getKey(provider: string): string | undefined;
 }
 
 export type ProviderAvailability = Record<

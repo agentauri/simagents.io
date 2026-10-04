@@ -33,13 +33,17 @@ export async function transfer(
 ): Promise<TransactionResult> {
   const txId = uuid();
 
-  if (amount <= 0) {
+  if (!Number.isFinite(amount) || amount <= 0) {
     return {
       success: false,
       txId,
       entries: [],
       error: 'Amount must be positive',
     };
+  }
+
+  if ((fromAgentId && !store.agents.has(fromAgentId)) || (toAgentId && !store.agents.has(toAgentId))) {
+    return { success: false, txId, entries: [], error: 'Unknown transfer participant' };
   }
 
   let fromBalance: number | undefined;

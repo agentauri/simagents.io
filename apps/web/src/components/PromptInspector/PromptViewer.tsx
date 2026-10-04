@@ -1,3 +1,6 @@
+import { formatError } from '../../i18n/errors';
+import { translateLabel, useLocale, translate } from '../../i18n';
+
 /**
  * PromptViewer - Detailed view of a prompt log
  *
@@ -76,6 +79,7 @@ const TABS: TabConfig[] = [
 ];
 
 function CodeViewer({ content, lineNumbers = true }: { content: string; lineNumbers?: boolean }) {
+  useLocale();
   const [copied, setCopied] = useState(false);
   const lines = content.split('\n');
 
@@ -96,21 +100,17 @@ function CodeViewer({ content, lineNumbers = true }: { content: string; lineNumb
           <>
             <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            Copied
-          </>
+            </svg>{translate("Copied")}</>
         ) : (
           <>
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-            </svg>
-            Copy
-          </>
+            </svg>{translate("Copy")}</>
         )}
       </button>
 
       {/* Code content */}
-      <pre className="h-full overflow-auto p-4 pt-10 bg-city-bg text-city-text text-xs font-mono leading-relaxed">
+      <pre tabIndex={0} aria-label={translate("Prompt content")} className="h-full overflow-auto p-4 pt-10 bg-city-bg text-city-text text-xs font-mono leading-relaxed">
         {lineNumbers ? (
           <table className="w-full">
             <tbody>
@@ -133,6 +133,7 @@ function CodeViewer({ content, lineNumbers = true }: { content: string; lineNumb
 }
 
 export function PromptViewer() {
+  useLocale();
   const selectedAgentId = useSelectedAgentId();
   const currentLog = useCurrentPromptLog();
   const currentLogLoading = useCurrentLogLoading();
@@ -149,10 +150,8 @@ export function PromptViewer() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-city-text mb-2">Select an Agent</h3>
-          <p className="text-city-text-muted text-sm">
-            Choose an agent from the sidebar to inspect their prompts
-          </p>
+          <h3 className="text-lg font-medium text-city-text mb-2">{translate("Select an Agent")}</h3>
+          <p className="text-city-text-muted text-sm">{translate("Choose an agent from the sidebar to inspect their prompts")}</p>
         </div>
       </div>
     );
@@ -167,7 +166,7 @@ export function PromptViewer() {
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
-          <span>Loading prompt details...</span>
+          <span>{translate("Loading prompt details...")}</span>
         </div>
       </div>
     );
@@ -178,8 +177,8 @@ export function PromptViewer() {
     return (
       <div className="h-full flex items-center justify-center p-8">
         <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-6 max-w-md">
-          <h3 className="text-red-400 font-medium mb-2">Error Loading Prompt</h3>
-          <p className="text-city-text-muted text-sm">{currentLogError}</p>
+          <h3 className="text-red-400 font-medium mb-2">{translate("Error Loading Prompt")}</h3>
+          <p className="text-city-text-muted text-sm">{formatError(currentLogError)}</p>
         </div>
       </div>
     );
@@ -195,10 +194,8 @@ export function PromptViewer() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-city-text mb-2">Select a Tick</h3>
-          <p className="text-city-text-muted text-sm">
-            Choose a tick from the timeline to view the prompt details
-          </p>
+          <h3 className="text-lg font-medium text-city-text mb-2">{translate("Select a Tick")}</h3>
+          <p className="text-city-text-muted text-sm">{translate("Choose a tick from the timeline to view the prompt details")}</p>
         </div>
       </div>
     );
@@ -206,7 +203,7 @@ export function PromptViewer() {
 
   // Get content for active tab
   const getTabContent = (): string => {
-    switch (activeTab) {
+    switch (currentLog.source === 'captured' && !['full', 'raw'].includes(activeTab) ? 'full' : activeTab) {
       case 'full':
         return currentLog.fullPrompt;
       case 'system':
@@ -225,20 +222,25 @@ export function PromptViewer() {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="prompt-viewer h-full flex flex-col">
+      {currentLog.source !== 'captured' && <p role="note" className="p-3 text-sm text-yellow-300">{translate("Reconstructed event summary. The actual request and raw response were not captured.")}</p>}
+      {currentLog.requestTrace && <p role="note" className="p-3 text-sm text-city-text-muted">{translate("Captured request ·")}{currentLog.requestTrace.protocol} · {currentLog.requestTrace.outcome}{" "}{translate("· HTTP")}{" "}{currentLog.requestTrace.status ?? translate('Not available')} · {currentLog.requestTrace.durationMs} ms
+        {currentLog.requestTrace.errorCode && ` · ${currentLog.requestTrace.errorCode}`}
+        {currentLog.requestTrace.truncated && ` · ${translate('Truncated: body exceeds capture limit')}`}
+        {currentLog.requestTrace.redacted && ` · ${translate('Known credentials redacted')}`}
+      </p>}
       {/* Header with metadata */}
       <div className="flex-none px-4 py-3 bg-city-surface border-b border-city-border">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-city-text">
-              Tick {currentLog.tick}
+            <span className="text-sm font-medium text-city-text">{translate("Tick")}{" "}{currentLog.tick}
             </span>
             <span className={`px-2 py-0.5 rounded text-xs font-medium ${
               currentLog.promptMode === 'emergent'
-                ? 'bg-purple-500/20 text-purple-400'
+                ? 'bg-purple-500/20 text-purple-300'
                 : 'bg-blue-500/20 text-blue-400'
             }`}>
-              {currentLog.promptMode}
+              {translateLabel(currentLog.promptMode)}
             </span>
             <span className={`px-2 py-0.5 rounded text-xs ${
               currentLog.safetyLevel === 'none'
@@ -247,43 +249,39 @@ export function PromptViewer() {
                   ? 'bg-amber-500/20 text-amber-400'
                   : 'bg-green-500/20 text-green-400'
             }`}>
-              {currentLog.safetyLevel}
+              {translateLabel(currentLog.safetyLevel)}
             </span>
           </div>
 
           <div className="flex items-center gap-2 text-xs text-city-text-muted">
             {currentLog.usedFallback && (
-              <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded">
-                Fallback
-              </span>
+              <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded">{translate("Fallback")}</span>
             )}
             {currentLog.usedCache && (
-              <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">
-                Cached
-              </span>
+              <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">{translate("Cached")}</span>
             )}
             {currentLog.processingTimeMs !== null && (
               <span>{currentLog.processingTimeMs}ms</span>
             )}
             {currentLog.inputTokens !== null && (
-              <span>{currentLog.inputTokens} in</span>
+              <span>{currentLog.inputTokens}{" "}{translate("in")}</span>
             )}
             {currentLog.outputTokens !== null && (
-              <span>{currentLog.outputTokens} out</span>
+              <span>{currentLog.outputTokens}{" "}{translate("out")}</span>
             )}
           </div>
         </div>
 
         <div className="flex items-center gap-2 text-xs text-city-text-muted">
-          <span>LLM: {currentLog.llmType}</span>
-          {currentLog.personality && <span>| Personality: {currentLog.personality}</span>}
+          <span>{translate("LLM:")}{" "}{currentLog.llmType}</span>
+          {currentLog.personality && <span>{translate("| Personality:")}{" "}{currentLog.personality}</span>}
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex-none border-b border-city-border bg-city-surface/50">
         <div className="flex">
-          {TABS.map((tab) => (
+          {TABS.filter(tab => currentLog.source !== 'captured' || tab.id === 'full' || tab.id === 'raw').map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -294,7 +292,7 @@ export function PromptViewer() {
               }`}
             >
               {tab.icon}
-              {tab.label}
+              {currentLog.source === 'captured' && tab.id === 'full' ? translate("Request body") : translateLabel(tab.label)}
             </button>
           ))}
         </div>

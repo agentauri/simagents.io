@@ -63,10 +63,10 @@ export async function handlePayWorker(
   }
 
   // Check if already paid
-  if (employment.status === 'completed') {
+  if (employment.status !== 'active') {
     return {
       success: false,
-      error: 'This contract has already been paid',
+      error: 'This contract is already resolved',
     };
   }
 

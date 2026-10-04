@@ -1,3 +1,4 @@
+import { pruneAgentRng } from '../utils/random';
 import type { Agent, ResourceSpawn, Shelter } from '../db/schema';
 import { getRuntimeConfig } from '../config';
 import { subscribe, type WorldEvent } from '../engine-memory/bus';
@@ -8,7 +9,7 @@ import { SimClock, DEFAULT_SIM_SPEED } from './time';
 import { runHousekeeping } from './heartbeat';
 import { ActionExecutor } from './executor';
 import { AgentRunner, type AgentRunnerHost } from './agent-runner';
-import { hydrateWorld, serializeWorld, type WorldSnapshotV1 } from './persistence';
+import { hydrateWorld, serializeWorld, type WorldSnapshotV1, validateWorldSnapshotV1 } from './persistence';
 import {
   createDecisionProviderForLLMType,
   type DecisionProvider,
@@ -177,7 +178,13 @@ export interface SimEngineOptions {
   onError?: (error: unknown, context: string) => void;
 }
 
+export type EngineLifecycle = 'initialized' | 'running' | 'paused' | 'stopped' | 'error';
+
 export interface SimEngineState {
+  speed?: number;
+  metrics?: import('./metrics').WorldMetrics;
+  usage?: { requests: number; elapsedMs: number; limits: import('./llm/request-budget').SessionLimits };
+  lifecycle: EngineLifecycle;
   tick: number;
   simTimeMs: number;
   agents: Agent[];
@@ -186,12 +193,15 @@ export interface SimEngineState {
 }
 
 export class SimEngine implements AgentRunnerHost {
+  private lifecycle: EngineLifecycle = 'initialized';
+  private generation = 0;
+  private tickTail: Promise<void> = Promise.resolve();
   private clock: SimClock;
   private readonly scheduler: EngineScheduler;
   private readonly executor: ActionExecutor;
   private readonly runners = new Map<string, AgentRunner>();
   private readonly providerFactory: ProviderFactory;
-  private readonly worldSeed: string;
+  private worldSeed: string;
   private timer: ReturnType<typeof setInterval> | undefined;
   private lastHeartbeatMs = 0;
   private readonly onError?: (error: unknown, context: string) => void;
@@ -201,6 +211,7 @@ export class SimEngine implements AgentRunnerHost {
     this.clock = new SimClock({
       simTimeMs: options.simTimeMs ?? 0,
       speed: options.speed ?? DEFAULT_SIM_SPEED,
+      paused: true,
     });
     this.worldSeed = options.worldSeed ?? 'simagents';
     this.scheduler = new EngineScheduler(
@@ -215,24 +226,30 @@ export class SimEngine implements AgentRunnerHost {
 
   async seed(world: SeedOptions = {}): Promise<void> {
     await this.reset();
-    await seedWorld(world);
-    await this.syncRunners();
+    this.worldSeed = world.worldSeed ?? this.worldSeed;
+    await seedWorld({ ...world, worldSeed: this.worldSeed });
+    this.lifecycle = 'initialized';
+    this.pauseClock();
   }
 
   async hydrate(snapshot: WorldSnapshotV1): Promise<void> {
+    snapshot = validateWorldSnapshotV1(snapshot);
     this.stopRuntime();
     this.scheduler.reset();
+    await this.executor.onDrain();
     hydrateWorld(snapshot);
+    this.worldSeed = snapshot.worldSeed;
     this.clock = new SimClock({
       simTimeMs: snapshot.savedAtSimTimeMs,
       speed: snapshot.speed,
-      paused: store.worldState.isPaused,
+      paused: true,
     });
     // May sit up to one interval past the last actually-fired heartbeat: the
     // first post-resume heartbeat is then slightly delayed, which is harmless
     // because vitals decay anchors to each agent's persisted vitalsUpdatedAt.
     this.lastHeartbeatMs = snapshot.savedAtSimTimeMs;
-    await this.syncRunners();
+    this.lifecycle = 'initialized';
+    this.pauseClock();
   }
 
   snapshot(): WorldSnapshotV1 {
@@ -244,23 +261,33 @@ export class SimEngine implements AgentRunnerHost {
   }
 
   async start(): Promise<void> {
-    await this.syncRunners();
+    this.resume();
+    try { await this.syncRunners(); } catch (error) { this.fail(); throw error; }
+    if (this.lifecycle !== 'running') return;
     if (this.timer) return;
 
     this.timer = setInterval(() => {
       void this.tickWall(250).catch((error) => {
-        console.error('[engine] interval tick failed:', error);
+        this.fail();
+        if (!this.onError) console.error('[engine] interval tick failed:', error);
         this.onError?.(error, 'interval-tick');
       });
     }, 250);
   }
 
   pause(): void {
+    this.stopRuntime();
+    this.lifecycle = 'paused';
+    this.pauseClock();
+  }
+
+  private pauseClock(): void {
     this.clock.pause();
     store.worldState = { ...store.worldState, isPaused: true };
   }
 
   resume(): void {
+    this.lifecycle = 'running';
     this.clock.resume();
     store.worldState = { ...store.worldState, isPaused: false };
     this.scheduler.resume();
@@ -269,37 +296,54 @@ export class SimEngine implements AgentRunnerHost {
   async reset(): Promise<void> {
     this.stopRuntime();
     this.scheduler.reset();
+    await this.executor.onDrain();
     resetStore();
-    this.clock = new SimClock({ speed: this.clock.speed });
+    this.clock = new SimClock({ speed: this.clock.speed, paused: true });
+    this.lifecycle = 'initialized';
+    this.pauseClock();
     this.lastHeartbeatMs = 0;
   }
 
   stop(): void {
     this.stopRuntime();
+    this.lifecycle = 'stopped';
+    this.pauseClock();
+  }
+
+  private fail(): void {
+    this.stopRuntime();
+    this.lifecycle = 'error';
+    this.pauseClock();
   }
 
   setSpeed(speed: number): void {
     this.clock.setSpeed(speed);
   }
 
-  async tickWall(wallDeltaMs: number): Promise<void> {
-    await this.syncRunners();
-    this.clock.advance(wallDeltaMs);
-    await this.runDueHeartbeats();
-    // While paused the whole world freezes, including wall-clock waiters:
-    // an in-flight decision must not time out (and fall back) during a pause.
-    if (!this.clock.paused) {
-      this.scheduler.advanceWall(wallDeltaMs);
-    }
-    await flushMicrotasks();
-    await this.executor.onDrain();
-    await this.syncRunners();
-    await flushMicrotasks();
-    await this.executor.onDrain();
+  tickWall(wallDeltaMs: number): Promise<void> {
+    const generation = this.generation;
+    const operation = this.tickTail.then(async () => {
+      if (generation !== this.generation || this.lifecycle !== 'running') return;
+      await this.executor.mutate(async () => {
+        if (generation !== this.generation || this.lifecycle !== 'running') return;
+        this.clock.advance(wallDeltaMs);
+        await this.runDueHeartbeats();
+        if (!this.clock.paused) this.scheduler.advanceWall(wallDeltaMs);
+      });
+      if (generation !== this.generation || this.lifecycle !== 'running') return;
+      await this.syncRunners();
+      await flushMicrotasks();
+      await this.executor.onDrain();
+    });
+    this.tickTail = operation.catch(() => undefined);
+    return operation;
   }
 
   getState(): SimEngineState {
     return {
+      lifecycle: this.lifecycle,
+      speed: this.clock.speed,
+      metrics: JSON.parse(JSON.stringify(store.metrics)),
       tick: this.clock.tick,
       simTimeMs: this.clock.simTimeMs,
       agents: [...store.agents.values()],
@@ -350,8 +394,12 @@ export class SimEngine implements AgentRunnerHost {
   }
 
   private async syncRunners(): Promise<void> {
+    if (this.lifecycle !== 'running') return;
+    const generation = this.generation;
     const aliveAgents = await getAliveAgents();
+    if (generation !== this.generation || this.lifecycle !== 'running') return;
     const aliveIds = new Set(aliveAgents.map((agent) => agent.id));
+    pruneAgentRng(aliveIds);
 
     for (const agent of aliveAgents) {
       if (this.runners.has(agent.id)) continue;
@@ -368,7 +416,8 @@ export class SimEngine implements AgentRunnerHost {
       });
       this.runners.set(agent.id, runner);
       runner.start().catch((error) => {
-        console.error(`[engine] agent runner ${agent.id} failed:`, error);
+        this.fail();
+        if (!this.onError) console.error(`[engine] agent runner ${agent.id} failed:`, error);
         this.onError?.(error, `agent-runner:${agent.id}`);
       });
     }
@@ -379,7 +428,7 @@ export class SimEngine implements AgentRunnerHost {
         continue;
       }
 
-      if (!aliveIds.has(agentId) && !runner.isThinking) {
+      if (!aliveIds.has(agentId)) {
         runner.stop();
         this.runners.delete(agentId);
       }
@@ -387,6 +436,7 @@ export class SimEngine implements AgentRunnerHost {
   }
 
   private stopRuntime(): void {
+    this.generation++;
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = undefined;

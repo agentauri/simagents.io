@@ -1,3 +1,5 @@
+import { useLocale } from '../../i18n';
+import { translateLabel } from '../../i18n';
 /**
  * MetricCard - Simple stat display card
  */
@@ -21,11 +23,12 @@ const colorClasses = {
 };
 
 export function MetricCard({ label, value, icon, color = 'default', trend, subtitle }: MetricCardProps) {
+  useLocale();
   return (
     <div className="bg-city-surface-hover/30 rounded-lg p-3 flex flex-col">
       <div className="flex items-center gap-2 mb-1">
         {icon && <span className="text-city-text-muted">{icon}</span>}
-        <span className="text-xs text-city-text-muted uppercase tracking-wide">{label}</span>
+        <span className="text-xs text-city-text-muted uppercase tracking-wide">{translateLabel(label)}</span>
       </div>
       <div className="flex items-baseline gap-2">
         <span className={`text-xl font-bold ${colorClasses[color]}`}>
@@ -38,7 +41,7 @@ export function MetricCard({ label, value, icon, color = 'default', trend, subti
         )}
       </div>
       {subtitle && (
-        <span className="text-xs text-city-text-muted mt-1">{subtitle}</span>
+        <span className="text-xs text-city-text-muted mt-1">{translateLabel(subtitle)}</span>
       )}
     </div>
   );

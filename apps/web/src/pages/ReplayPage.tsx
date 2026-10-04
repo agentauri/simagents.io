@@ -1,10 +1,14 @@
+import { formatActionLabel } from '../i18n';
+import { formatError } from '../i18n/errors';
+import { translateLabel, useLocale, translate } from '../i18n';
+
 /**
  * Replay Page (Phase 3: Time Travel)
  *
  * Full-page UI for replaying simulation history.
  */
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import {
   useReplayStore,
   useTickRange,
@@ -20,6 +24,7 @@ import {
   fetchWorldSnapshot,
   fetchAgentTimeline,
 } from '../stores/replay';
+import { getEngineClient } from '../engine-host/engine-client';
 import { useEditorStore } from '../stores/editor';
 
 // =============================================================================
@@ -27,23 +32,26 @@ import { useEditorStore } from '../stores/editor';
 // =============================================================================
 
 function TickSlider() {
+  useLocale();
   const tickRange = useTickRange();
   const currentTick = useCurrentTick();
   const isPlaying = useIsPlaying();
   const { setCurrentTick, setSnapshot, setLoading, setError } = useReplayStore();
 
   const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const tick = parseInt(e.target.value, 10);
+    const tick = tickRange?.availableTicks?.[parseInt(e.target.value, 10)];
+    if (tick === undefined) return;
     setCurrentTick(tick);
 
     // Fetch snapshot for this tick
     setLoading(true);
     try {
       const snapshot = await fetchWorldSnapshot(tick);
+      if (useReplayStore.getState().currentTick !== tick) return;
       setSnapshot(snapshot);
       setError(null);
     } catch (err) {
-      setError('Failed to load snapshot');
+      setError(err instanceof Error ? err.message : 'Failed to load snapshot');
     } finally {
       setLoading(false);
     }
@@ -53,22 +61,21 @@ function TickSlider() {
 
   return (
     <div className="flex items-center gap-4 p-4 bg-city-surface border-b border-city-border">
-      <span className="text-xs text-city-text-muted w-16">
-        Tick {tickRange.minTick}
+      <span className="text-xs text-city-text-muted w-16">{translate("Tick")}{" "}{tickRange.minTick}
       </span>
       <input
+        aria-label={translate("Saved replay frame")}
         type="range"
-        min={tickRange.minTick}
-        max={tickRange.maxTick}
-        value={currentTick}
+        min={0}
+        max={Math.max(0, (tickRange.availableTicks?.length ?? 1) - 1)}
+        value={tickRange.availableTicks?.indexOf(currentTick) ?? 0}
         onChange={handleChange}
         disabled={isPlaying}
         className="flex-1 h-2 bg-city-border rounded-lg appearance-none cursor-pointer accent-city-accent"
       />
-      <span className="text-xs text-city-text-muted w-16 text-right">
-        Tick {tickRange.maxTick}
+      <span className="text-xs text-city-text-muted w-16 text-right">{translate("Tick")}{" "}{tickRange.maxTick}
       </span>
-      <div className="px-3 py-1 bg-city-accent text-white text-sm font-mono rounded">
+      <div className="px-3 py-1 bg-city-accent text-gray-950 text-sm font-mono rounded">
         {currentTick}
       </div>
     </div>
@@ -80,6 +87,7 @@ function TickSlider() {
 // =============================================================================
 
 function PlaybackControls() {
+  useLocale();
   const isPlaying = useIsPlaying();
   const speed = usePlaybackSpeed();
   const tickRange = useTickRange();
@@ -106,16 +114,14 @@ function PlaybackControls() {
   const step = async (direction: 1 | -1) => {
     if (!tickRange) return;
 
-    const newTick = Math.max(
-      tickRange.minTick,
-      Math.min(tickRange.maxTick, currentTick + direction)
-    );
+    const ticks = tickRange.availableTicks ?? [];
+    const newTick = direction === 1 ? ticks.find(tick => tick > currentTick) ?? currentTick : [...ticks].reverse().find(tick => tick < currentTick) ?? currentTick;
 
     if (newTick !== currentTick) {
       setCurrentTick(newTick);
       try {
         const snapshot = await fetchWorldSnapshot(newTick);
-        setSnapshot(snapshot);
+        if (useReplayStore.getState().currentTick === newTick) setSnapshot(snapshot);
       } catch {
         setError('Failed to load snapshot');
       }
@@ -133,13 +139,15 @@ function PlaybackControls() {
           return;
         }
 
-        const newTick = currentTick + 1;
+        const newTick = tickRange.availableTicks?.find(tick => tick > currentTick);
+        if (newTick === undefined) { setPlaying(false); return; }
         setCurrentTick(newTick);
         try {
           const snapshot = await fetchWorldSnapshot(newTick);
-          setSnapshot(snapshot);
+          if (useReplayStore.getState().currentTick === newTick && useReplayStore.getState().isPlaying) setSnapshot(snapshot);
         } catch {
           setPlaying(false);
+          setError('Failed to load snapshot');
         }
       }, interval);
 
@@ -158,7 +166,7 @@ function PlaybackControls() {
         onClick={() => step(-1)}
         disabled={isPlaying}
         className="p-2 rounded hover:bg-city-border disabled:opacity-50"
-        title="Previous tick"
+        title={translate("Previous tick")}
       >
         <svg className="w-5 h-5 text-city-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -168,8 +176,8 @@ function PlaybackControls() {
       {/* Play/Pause */}
       <button
         onClick={togglePlay}
-        className="p-2 rounded bg-city-accent hover:bg-city-accent/80 text-white"
-        title={isPlaying ? 'Pause' : 'Play'}
+        className="p-2 rounded bg-city-accent hover:bg-city-accent/80 text-gray-950"
+        title={isPlaying ? translate("Pause") : translate("Play")}
       >
         {isPlaying ? (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -187,7 +195,7 @@ function PlaybackControls() {
         onClick={() => step(1)}
         disabled={isPlaying}
         className="p-2 rounded hover:bg-city-border disabled:opacity-50"
-        title="Next tick"
+        title={translate("Next tick")}
       >
         <svg className="w-5 h-5 text-city-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -198,10 +206,9 @@ function PlaybackControls() {
       <button
         onClick={cycleSpeed}
         className="px-3 py-1 rounded bg-city-border hover:bg-city-border/80 text-city-text text-sm font-mono"
-        title="Change playback speed"
+        title={translate("Change playback speed")}
       >
-        {speed}x
-      </button>
+        {speed}{" "}{translate("x")}</button>
 
       {/* Spacer */}
       <div className="flex-1" />
@@ -210,12 +217,10 @@ function PlaybackControls() {
       <button
         onClick={() => {
           exitReplayMode();
-          setMode('simulation');
+          setMode(getEngineClient().isRunning() ? 'simulation' : 'editor');
         }}
         className="px-3 py-1.5 rounded bg-city-surface border border-city-border hover:bg-city-border text-city-text text-sm"
-      >
-        Exit Replay
-      </button>
+      >{translate("Exit Replay")}</button>
     </div>
   );
 }
@@ -225,18 +230,21 @@ function PlaybackControls() {
 // =============================================================================
 
 function ReplayCanvas() {
+  useLocale();
   const snapshot = useSnapshot();
   const selectedAgentId = useReplayStore((s) => s.selectedAgentId);
   const { selectAgent, setAgentTimeline } = useReplayStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [timelineError, setTimelineError] = useState<string>();
 
   const handleAgentClick = async (agentId: string) => {
     selectAgent(agentId);
+    setTimelineError(undefined);
     try {
       const timeline = await fetchAgentTimeline(agentId, 50);
-      setAgentTimeline(timeline);
-    } catch {
-      // Ignore errors
+      if (useReplayStore.getState().selectedAgentId === agentId) setAgentTimeline(timeline);
+    } catch (error) {
+      if (useReplayStore.getState().selectedAgentId === agentId) setTimelineError(formatError(error));
     }
   };
 
@@ -368,15 +376,43 @@ function ReplayCanvas() {
     }
   };
 
-  return (
+  return <div>
+    {timelineError && <p role="alert">{timelineError}</p>}
     <canvas
+      role="img"
+      aria-label={translate("Replay world map")}
       ref={canvasRef}
       width={600}
       height={600}
       onClick={handleClick}
-      className="border border-city-border rounded cursor-pointer"
+      className="border border-city-border rounded cursor-pointer w-full max-w-[600px] h-auto"
     />
-  );
+  </div>;
+}
+
+
+function ReplayEntitySelector() {
+  useLocale();
+  const snapshot = useSnapshot(), selected = useSelectedReplayAgent();
+  const [timelineError, setTimelineError] = useState<string>();
+  return <label className="px-4 py-2 text-sm text-city-text">{translate('Inspect replay agent')}
+    <select className="mt-1 block min-h-11 w-full rounded border border-city-border bg-city-bg p-2" aria-label={translate('Inspect replay agent')} value={selected?.id ?? ''} onChange={async event => {
+      const id = event.target.value || null;
+      setTimelineError(undefined);
+      useReplayStore.getState().selectAgent(id);
+      useReplayStore.getState().setAgentTimeline([]);
+      if (id) {
+        try {
+          const timeline = await fetchAgentTimeline(id);
+          if (useReplayStore.getState().selectedAgentId === id) useReplayStore.getState().setAgentTimeline(timeline);
+        } catch (error) { if (useReplayStore.getState().selectedAgentId === id) setTimelineError(formatError(error)); }
+      }
+    }}>
+      <option value="">{translate('Choose an entity')}</option>
+      {snapshot?.agents.map(agent => <option key={agent.id} value={agent.id}>{agent.name ?? agent.llmType} · {agent.modelId ?? agent.llmType} · ({agent.x}, {agent.y})</option>)}
+    </select>
+    {timelineError && <span role="alert" className="block mt-2">{timelineError}</span>}
+  </label>;
 }
 
 function getLLMColor(llmType: string): string {
@@ -398,21 +434,19 @@ function getLLMColor(llmType: string): string {
 // =============================================================================
 
 function EventTimeline() {
+  useLocale();
   const snapshot = useSnapshot();
   const events = snapshot?.events ?? [];
 
   if (events.length === 0) {
     return (
-      <div className="p-4 text-city-text-muted text-sm">
-        No events at this tick
-      </div>
+      <div className="p-4 text-city-text-muted text-sm">{translate("No events at this tick")}</div>
     );
   }
 
   return (
-    <div className="p-4 space-y-2 max-h-[300px] overflow-y-auto">
-      <h3 className="text-sm font-semibold text-city-text mb-2">
-        Events at Tick {snapshot?.tick}
+    <div tabIndex={0} aria-label={translate("Replay events")} className="p-4 space-y-2 max-h-[300px] overflow-y-auto">
+      <h3 className="text-sm font-semibold text-city-text mb-2">{translate("Events at Tick")}{" "}{snapshot?.tick}
       </h3>
       {events.map((event) => (
         <div
@@ -429,7 +463,7 @@ function EventTimeline() {
               </span>
             )}
           </div>
-          <pre className="text-city-text-muted text-xs overflow-x-auto">
+          <pre tabIndex={0} className="text-city-text-muted text-xs overflow-x-auto">
             {JSON.stringify(event.payload, null, 2).slice(0, 100)}
           </pre>
         </div>
@@ -443,15 +477,14 @@ function EventTimeline() {
 // =============================================================================
 
 function AgentStatePanel() {
+  useLocale();
   const agent = useSelectedReplayAgent();
   const timeline = useAgentTimeline();
   const { selectAgent } = useReplayStore();
 
   if (!agent) {
     return (
-      <div className="p-4 text-city-text-muted text-sm">
-        Click an agent on the grid to view details
-      </div>
+      <div className="p-4 text-city-text-muted text-sm">{translate("Click an agent on the grid to view details")}</div>
     );
   }
 
@@ -464,40 +497,39 @@ function AgentStatePanel() {
             className="w-4 h-4 rounded-full"
             style={{ backgroundColor: getLLMColor(agent.llmType) }}
           />
-          <h3 className="font-semibold text-city-text">{agent.llmType}</h3>
+          <h3 className="font-semibold text-city-text">{agent.name ?? agent.llmType}</h3>
         </div>
         <button
+          aria-label={translate('Close agent details')}
           onClick={() => selectAgent(null)}
-          className="text-city-text-muted hover:text-city-text"
-        >
-          x
-        </button>
+          className="min-w-11 min-h-11 text-city-text-muted hover:text-city-text"
+        >{translate("x")}</button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-2 text-xs">
         <div className="p-2 bg-city-border/30 rounded">
-          <div className="text-city-text-muted">Position</div>
+          <div className="text-city-text-muted">{translate("Position")}</div>
           <div className="text-city-text font-mono">({agent.x}, {agent.y})</div>
         </div>
         <div className="p-2 bg-city-border/30 rounded">
-          <div className="text-city-text-muted">State</div>
-          <div className="text-city-text">{agent.state}</div>
+          <div className="text-city-text-muted">{translate("State")}</div>
+          <div className="text-city-text">{formatActionLabel(agent.state)}</div>
         </div>
         <div className="p-2 bg-city-border/30 rounded">
-          <div className="text-city-text-muted">Health</div>
+          <div className="text-city-text-muted">{translate("Health")}</div>
           <div className="text-city-text">{agent.health}%</div>
         </div>
         <div className="p-2 bg-city-border/30 rounded">
-          <div className="text-city-text-muted">Energy</div>
+          <div className="text-city-text-muted">{translate("Energy")}</div>
           <div className="text-city-text">{agent.energy}%</div>
         </div>
         <div className="p-2 bg-city-border/30 rounded">
-          <div className="text-city-text-muted">Hunger</div>
+          <div className="text-city-text-muted">{translate("Hunger")}</div>
           <div className="text-city-text">{agent.hunger}%</div>
         </div>
         <div className="p-2 bg-city-border/30 rounded">
-          <div className="text-city-text-muted">Balance</div>
+          <div className="text-city-text-muted">{translate("Balance")}</div>
           <div className="text-city-text">{agent.balance} CITY</div>
         </div>
       </div>
@@ -505,8 +537,8 @@ function AgentStatePanel() {
       {/* Timeline */}
       {timeline.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-sm font-medium text-city-text">Recent Actions</h4>
-          <div className="max-h-[200px] overflow-y-auto space-y-1">
+          <h4 className="text-sm font-medium text-city-text">{translate("Recent Actions")}</h4>
+          <div tabIndex={0} aria-label={translate("Recent Actions")} className="max-h-[200px] overflow-y-auto space-y-1">
             {timeline.slice(0, 20).map((entry, i) => (
               <div
                 key={i}
@@ -517,12 +549,12 @@ function AgentStatePanel() {
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-city-text">Tick {entry.tick}</span>
+                  <span className="text-city-text">{translate("Tick")}{" "}{entry.tick}</span>
                   {entry.action && (
                     <span className="text-city-accent">{entry.action}</span>
                   )}
                 </div>
-                <div className="text-city-text-muted">{entry.description}</div>
+                <div className="text-city-text-muted">{translateLabel(entry.description)}</div>
               </div>
             ))}
           </div>
@@ -537,6 +569,8 @@ function AgentStatePanel() {
 // =============================================================================
 
 export function ReplayPage() {
+  useLocale();
+  const range = useTickRange();
   const isLoading = useReplayLoading();
   const error = useReplayError();
   const snapshot = useSnapshot();
@@ -550,7 +584,7 @@ export function ReplayPage() {
       setTickRange(range);
 
       // Load snapshot at max tick
-      if (range.maxTick > 0) {
+      if (range.availableTicks?.length) {
         const snapshot = await fetchWorldSnapshot(range.maxTick);
         setSnapshot(snapshot);
         setCurrentTick(range.maxTick);
@@ -558,7 +592,7 @@ export function ReplayPage() {
 
       setError(null);
     } catch (err) {
-      setError('Failed to load replay data');
+      setError(err instanceof Error ? err.message : 'Failed to load replay data');
     } finally {
       setLoading(false);
     }
@@ -571,7 +605,7 @@ export function ReplayPage() {
   if (isLoading && !snapshot) {
     return (
       <div className="min-h-screen bg-city-bg flex items-center justify-center">
-        <div className="text-city-text">Loading replay data...</div>
+        <div className="text-city-text">{translate("Loading replay data...")}</div>
       </div>
     );
   }
@@ -580,46 +614,47 @@ export function ReplayPage() {
     return (
       <div className="min-h-screen bg-city-bg flex items-center justify-center">
         <div className="text-center">
-          <div className="text-red-500 mb-4">{error}</div>
+          <div className="text-red-500 mb-4">{formatError(error)}</div>
           <button
             onClick={loadInitialData}
-            className="px-4 py-2 bg-city-accent text-white rounded hover:bg-city-accent/80"
-          >
-            Retry
-          </button>
+            className="px-4 py-2 bg-city-accent text-gray-950 rounded hover:bg-city-accent/80"
+          >{translate("Retry")}</button>
+          <button className="ml-3 underline" onClick={() => useEditorStore.getState().setMode('editor')}>{translate("Exit replay")}</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-city-bg flex flex-col">
+    <div className="feature-page min-h-full bg-city-bg flex flex-col">
       {/* Header */}
-      <div className="bg-city-surface border-b border-city-border p-4">
+      <div className="feature-header bg-city-surface border-b border-city-border p-4">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 bg-city-accent rounded-md flex items-center justify-center">
             <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h1 className="text-base font-semibold text-city-text">Sim Agents</h1>
-          <span className="text-xs text-city-text-muted">Time Travel Replay</span>
+          <h1 className="text-base font-semibold text-city-text">{translate("Sim Agents")}</h1>
+          <span className="text-xs text-city-text-muted">{translate("Time Travel Replay")}</span>
         </div>
       </div>
 
+      <p role="note" className="p-3 text-sm text-city-text-muted">{translate("Saved replay:")}{" "}{range?.availableTicks?.length ?? 0}{" "}{translate("frames;")}{" "}{range?.missingTicks ?? 0}{" "}{translate("missing ticks inside the saved range. Events per frame are bounded; this is not a complete event archive.")}{" "}{!!range?.unscopedFrames && translate("{count} legacy frames have no world identity; their association cannot be verified.", { count: range.unscopedFrames })}</p>
       {/* Controls */}
       <PlaybackControls />
       <TickSlider />
 
+      <ReplayEntitySelector />
       {/* Main content */}
-      <div className="flex-1 flex p-4 gap-4">
+      <div className="flex-1 flex flex-col lg:flex-row p-4 gap-4 min-w-0">
         {/* Left: Canvas */}
-        <div className="flex-shrink-0">
+        <div className="w-full lg:w-auto lg:flex-shrink-0 min-w-0">
           <ReplayCanvas />
         </div>
 
         {/* Right: Sidebar */}
-        <div className="flex-1 flex flex-col gap-4 min-w-[300px]">
+        <div className="flex-1 flex flex-col gap-4 min-w-0">
           {/* Agent panel */}
           <div className="bg-city-surface border border-city-border rounded-lg flex-1 overflow-hidden">
             <AgentStatePanel />
@@ -636,7 +671,7 @@ export function ReplayPage() {
       {isLoading && (
         <div className="fixed inset-0 bg-black/20 flex items-center justify-center">
           <div className="bg-city-surface p-4 rounded-lg shadow-lg">
-            <div className="text-city-text">Loading...</div>
+            <div className="text-city-text">{translate("Loading...")}</div>
           </div>
         </div>
       )}

@@ -6,13 +6,12 @@ import { buildObservation, formatEvent } from '../agents/observer';
 import { getAgentById, getAliveAgents } from '../engine-memory/queries/agents';
 import { getEventsByAgent } from '../engine-memory/queries/events';
 import { getAllResourceSpawns, getAllShelters } from '../engine-memory/queries/world';
-import { createRng, type RandomSource } from '../utils/random';
+import { agentRng, type RandomSource } from '../utils/random';
 import { materializeVitals } from './vitals';
 import { getAgentBusyUntil } from './agent-meta';
 import { tickFromSimTime } from './time';
 import type { ActionExecutor } from './executor';
 import {
-  fallbackDecisionFor,
   type ActionDecision,
   type DecisionContext,
   type DecisionProvider,
@@ -46,7 +45,11 @@ export class AgentRunner {
 
   constructor(private readonly options: AgentRunnerOptions) {
     this.agentId = options.agentId;
-    this.rng = createRng(`${options.worldSeed}:${options.agentId}`);
+    const source = agentRng(options.agentId, `${options.worldSeed}:${options.agentId}`);
+    this.rng = () => {
+      if (this.controller.signal.aborted) throw new DOMException('Decision aborted', 'AbortError');
+      return source();
+    };
   }
 
   get isRunning(): boolean {
@@ -129,8 +132,10 @@ export class AgentRunner {
           usedFallback,
           processingTimeMs,
           modelId: decision.telemetry?.modelId,
+          pricingContext: decision.telemetry?.pricingContext,
+          costEligible: decision.telemetry?.costEligible,
           tokens: decision.telemetry?.tokens,
-        });
+        }, signal);
 
         // Defensive anti-spin guard: with zero min interval AND a zero-duration
         // outcome the loop would never park on a waiter and would starve the
@@ -149,8 +154,12 @@ export class AgentRunner {
   }
 
   private async currentAgent(): Promise<Agent | undefined> {
-    const materialized = await materializeVitals(this.agentId, this.options.host.nowMs());
-    return materialized?.agent ?? getAgentById(this.agentId);
+    return this.options.executor.mutate(async () => {
+      if (this.controller.signal.aborted) return undefined;
+      const materialized = await materializeVitals(this.agentId, this.options.host.nowMs());
+      if (materialized?.vitals.dead) return undefined;
+      return materialized?.agent ?? getAgentById(this.agentId);
+    });
   }
 
   private async buildObservation(agent: Agent): Promise<unknown> {
@@ -199,7 +208,10 @@ export class AgentRunner {
 
     this.thinking = true;
     const startedAtWallMs = Date.now();
-    const providerPromise = this.options.provider.decide(ctx, controller.signal);
+    const providerPromise = Promise.resolve().then(() => {
+      if (controller.signal.aborted) throw new Error('Decision cancelled');
+      return this.options.provider.decide(ctx, controller.signal);
+    });
     const timeoutPromise = this.options.host.sleepWall(timeoutMs, controller.signal).then(() => {
       controller.abort();
       throw new Error(`Decision timed out after ${timeoutMs}ms`);
@@ -210,13 +222,6 @@ export class AgentRunner {
       return {
         decision,
         usedFallback: false,
-        processingTimeMs: Date.now() - startedAtWallMs,
-      };
-    } catch (error) {
-      if (runnerSignal.aborted) throw error;
-      return {
-        decision: fallbackDecisionFor(agent, observation),
-        usedFallback: true,
         processingTimeMs: Date.now() - startedAtWallMs,
       };
     } finally {

@@ -1,3 +1,5 @@
+import { translateLabel, useLocale, translate } from '../../i18n';
+
 /**
  * ConfigInput Component
  *
@@ -40,15 +42,16 @@ interface SelectInputProps extends BaseInputProps {
 type ConfigInputProps = NumberInputProps | BooleanInputProps | SelectInputProps;
 
 export function ConfigInput(props: ConfigInputProps) {
+  useLocale();
   const { label, description, isRuntimeModifiable, disabled } = props;
 
   return (
     <div className="flex items-start justify-between py-2 border-b border-gray-700 last:border-0">
       <div className="flex-1 min-w-0 pr-4">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-200">{label}</span>
+          <span className="text-sm text-gray-200">{translateLabel(label)}</span>
           {isRuntimeModifiable && (
-            <span className="text-xs text-yellow-400" title="Applied immediately without restart">
+            <span className="text-xs text-yellow-400" title={translate("Applied immediately without restart")}>
               ⚡
             </span>
           )}
@@ -59,13 +62,13 @@ export function ConfigInput(props: ConfigInputProps) {
       </div>
       <div className="flex-shrink-0">
         {props.type === 'number' && (
-          <NumberInput {...props} disabled={disabled} label={label} />
+          <NumberInput {...props} disabled={disabled} label={translateLabel(label)} />
         )}
         {props.type === 'boolean' && (
-          <BooleanInput {...props} disabled={disabled} label={label} />
+          <BooleanInput {...props} disabled={disabled} label={translateLabel(label)} />
         )}
         {props.type === 'select' && (
-          <SelectInput {...props} disabled={disabled} label={label} />
+          <SelectInput {...props} disabled={disabled} label={translateLabel(label)} />
         )}
       </div>
     </div>
@@ -82,6 +85,7 @@ function NumberInput({
   disabled,
   label,
 }: NumberInputProps) {
+  useLocale();
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value;
     if (rawValue === '' || rawValue === '-') return;
@@ -110,7 +114,7 @@ function NumberInput({
         max={max}
         step={step}
         disabled={disabled}
-        aria-label={label}
+        aria-label={translateLabel(label)}
         className={`
           w-20 px-2 py-1 text-sm text-right bg-gray-700 border rounded
           focus:outline-none focus:border-blue-500 disabled:opacity-50
@@ -123,12 +127,13 @@ function NumberInput({
 }
 
 function BooleanInput({ value, onChange, disabled, label }: BooleanInputProps) {
+  useLocale();
   return (
     <button
       type="button"
       role="switch"
       aria-checked={value}
-      aria-label={label}
+      aria-label={translateLabel(label)}
       onClick={() => onChange(!value)}
       disabled={disabled}
       className={`
@@ -155,17 +160,18 @@ function SelectInput({
   disabled,
   label,
 }: SelectInputProps) {
+  useLocale();
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
-      aria-label={label}
+      aria-label={translateLabel(label)}
       className="px-2 py-1 text-sm bg-gray-700 border border-gray-600 rounded focus:outline-none focus:border-blue-500 disabled:opacity-50"
     >
       {options.map((opt) => (
         <option key={opt.value} value={opt.value}>
-          {opt.label}
+          {translateLabel(opt.label)}
         </option>
       ))}
     </select>

@@ -17,6 +17,7 @@
  * 6. Store memories
  */
 
+import { store } from '../../engine-memory/store';
 import { v4 as uuid } from 'uuid';
 import type { ActionIntent, ActionResult, SubmitSolutionParams } from '../types';
 import type { Agent } from '../../db/schema';
@@ -36,7 +37,7 @@ import {
 import { updateAgentBalance, getAgentById } from '../../db/queries/agents';
 import { storeMemory, updateRelationshipTrust } from '../../db/queries/memories';
 import { transfer } from '../../ledger';
-import { CONFIG } from '../../config';
+import { getRuntimeConfig } from '../../config';
 import { sha256Hex } from '../../utils/hash';
 
 /**
@@ -72,7 +73,7 @@ export async function handleSubmitSolution(
   const { gameId, solution } = intent.params;
 
   // Check if puzzle system is enabled
-  if (!CONFIG.puzzle.enabled) {
+  if (!getRuntimeConfig().puzzle.enabled) {
     return {
       success: false,
       error: 'Puzzle game system is not enabled',
@@ -106,7 +107,7 @@ export async function handleSubmitSolution(
   }
 
   // Check energy cost
-  const energyCost = CONFIG.puzzle.energyCosts.submitAttempt;
+  const energyCost = getRuntimeConfig().puzzle.energyCosts.submitAttempt;
   if (agent.energy < energyCost) {
     return {
       success: false,
@@ -120,7 +121,7 @@ export async function handleSubmitSolution(
   // If team has 3+ members, check consensus (simplified - just check if leader)
   if (team) {
     const members = await getTeamMembers(team.id);
-    if (members.length >= CONFIG.puzzle.consensusMinTeamSize) {
+    if (members.length >= getRuntimeConfig().puzzle.consensusMinTeamSize) {
       if (team.leaderId !== agent.id) {
         return {
           success: false,
@@ -199,7 +200,7 @@ export async function handleSubmitSolution(
   await calculateContributionScores(gameId);
 
   // Add submission bonus to submitter's contribution
-  await addContributionScore(participant.id, CONFIG.puzzle.scoring.submissionContrib);
+  await addContributionScore(participant.id, getRuntimeConfig().puzzle.scoring.submissionContrib);
 
   // Get all participants for prize distribution
   const allParticipants = await getActiveParticipantsForGame(gameId);
@@ -214,8 +215,8 @@ export async function handleSubmitSolution(
 
   // Distribute prizes
   const prizePool = game.prizePool;
-  const winnerShare = prizePool * CONFIG.puzzle.prizeDistribution.winnerShare;
-  const contributorShare = prizePool * CONFIG.puzzle.prizeDistribution.contributorShare;
+  const winnerShare = prizePool * getRuntimeConfig().puzzle.prizeDistribution.winnerShare;
+  const contributorShare = prizePool * getRuntimeConfig().puzzle.prizeDistribution.contributorShare;
 
   const prizeRecords: Array<{ agentId: string; amount: number; type: string }> = [];
 
@@ -224,12 +225,12 @@ export async function handleSubmitSolution(
     const teamMembers = await getTeamMembers(team.id);
 
     // Leader gets leader bonus
-    const leaderBonus = CONFIG.puzzle.leaderBonusMultiplier;
+    const leaderBonus = getRuntimeConfig().puzzle.leaderBonusMultiplier;
     let teamTotalContrib = 0;
     for (const member of teamMembers) {
       const memberParticipant = allParticipants.find((p) => p.agentId === member.agentId);
       if (memberParticipant) {
-        teamTotalContrib += memberParticipant.contributionScore;
+        teamTotalContrib += memberParticipant.contributionScore * (member.agentId === team.leaderId ? leaderBonus : 1);
       }
     }
     if (teamTotalContrib === 0) teamTotalContrib = 1;
@@ -239,19 +240,15 @@ export async function handleSubmitSolution(
       const memberParticipant = allParticipants.find((p) => p.agentId === member.agentId);
       if (!memberParticipant) continue;
 
-      const contribRatio = memberParticipant.contributionScore / teamTotalContrib;
+      const contribRatio = memberParticipant.contributionScore * (member.agentId === team.leaderId ? leaderBonus : 1) / teamTotalContrib;
       let memberPrize = winnerShare * contribRatio;
 
-      // Apply leader bonus
-      if (member.agentId === team.leaderId) {
-        memberPrize *= leaderBonus;
-      }
 
       // Apply free-rider penalty
-      if (contribRatio < CONFIG.puzzle.freeRiderPenalty.minContributionThreshold) {
-        memberPrize *= (1 - CONFIG.puzzle.freeRiderPenalty.penaltyFactor);
+      if (contribRatio < getRuntimeConfig().puzzle.freeRiderPenalty.minContributionThreshold) {
+        memberPrize *= (1 - getRuntimeConfig().puzzle.freeRiderPenalty.penaltyFactor);
         // Update trust negatively for free-riding
-        await updateRelationshipTrust(team.leaderId, member.agentId, CONFIG.puzzle.freeRiderPenalty.reputationImpact, intent.tick);
+        await updateRelationshipTrust(team.leaderId, member.agentId, getRuntimeConfig().puzzle.freeRiderPenalty.reputationImpact, intent.tick);
       }
 
       prizeRecords.push({ agentId: member.agentId, amount: memberPrize, type: 'team_winner' });
@@ -271,7 +268,7 @@ export async function handleSubmitSolution(
     if (team && team.id === p.teamId) continue;
 
     const contribRatio = p.contributionScore / totalContribution;
-    if (contribRatio < CONFIG.puzzle.freeRiderPenalty.minContributionThreshold) {
+    if (contribRatio < getRuntimeConfig().puzzle.freeRiderPenalty.minContributionThreshold) {
       // Free-rider gets nothing from contributor pool
       continue;
     }
@@ -282,6 +279,9 @@ export async function handleSubmitSolution(
       await transfer(null, p.agentId, contribPrize, 'salary', `Puzzle prize (contributor - ${game.gameType})`, intent.tick);
     }
   }
+
+  const completedGame = store.puzzleGames.get(gameId)!;
+  store.puzzleGames.set(gameId, { ...completedGame, prizeDistribution: prizeRecords });
 
   // Store memories for winner
   const totalWinnerPrize = prizeRecords

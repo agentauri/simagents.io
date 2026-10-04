@@ -1,3 +1,6 @@
+import { PanelAdjustmentControl } from './PanelAdjustmentControl';
+import { formatActionLabel } from '../i18n';
+import { useLocale, translate } from '../i18n';
 import { useState, useCallback, useMemo, memo, type ReactNode } from 'react';
 import { useEvents, useAgents, type WorldEvent, type Agent } from '../stores/world';
 import { useDraggablePanel } from '../hooks/useDraggablePanel';
@@ -112,13 +115,7 @@ const ACTION_ICONS: Record<string, ReactNode> = {
 // =============================================================================
 
 function formatAction(event: WorldEvent): string {
-  const action = (event.payload?.action as string) || event.type;
-  return action
-    .replace('agent_', '')
-    .replace(/_/g, ' ')
-    .split(' ')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+  return formatActionLabel(String(event.payload.action ?? event.type).replace(/^agent_/, ''));
 }
 
 // =============================================================================
@@ -151,11 +148,12 @@ BalanceDelta.displayName = 'BalanceDelta';
 // =============================================================================
 
 export function DecisionLog() {
+  useLocale();
   const events = useEvents();
   const agents = useAgents();
 
   // Draggable/resizable panel state
-  const { position, size, handlers } = useDraggablePanel({
+  const { panelRef, position, size, viewport, handlers, adjustments } = useDraggablePanel({
     initialPosition: INITIAL_POSITION,
     initialSize: INITIAL_SIZE,
     minWidth: MIN_PANEL_WIDTH,
@@ -214,14 +212,17 @@ export function DecisionLog() {
 
   return (
     <div
+      ref={panelRef}
+      aria-label={translate("Decisions panel")}
       className="floating-panel fixed flex flex-col"
       style={{
         left: position.x,
+        maxWidth: viewport.width - 16, maxHeight: viewport.height - viewport.top - 8, overflow: 'auto',
         top: position.y,
         zIndex: 99,
         width: isCollapsed ? 'auto' : size?.width,
         height: isCollapsed ? 'auto' : size?.height,
-        minWidth: MIN_PANEL_WIDTH,
+        minWidth: `min(${MIN_PANEL_WIDTH}px, calc(100vw - 16px))`,
         minHeight: isCollapsed ? 'auto' : MIN_PANEL_HEIGHT,
       }}
     >
@@ -235,12 +236,14 @@ export function DecisionLog() {
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-city-accent">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
-          <span className="font-medium text-city-text text-sm">Decisions</span>
+          <span className="font-medium text-city-text text-sm">{translate("Decisions")}</span>
           <span className="text-xs text-city-text-muted">({decisionEvents.length})</span>
         </div>
         <div className="flex items-center gap-2">
+          <PanelAdjustmentControl label="Move decisions panel" onKeyDown={handlers.onMoveKeyDown} adjust={adjustments.move} reset={adjustments.resetPosition} />
           {/* Agent filter */}
           <select
+            aria-label={translate('Filter decisions by agent')}
             value={filterAgent || ''}
             onChange={(e) => setFilterAgent(e.target.value || null)}
             className="text-xs bg-city-bg border border-city-border/50 rounded px-2 py-1 text-city-text focus:border-city-accent focus:outline-none"
@@ -248,16 +251,18 @@ export function DecisionLog() {
             onMouseDown={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
           >
-            <option value="">All</option>
+            <option value="">{translate("All")}</option>
             {aliveAgents.map((agent) => (
               <option key={agent.id} value={agent.id}>
-                {agent.llmType}
+                {agent.name ?? agent.llmType}
               </option>
             ))}
           </select>
           <button
+            aria-label={translate(isCollapsed ? "Expand decisions panel" : "Collapse decisions panel")}
+            aria-expanded={!isCollapsed}
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="w-6 h-6 rounded flex items-center justify-center text-city-text-muted hover:text-city-accent hover:bg-city-surface-hover transition-colors"
+            className="w-11 h-11 rounded flex items-center justify-center text-city-text-muted hover:text-city-accent hover:bg-city-surface-hover transition-colors"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${isCollapsed ? 'rotate-180' : ''}`}>
               <polyline points="18 15 12 9 6 15" />
@@ -270,9 +275,7 @@ export function DecisionLog() {
       {!isCollapsed && (
         <div className="overflow-y-auto flex-1" style={{ height: 'calc(100% - 48px)' }}>
           {decisionEvents.length === 0 ? (
-            <div className="p-6 text-center text-city-text-muted text-xs">
-              No decisions yet
-            </div>
+            <div className="p-6 text-center text-city-text-muted text-xs">{translate("No decisions yet")}</div>
           ) : (
             <div className="divide-y divide-city-border/30">
               {decisionEvents.map((event) => {
@@ -324,10 +327,8 @@ export function DecisionLog() {
                         {usedFallback && (
                           <span
                             className="text-[10px] text-status-warning bg-status-warning/10 px-1.5 py-0.5 rounded"
-                            title="Fallback action used"
-                          >
-                            Fallback
-                          </span>
+                            title={translate("Fallback action used")}
+                          >{translate("Fallback")}</span>
                         )}
                       </div>
                       {processingTime !== undefined && (
@@ -364,7 +365,7 @@ export function DecisionLog() {
                         {/* Reasoning - sanitized */}
                         {reasoning && (
                           <div className="space-y-1">
-                            <span className="text-[10px] text-city-text-muted uppercase tracking-wider">Reasoning</span>
+                            <span className="text-[10px] text-city-text-muted uppercase tracking-wider">{translate("Reasoning")}</span>
                             <div className="text-xs text-city-text/90 italic">
                               {reasoning}
                             </div>
@@ -372,7 +373,7 @@ export function DecisionLog() {
                         )}
                         {/* Payload details - filtered and sanitized */}
                         <div className="space-y-1">
-                          <span className="text-[10px] text-city-text-muted uppercase tracking-wider">Details</span>
+                          <span className="text-[10px] text-city-text-muted uppercase tracking-wider">{translate("Details")}</span>
                           <div className="text-xs font-mono text-city-text-muted bg-city-bg/30 p-2 rounded overflow-x-auto">
                             {filterPayloadEntries(event.payload).map(([key, value]) => (
                               <div key={key} className="flex gap-2">
@@ -392,31 +393,11 @@ export function DecisionLog() {
         </div>
       )}
 
-      {/* Resize handle */}
-      {!isCollapsed && (
-        <div
-          className="absolute bottom-0 right-0 w-6 h-6 cursor-se-resize group flex items-end justify-end p-1"
-          onMouseDown={handlers.onResizeStart}
-          onPointerDown={handlers.onResizeStart}
-          style={{ touchAction: 'none' }}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-city-text-muted/40 group-hover:text-city-accent transition-colors pointer-events-none"
-          >
-            <path d="M15 19l4-4" />
-            <path d="M19 19l-8-8" />
-          </svg>
-        </div>
-      )}
+      {!isCollapsed && <div className="panel-resize-controls flex items-end gap-1">
+        <span aria-hidden="true" className="w-11 h-11 flex items-center justify-center cursor-se-resize" title={translate('Drag to resize')} onPointerDown={handlers.onResizeStart} style={{ touchAction: 'none' }}>⤡</span>
+        <PanelAdjustmentControl label="Resize decisions panel" resize onKeyDown={handlers.onResizeKeyDown} adjust={adjustments.resize} reset={adjustments.resetSize} />
+      </div>}
+
     </div>
   );
 }

@@ -1,3 +1,6 @@
+import { estimateRecordedCost } from '../services/token-cost';
+import { translateLabel, useLocale, translate } from '../i18n';
+
 import type { ReactNode } from 'react';
 import { actionsPerSimMinute, fallbackRatio, useAgentStats } from '../stores/agentStats';
 import { useAgent, useWorldStore } from '../stores/world';
@@ -15,6 +18,7 @@ interface StatBarProps {
 }
 
 function StatBar({ label, value, max = 100, color, icon }: StatBarProps) {
+  useLocale();
   const percent = Math.max(0, Math.min(100, (value / max) * 100));
   const isLow = percent < 30;
 
@@ -23,7 +27,7 @@ function StatBar({ label, value, max = 100, color, icon }: StatBarProps) {
       <div className="flex justify-between items-center text-xs">
         <div className="flex items-center gap-1.5 text-city-text-muted">
           {icon}
-          <span>{label}</span>
+          <span>{translateLabel(label)}</span>
         </div>
         <span className={`font-mono font-medium ${isLow ? 'text-status-error' : 'text-city-text'}`}>
           {Math.round(value)}
@@ -61,6 +65,7 @@ function getStateConfig(state: string) {
 }
 
 export function AgentProfile({ agentId }: AgentProfileProps) {
+  const locale = useLocale();
   const agent = useAgent(agentId);
   const selectAgent = useWorldStore((s) => s.selectAgent);
   const stats = useAgentStats(agentId);
@@ -68,7 +73,7 @@ export function AgentProfile({ agentId }: AgentProfileProps) {
   if (!agent) {
     return (
       <div className="p-6 text-city-text-muted text-sm text-center">
-        <p>Agent not found</p>
+        <p>{translate("Agent not found")}</p>
       </div>
     );
   }
@@ -76,6 +81,8 @@ export function AgentProfile({ agentId }: AgentProfileProps) {
   const stateConfig = getStateConfig(agent.state);
   const actionsPerMinute = actionsPerSimMinute(stats);
   const fallbackPercent = fallbackRatio(stats) * 100;
+  const cost = estimateRecordedCost(stats);
+  const usage = stats?.tokenUsage;
   const modelId = stats?.lastModelId ?? agent.llmType;
 
   return (
@@ -103,8 +110,8 @@ export function AgentProfile({ agentId }: AgentProfileProps) {
         </div>
         <button
           onClick={() => selectAgent(null)}
-          className="w-6 h-6 rounded flex items-center justify-center text-city-text-muted hover:text-city-accent hover:bg-city-surface-hover transition-colors"
-          title="Close"
+          className="w-11 h-11 rounded flex items-center justify-center text-city-text-muted hover:text-city-accent hover:bg-city-surface-hover transition-colors"
+          title={translate("Close")}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -128,10 +135,9 @@ export function AgentProfile({ agentId }: AgentProfileProps) {
         <span
           className={`px-2.5 py-1 rounded-full text-xs font-medium ${stateConfig.bg} ${stateConfig.text} border border-current/20`}
         >
-          {stateConfig.label}
+          {translateLabel(stateConfig.label)}
         </span>
-        <span className="text-xs text-city-text-muted">
-          at{' '}
+        <span className="text-xs text-city-text-muted">{translate("at")}{' '}
           <span className="font-mono text-city-text">
             ({agent.x}, {agent.y})
           </span>
@@ -140,12 +146,10 @@ export function AgentProfile({ agentId }: AgentProfileProps) {
 
       {/* Stats Section */}
       <div className="space-y-4">
-        <h4 className="text-xs font-medium text-city-text-muted uppercase tracking-wider">
-          Vitals
-        </h4>
+        <h4 className="text-xs font-medium text-city-text-muted uppercase tracking-wider">{translate("Vitals")}</h4>
         <div className="space-y-3">
           <StatBar
-            label="Hunger"
+            label={translate("Hunger")}
             value={agent.hunger}
             color={agent.hunger < 30 ? '#e07a5f' : '#81b29a'}
             icon={
@@ -159,7 +163,7 @@ export function AgentProfile({ agentId }: AgentProfileProps) {
             }
           />
           <StatBar
-            label="Energy"
+            label={translate("Energy")}
             value={agent.energy}
             color={agent.energy < 30 ? '#f2cc8f' : '#6a8caf'}
             icon={
@@ -169,7 +173,7 @@ export function AgentProfile({ agentId }: AgentProfileProps) {
             }
           />
           <StatBar
-            label="Health"
+            label={translate("Health")}
             value={agent.health}
             color={agent.health < 30 ? '#e07a5f' : '#81b29a'}
             icon={
@@ -190,7 +194,7 @@ export function AgentProfile({ agentId }: AgentProfileProps) {
               <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
               <path d="M12 18V6" />
             </svg>
-            <span className="text-xs font-medium">Balance</span>
+            <span className="text-xs font-medium">{translate("Balance")}</span>
           </div>
           <div className="text-right">
             <span className="text-xl font-bold text-city-accent">
@@ -203,31 +207,35 @@ export function AgentProfile({ agentId }: AgentProfileProps) {
 
       {/* Decision Speed */}
       <div className="pt-4 border-t border-city-border/30 space-y-3">
-        <h4 className="text-xs font-medium text-city-text-muted uppercase tracking-wider">
-          Decision Speed
-        </h4>
+        <h4 className="text-xs font-medium text-city-text-muted uppercase tracking-wider">{translate("Decision Speed")}</h4>
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="rounded border border-city-border/40 bg-city-surface/40 p-2">
-            <div className="text-city-text-muted">Avg latency</div>
+            <div className="text-city-text-muted">{translate("Avg latency")}</div>
             <div className="font-mono text-city-text mt-1">
               {stats?.latencySamples ? `${Math.round(stats.avgLatencyMs)} ms` : '-'}
             </div>
           </div>
           <div className="rounded border border-city-border/40 bg-city-surface/40 p-2">
-            <div className="text-city-text-muted">Actions/min</div>
+            <div title={translate("Attempts per simulated minute since the first recorded action; minimum window one minute.")} className="text-city-text-muted">{translate("Attempts/min")}</div>
             <div className="font-mono text-city-text mt-1">{actionsPerMinute.toFixed(2)}</div>
           </div>
           <div className="rounded border border-city-border/40 bg-city-surface/40 p-2">
-            <div className="text-city-text-muted">Fallback</div>
+            <div className="text-city-text-muted">{translate("Fallback")}</div>
             <div className="font-mono text-city-text mt-1">{fallbackPercent.toFixed(0)}%</div>
           </div>
           <div className="rounded border border-city-border/40 bg-city-surface/40 p-2">
-            <div className="text-city-text-muted">Tokens</div>
-            <div className="font-mono text-city-text mt-1">{stats?.totalTokens ?? 0}</div>
+            <div className="text-city-text-muted">{translate("Known reported tokens")}</div>
+            <div className="font-mono text-city-text mt-1">{stats && ((usage && (usage.inputSamples || usage.outputSamples)) || stats.totalTokens > 0) ? stats.totalTokens : translate('Not available')}</div>
           </div>
         </div>
-        <div className="text-xs text-city-text-muted truncate">
-          Model <span className="font-mono text-city-text">{modelId}</span>
+        <div className="space-y-2 text-xs">
+          <p>{translate('Reported input / output')}: {usage?.inputSamples ? usage.inputTokens : translate('Not available')} / {usage?.outputSamples ? usage.outputTokens : translate('Not available')}</p>
+          <p>{translate('Complete usage for {count}/{total} recorded decisions', { count: usage?.completeSamples ?? 0, total: stats?.actionsCount ?? 0 })}</p>
+          <p>{translate('Listed-rate estimate')}: <strong>{cost.available ? new Intl.NumberFormat(locale, { style: 'currency', currency: cost.currency, minimumFractionDigits: 6, maximumFractionDigits: 6 }).format(cost.amount) : translate('Not available')}</strong></p>
+          {cost.available && <details><summary>{translate('Price source and conditions')}</summary><p>{cost.price.currency} · {cost.price.retrievedAt} · {cost.price.inputPerMillion}/{cost.price.outputPerMillion} {translate('per million input/output tokens')}</p><a href={cost.price.source} target="_blank" rel="noopener noreferrer" className="underline min-h-11 inline-flex items-center">{translate('Published price source')}</a><p>{translate('Standard text rates for this exact endpoint and model. No cache, batch or promotional discount assumed.')}</p>{cost.price.conditions.map(condition => <p key={condition}>{translateLabel(condition)}</p>)}</details>}
+          <p className="text-city-text-muted">{translate('Recorded decisions only. Probes, failed or cancelled requests and unreported usage may still be billed. This estimate is not a provider invoice or spending guarantee.')}</p>
+        </div>
+        <div className="text-xs text-city-text-muted truncate">{translate("Model")}<span className="font-mono text-city-text">{modelId}</span>
         </div>
       </div>
     </div>

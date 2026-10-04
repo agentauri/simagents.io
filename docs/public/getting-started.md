@@ -44,7 +44,7 @@ Browser-local data is stored under versioned or bounded keys:
 | `simagents_experiment_defs_v1` | Browser experiment definitions |
 | `simagents_experiment_runs_v1` | Browser experiment summaries |
 
-Provider keys are plain browser storage values. Review [BYOK Security Notes](../security-byok.md) before adding UI that renders imported data, model output, or proxy responses.
+Provider keys stay in memory by default; encrypted local storage is optional. Review [BYOK Security Notes](https://github.com/agentauri/simagents.io/blob/main/docs/security-byok.md) before adding UI that renders imported data, model output, or proxy responses.
 
 ## Run A Simulation
 

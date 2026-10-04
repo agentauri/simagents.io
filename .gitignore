@@ -5,8 +5,7 @@ node_modules/
 dist/
 *.tsbuildinfo
 
-# Bun
-bun.lock
+# Bun lockfile is versioned for reproducible installs.
 
 # Environment
 .env
@@ -68,3 +67,8 @@ apps/server/results/
 
 # Claude Code session workspace (local settings, never committed)
 .claude/
+
+# Cloudflare local state and operator secrets
+.wrangler/
+.dev.vars
+.dev.vars.*

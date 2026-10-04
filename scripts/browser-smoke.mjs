@@ -1,10 +1,11 @@
 #!/usr/bin/env node
+import { openSimulationTool } from './browser-helpers.mjs';
 
 import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 
 const require = createRequire(import.meta.url);
-const { chromium } = loadPlaywright();
+const browserType = loadPlaywright()[process.env.SIMAGENTS_SMOKE_BROWSER ?? 'chromium'];
 
 const baseUrl = process.env.SIMAGENTS_SMOKE_URL ?? 'http://localhost:5175/';
 
@@ -100,6 +101,10 @@ function assertSmoke(condition, message, details = {}) {
 
 async function createContext(browser, payload, options = {}) {
   const context = await browser.newContext({ acceptDownloads: true, ...options });
+  await context.route('**/*', (route) => {
+    const url = new URL(route.request().url());
+    return url.origin === new URL(baseUrl).origin ? route.continue() : route.abort();
+  });
   await context.addInitScript(installLocalState, payload);
   return context;
 }
@@ -108,6 +113,12 @@ async function openPage(context) {
   const page = await context.newPage();
   page.setDefaultTimeout(15_000);
   await page.goto(baseUrl, { waitUntil: 'networkidle' });
+  if (await page.evaluate(() => localStorage.getItem('simagents_api_keys') !== null)) {
+    await openSimulationTool(page, 'Configuration');
+    await page.getByRole('button', { name: 'Move old keys to this session', exact: true }).click();
+    await page.waitForFunction(() => localStorage.getItem('simagents_api_keys') === null);
+    await page.keyboard.press('Escape');
+  }
   return page;
 }
 
@@ -131,7 +142,7 @@ async function clickStart(page, choice = 'new') {
 async function clickPause(page) {
   await page.getByRole('button', { name: /Pause/ }).click();
   await page.waitForFunction(() => document.body.innerText.includes('Paused'));
-  await page.waitForFunction(() => !!localStorage.getItem('simagents_world_snapshot'));
+  await waitForSavedWorld(page);
 }
 
 async function clickResume(page) {
@@ -139,12 +150,36 @@ async function clickResume(page) {
   await page.waitForFunction(() => document.body.innerText.includes('Running'));
 }
 
+async function readData(page, key) {
+  return page.evaluate(async key => {
+    const db = await new Promise((resolve, reject) => { const r = indexedDB.open('simagents-app-data'); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
+    try { return await new Promise((resolve, reject) => { const r = db.transaction('records').objectStore('records').get(key); r.onsuccess = () => resolve(r.result ? JSON.parse(r.result.json) : undefined); r.onerror = () => reject(r.error); }); }
+    finally { db.close(); }
+  }, key);
+}
+
+async function readSavedSnapshot() {
+  const db = await new Promise((resolve, reject) => {
+    const request = indexedDB.open('simagents-app-data');
+    request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+  });
+  try {
+    if (!db.objectStoreNames.contains('records')) return null;
+    return await new Promise((resolve, reject) => {
+      const request = db.transaction('records').objectStore('records').get('world:current');
+      request.onsuccess = () => resolve(request.result ? JSON.parse(request.result.json).snapshot : null);
+      request.onerror = () => reject(request.error);
+    });
+  } finally { db.close(); }
+}
+async function waitForSavedWorld(page) { await page.waitForFunction(readSavedSnapshot); }
+
 async function snapshot(page) {
-  return page.evaluate(() => JSON.parse(localStorage.getItem('simagents_world_snapshot') ?? 'null'));
+  return page.evaluate(readSavedSnapshot);
 }
 
 async function verifyLocalAnalytics(page) {
-  await page.getByRole('button', { name: /Analytics/ }).click();
+  await openSimulationTool(page, 'Analytics');
   await page.waitForFunction(() => document.body.innerText.includes('Analytics Dashboard'));
   await page.waitForFunction(() => document.body.innerText.toLowerCase().includes('alive agents by llm'));
 
@@ -172,25 +207,26 @@ async function verifyLocalAnalytics(page) {
 }
 
 async function verifyLocalReplay(page) {
-  await page.getByTitle('Time Travel Replay').first().click();
+  await openSimulationTool(page, 'Replay');
   await page.waitForFunction(() => document.body.innerText.includes('Time Travel Replay'));
   const visible = await page.evaluate(() => {
     const text = document.body.innerText;
     return {
       replay: text.includes('Time Travel Replay'),
-      events: text.includes('Event Timeline') || text.includes('No events at this tick'),
-      frameStored: !!localStorage.getItem('simagents_replay_frames_v1'),
+      events: text.includes('Events at Tick') || text.includes('No events at this tick'),
+      frameStored: true,
     };
   });
+  visible.frameStored = !!await readData(page, 'simagents_replay_frames_v1');
   results.push({ step: 'local-replay', ...visible });
-  assertSmoke(visible.replay, 'local replay page did not render');
+  assertSmoke(visible.replay && visible.events, 'local replay page or saved events did not render');
   assertSmoke(visible.frameStored, 'local replay frames were not persisted');
   await page.getByRole('button', { name: /Exit Replay/i }).click();
   await page.waitForFunction(() => document.body.innerText.includes('Paused'));
 }
 
 async function verifyLocalPuzzles(page) {
-  await page.getByTitle('Puzzle Games').first().click();
+  await openSimulationTool(page, 'Puzzle Games');
   await page.waitForFunction(() => document.body.innerText.includes('Puzzle Games'));
   await page.getByRole('button', { name: /Stats/ }).click();
   await page.waitForFunction(() => (
@@ -211,7 +247,7 @@ async function verifyLocalPuzzles(page) {
 }
 
 async function verifyPromptEditorAndInspector(page) {
-  await page.locator('button[title="Configuration"]:visible').first().click();
+  await openSimulationTool(page, 'Configuration');
   await page.waitForFunction(() => document.body.innerText.includes('LLM API Keys'));
   await page.locator('button:has-text("Agent System Prompt")').click();
   const prompt = page.locator('textarea[placeholder="Enter your custom system prompt..."]').first();
@@ -223,9 +259,9 @@ async function verifyPromptEditorAndInspector(page) {
   const customPromptStored = await page.evaluate(() => (
     localStorage.getItem('simagents_custom_prompt')?.includes('smoke-test') ?? false
   ));
-  await page.locator('button[title="Configuration"]:visible').first().click();
+  await page.getByRole('button', { name: 'Close configuration panel', exact: true }).click();
 
-  await page.getByTitle('Prompt Gallery').first().click();
+  await openSimulationTool(page, 'Prompt Gallery');
   await page.waitForFunction(() => document.body.innerText.includes('Prompt Gallery'));
   await page.getByRole('button', { name: /Live Inspector/ }).click();
   await page.waitForFunction(() => (
@@ -237,9 +273,10 @@ async function verifyPromptEditorAndInspector(page) {
     return {
       active: text.includes('Live Inspector Active'),
       noData: text.includes('No Prompt Logs Yet'),
-      promptLogsStored: !!localStorage.getItem('simagents_prompt_logs_v1'),
+      promptLogsStored: true,
     };
   });
+  inspector.promptLogsStored = !!await readData(page, 'simagents_prompt_logs_v1');
   results.push({ step: 'local-prompts', customPromptStored, ...inspector });
   assertSmoke(customPromptStored, 'custom prompt was not persisted locally');
   assertSmoke(inspector.active || inspector.noData, 'local prompt inspector did not render');
@@ -264,11 +301,12 @@ async function verifyBrowserExperiment(page) {
       status: run.status,
       ticksCompleted: run.ticksCompleted,
       snapshots: run.snapshots.length,
-      stored: !!localStorage.getItem('simagents_experiment_runs_v1'),
+      stored: true,
       csvHeader: exported.csv.startsWith('runId,tick,simTimeMs'),
       jsonHasRun: exported.json.includes(run.id),
     };
   });
+  experiment.stored = !!await readData(page, 'simagents_experiment_runs_v1');
   results.push({ step: 'browser-experiment', ...experiment });
   assertSmoke(experiment.hasClient, 'dev engine client bridge is unavailable');
   assertSmoke(experiment.status === 'completed', 'browser experiment did not complete', experiment);
@@ -295,6 +333,8 @@ async function runBaselinePersistence(browser) {
     actual: afterPause.store.agents.length,
   });
   assertSmoke(afterPause.store.events.length > 0, 'baseline start produced no events');
+  assertSmoke(afterPause.random?.complete && afterPause.random.agents.length === baselineRoster.length, 'random streams missing from snapshot');
+  assertSmoke(afterPause.metrics?.complete && afterPause.metrics.totalEvents >= afterPause.store.events.length, 'cumulative counters missing');
   await verifyLocalAnalytics(page);
   await verifyLocalReplay(page);
   await verifyLocalPuzzles(page);
@@ -308,6 +348,7 @@ async function runBaselinePersistence(browser) {
   await page.waitForTimeout(600);
   await clickPause(page);
   const afterReloadResume = await snapshot(page);
+  assertSmoke(afterReloadResume.metrics.totalEvents >= afterPause.metrics.totalEvents && afterReloadResume.metrics.totalActions >= afterPause.metrics.totalActions, 'reload lost cumulative counters');
   results.push({
     step: 'reload-resume',
     agents: afterReloadResume.store.agents.length,
@@ -320,7 +361,7 @@ async function runBaselinePersistence(browser) {
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.getByTitle('Export current world').first().click(),
+    openSimulationTool(page, 'Export current world'),
   ]);
   const exportPath = await download.path();
   const exportJson = await readFile(exportPath, 'utf8');
@@ -339,19 +380,22 @@ async function runBaselinePersistence(browser) {
   assertSmoke(exported.events.length > 0, 'exported world has no event ring');
 
   page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('button', { name: /Reset/ }).click();
+  await openSimulationTool(page, 'Reset');
   await page.waitForFunction(() => document.body.innerText.includes('Ready'));
 
-  page.once('dialog', async (dialog) => {
-    results.push({ step: 'import-dialog', message: dialog.message() });
+  const imported = new Promise((resolve, reject) => page.once('dialog', async (dialog) => {
+    const message = dialog.message();
+    results.push({ step: 'import-dialog', message });
     await dialog.accept();
-  });
+    if (message.startsWith('World imported.')) resolve(); else reject(new Error(message));
+  }));
   await page.locator('input[type="file"]').setInputFiles({
     name: 'simagents-world-smoke.json',
     mimeType: 'application/json',
     buffer: Buffer.from(exportJson),
   });
-  await page.waitForFunction(() => !!localStorage.getItem('simagents_world_snapshot'));
+  await imported;
+  await waitForSavedWorld(page);
   await clickStart(page, 'resume');
   await page.waitForTimeout(500);
   await clickPause(page);
@@ -415,7 +459,7 @@ async function runProxyMissing(browser) {
   );
   const page = await openPage(context);
 
-  await page.getByTitle('Configuration').first().click();
+  await openSimulationTool(page, 'Configuration');
   const select = page.locator('select').filter({ has: page.locator('option[value="codex"]') }).first();
   const codexOption = select.locator('option[value="codex"]');
   results.push({
@@ -434,15 +478,11 @@ async function runProxyMissing(browser) {
   );
 
   await page.keyboard.press('Escape');
-  await clickStart(page, 'new');
-  await page.waitForTimeout(2_500);
-  await clickPause(page);
-  const eventPayloads = (await snapshot(page)).store.events.map((event) => event.payload);
-  results.push({
-    step: 'proxy-missing-run',
-    usedFallbackEvents: eventPayloads.filter((payload) => payload?.usedFallback === true).length,
-  });
-  assertSmoke(results.at(-1).usedFallbackEvents > 0, 'proxy-missing run did not use fallback decisions');
+  await page.getByRole('button', { name: /^(Start|Go)$/ }).first().click();
+  await page.getByRole('alert').filter({ hasText: 'configure an HTTPS relay' }).waitFor();
+  const blocked = await page.getByRole('button', { name: /^Start$/ }).last().isDisabled();
+  results.push({ step: 'proxy-missing-run', startBlocked: blocked });
+  assertSmoke(blocked, 'missing-proxy session was not blocked before start');
 
   await context.close();
 }
@@ -569,7 +609,7 @@ async function runProxyLlm(browser) {
   await context.close();
 }
 
-const browser = await chromium.launch({ headless: true });
+const browser = await browserType.launch({ headless: true });
 try {
   await runBaselinePersistence(browser);
   await runLocalAgentOverrides(browser);

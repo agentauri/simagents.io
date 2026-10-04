@@ -5,22 +5,18 @@
  * Restores energy over time while sleeping.
  */
 
+import { getRuntimeConfig } from '../../config';
+import { TICK_MS } from '../../engine/time';
 import { v4 as uuid } from 'uuid';
 import type { ActionIntent, ActionResult, SleepParams } from '../types';
 import type { Agent } from '../../db/schema';
 import { storeMemory } from '../../db/queries/memories';
 
-// Sleep configuration
-const CONFIG = {
-  energyRestoredPerTick: 5,
-  minDuration: 1,
-  maxDuration: 10,
-} as const;
-
 export async function handleSleep(
   intent: ActionIntent<SleepParams>,
   agent: Agent
 ): Promise<ActionResult> {
+  const CONFIG = getRuntimeConfig().actions.sleep;
   const { duration } = intent.params;
 
   // Validate duration
@@ -39,16 +35,11 @@ export async function handleSleep(
     };
   }
 
-  // For MVP: immediate energy restoration (simplified)
-  // In full implementation, this would be spread over ticks
-  const energyRestored = CONFIG.energyRestoredPerTick * duration;
-  const newEnergy = Math.min(100, agent.energy + energyRestored);
-
   // Store memory of sleeping
   await storeMemory({
     agentId: agent.id,
     type: 'action',
-    content: `Slept for ${duration} tick(s), restored ${energyRestored} energy. Energy now ${newEnergy}.`,
+    content: `Started sleeping for ${duration} tick(s). Energy recovers as simulation time advances.`,
     importance: 5,
     emotionalValence: 0.4,
     x: agent.x,
@@ -59,9 +50,9 @@ export async function handleSleep(
   // Success - return changes and events
   return {
     success: true,
+    durationMs: duration * TICK_MS,
     changes: {
       state: 'sleeping',
-      energy: newEnergy,
     },
     events: [
       {
@@ -73,8 +64,7 @@ export async function handleSleep(
         payload: {
           duration,
           energyBefore: agent.energy,
-          energyAfter: newEnergy,
-          energyRestored,
+          energyRestored: 0,
         },
       },
     ],

@@ -1,3 +1,4 @@
+import { useLocale, translate } from '../../i18n';
 import { useRef, useEffect } from 'react';
 import { TileButton } from './TileButton';
 import {
@@ -10,6 +11,7 @@ import {
 import { useEditorStore, useSelectedTile, useIsEditorMode } from '../../stores/editor';
 
 export function TileToolbar() {
+  useLocale();
   const selectedTile = useSelectedTile();
   const setSelectedTile = useEditorStore((s) => s.setSelectedTile);
   const isEditorMode = useIsEditorMode();
@@ -99,17 +101,11 @@ export function TileToolbar() {
             <span className="text-xs font-medium text-city-text truncate">
               {selectedTile.name}
             </span>
-            <span className="text-[10px] text-city-text-muted">
-              Click to place
-            </span>
-            <span className="text-[10px] text-city-text-muted">
-              Right-click to erase
-            </span>
+            <span className="text-[10px] text-city-text-muted">{translate("Click to place")}</span>
+            <span className="text-[10px] text-city-text-muted">{translate("Right-click to erase")}</span>
           </div>
         ) : (
-          <div className="text-xs text-city-text-muted">
-            Select a tile
-          </div>
+          <div className="text-xs text-city-text-muted">{translate("Select a tile")}</div>
         )}
       </div>
     </div>

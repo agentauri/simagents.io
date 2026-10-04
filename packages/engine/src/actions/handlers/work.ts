@@ -16,6 +16,7 @@
  * 6. Update trust on completion
  */
 
+import { getRuntimeConfig } from '../../config';
 import { v4 as uuid } from 'uuid';
 import type { ActionIntent, ActionResult, WorkParams } from '../types';
 import type { Agent } from '../../db/schema';
@@ -24,6 +25,7 @@ import {
   getOldestActiveEmployment,
   incrementTicksWorked,
   updateEmploymentStatus,
+  updateEmploymentStatusAndPayment,
 } from '../../db/queries/employment';
 import { getAgentById, updateAgentBalance } from '../../db/queries/agents';
 
@@ -37,6 +39,7 @@ export async function handleWork(
   intent: ActionIntent<WorkParams>,
   agent: Agent
 ): Promise<ActionResult> {
+  const energyCostPerTick = getRuntimeConfig().actions.work.energyCostPerTick;
   // Check if agent is sleeping (can't work while asleep)
   if (agent.state === 'sleeping') {
     return {
@@ -46,10 +49,10 @@ export async function handleWork(
   }
 
   // Check if agent has enough energy
-  if (agent.energy < CONFIG.energyCostPerTick) {
+  if (agent.energy < energyCostPerTick) {
     return {
       success: false,
-      error: `Not enough energy: need ${CONFIG.energyCostPerTick}, have ${agent.energy}`,
+      error: `Not enough energy: need ${energyCostPerTick}, have ${agent.energy}`,
     };
   }
 
@@ -66,15 +69,16 @@ export async function handleWork(
   const employer = await getAgentById(employment.employerId);
   if (!employer || employer.state === 'dead') {
     // Employer died - contract abandoned, worker keeps any escrow
-    await updateEmploymentStatus(employment.id, 'abandoned', intent.tick);
+    await updateEmploymentStatusAndPayment(employment.id, 'abandoned', employment.amountPaid + employment.escrowAmount, intent.tick);
     return {
       success: false,
       error: 'Employer is no longer available. Contract abandoned.',
+      changes: { balance: agent.balance + employment.escrowAmount },
     };
   }
 
   // Calculate costs
-  const energyCost = CONFIG.energyCostPerTick;
+  const energyCost = energyCostPerTick;
   const hungerCost = CONFIG.hungerCostPerTick;
   const newEnergy = agent.energy - energyCost;
   const newHunger = Math.max(0, agent.hunger - hungerCost);
@@ -82,17 +86,18 @@ export async function handleWork(
   // Calculate payment for this tick (if per_tick)
   let paymentThisTick = 0;
   if (employment.paymentType === 'per_tick') {
-    paymentThisTick = employment.salary / employment.ticksRequired;
+    paymentThisTick = Math.min(employment.salary - employment.amountPaid, employment.salary / employment.ticksRequired);
 
     // Check if employer has funds for per_tick payment
     if (employer.balance < paymentThisTick) {
       // Employer can't pay - terminate contract with penalty
-      await updateEmploymentStatus(employment.id, 'unpaid', intent.tick);
+      await updateEmploymentStatusAndPayment(employment.id, 'unpaid', employment.amountPaid + employment.escrowAmount, intent.tick);
       await updateRelationshipTrust(agent.id, employer.id, -20, intent.tick, 'Employer failed to pay');
       await updateRelationshipTrust(employer.id, agent.id, -10, intent.tick, 'Could not pay worker');
       return {
         success: false,
         error: `Employer cannot afford payment (${paymentThisTick.toFixed(1)} CITY). Contract terminated.`,
+        changes: { balance: agent.balance + employment.escrowAmount },
       };
     }
 
@@ -108,18 +113,18 @@ export async function handleWork(
 
   // Check if contract is now complete
   const isComplete = newTicksWorked >= employment.ticksRequired;
-  let newWorkerBalance = agent.balance + paymentThisTick;
+  const newWorkerBalance = agent.balance + paymentThisTick;
 
   if (isComplete) {
     // Mark contract as completed
-    await updateEmploymentStatus(employment.id, 'completed', intent.tick);
+    await updateEmploymentStatus(employment.id, employment.paymentType === 'on_completion' ? 'active' : 'completed', intent.tick);
 
     // Update trust - successful completion is good for both parties
     await updateRelationshipTrust(agent.id, employment.employerId, 10, intent.tick, 'Completed job successfully');
     await updateRelationshipTrust(employment.employerId, agent.id, 10, intent.tick, 'Worker completed job');
 
     // Return escrow to employer (minus any owed payment)
-    if (employment.paymentType !== 'upfront' && employment.escrowAmount > 0) {
+    if (employment.paymentType !== 'on_completion' && employment.escrowAmount > 0) {
       const escrowReturn = employment.escrowAmount;
       await updateAgentBalance(employer.id, employer.balance - paymentThisTick + escrowReturn);
     }
@@ -211,7 +216,7 @@ export async function handleWork(
         ? [
             {
               id: uuid(),
-              type: 'employment_completed',
+              type: employment.paymentType === 'on_completion' ? 'employment_work_completed' : 'employment_completed',
               tick: intent.tick,
               timestamp: Date.now(),
               agentId: agent.id,

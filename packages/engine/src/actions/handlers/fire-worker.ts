@@ -56,6 +56,7 @@ export async function handleFireWorker(
   // Get worker for payments and trust updates
   const worker = await getAgentById(employment.workerId);
   if (!worker) {
+    await updateAgentBalance(agent.id, agent.balance + employment.escrowAmount);
     // Worker doesn't exist anymore, just close the contract
     await updateEmploymentStatus(employment.id, 'fired', intent.tick);
     return {
@@ -82,8 +83,8 @@ export async function handleFireWorker(
   let severancePay = 0;
   if (employment.paymentType === 'on_completion' && employment.ticksWorked > 0) {
     // Pro-rate the salary for work completed
-    severancePay = (employment.salary * employment.ticksWorked) / employment.ticksRequired;
-    severancePay = Math.min(severancePay, agent.balance); // Can't pay more than we have
+    severancePay = Math.max(0, (employment.salary * employment.ticksWorked) / employment.ticksRequired - employment.amountPaid);
+    severancePay = Math.min(severancePay, agent.balance + employment.escrowAmount); // Can't pay more than we have
   }
 
   // Transfer severance to worker

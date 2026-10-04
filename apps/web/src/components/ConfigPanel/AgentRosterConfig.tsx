@@ -1,3 +1,5 @@
+import { translateLabel, useLocale, translate } from '../../i18n';
+
 import {
   BASELINE_PROVIDER_IDS,
   LLM_CATALOG,
@@ -10,8 +12,10 @@ import {
   type LLMType,
   type ReasoningCapability,
 } from '@simagents/shared';
+import { AgentConnectionConfig } from './AgentConnectionConfig';
+import { internalFixturesEnabled } from '../../services/byok-preflight';
 import { providerAvailability } from '@simagents/engine/engine/llm/keys';
-import { getActiveApiKeysFromStorage, useApiKeysStore } from '../../stores/apiKeys';
+import { getActiveApiKeys, useApiKeysStore } from '../../stores/apiKeys';
 import { useAgentRoster, useRosterStore } from '../../stores/roster';
 import { useProxyUrl } from '../../stores/settings';
 
@@ -73,13 +77,14 @@ interface ReasoningControlProps {
 }
 
 function ReasoningControl({ entry, reasoning, onUpdate }: ReasoningControlProps) {
+  useLocale();
   if (reasoning.kind === 'none') return null;
 
   if (reasoning.kind === 'effort') {
     const value = normalizeReasoningValue(reasoning, entry.reasoningLevel) as string;
     return (
       <label className="block">
-        <span className="text-[11px] text-gray-400">Reasoning effort</span>
+        <span className="text-[11px] text-gray-400">{translate("Reasoning effort")}</span>
         <select
           value={value}
           onChange={(event) => onUpdate({ reasoningLevel: event.target.value })}
@@ -99,7 +104,7 @@ function ReasoningControl({ entry, reasoning, onUpdate }: ReasoningControlProps)
     const value = normalizeReasoningValue(reasoning, entry.reasoningLevel) as number;
     return (
       <label className="block">
-        <span className="text-[11px] text-gray-400">Thinking budget</span>
+        <span className="text-[11px] text-gray-400">{translate("Thinking budget")}</span>
         <input
           type="number"
           min={reasoning.min}
@@ -121,7 +126,7 @@ function ReasoningControl({ entry, reasoning, onUpdate }: ReasoningControlProps)
     const value = normalizeReasoningValue(reasoning, entry.reasoningLevel) as boolean;
     return (
       <label className="flex items-center justify-between gap-3">
-        <span className="text-[11px] text-gray-400">Reasoning mode</span>
+        <span className="text-[11px] text-gray-400">{translate("Reasoning mode")}</span>
         <button
           type="button"
           role="switch"
@@ -142,7 +147,7 @@ function ReasoningControl({ entry, reasoning, onUpdate }: ReasoningControlProps)
   const checked = entry.modelId === reasoning.reasoningModelId;
   return (
     <label className="flex items-center justify-between gap-3">
-      <span className="text-[11px] text-gray-400">Use reasoning variant</span>
+      <span className="text-[11px] text-gray-400">{translate("Use reasoning variant")}</span>
       <input
         type="checkbox"
         checked={checked}
@@ -160,15 +165,16 @@ function ReasoningControl({ entry, reasoning, onUpdate }: ReasoningControlProps)
 }
 
 export function AgentRosterConfig() {
+  useLocale();
   const roster = useAgentRoster();
   const { addEntry, removeEntry, updateEntry, resetRoster } = useRosterStore();
   useApiKeysStore((state) => state.status);
-  const keys = getActiveApiKeysFromStorage();
+  const keys = getActiveApiKeys();
   const proxyUrl = useProxyUrl();
   const availability = providerAvailability({ getKey: (provider) => keys[provider] }, proxyUrl.trim() || undefined);
 
   const providerOptions: AgentRosterProvider[] = [
-    ...BASELINE_PROVIDER_IDS,
+    ...(internalFixturesEnabled() ? BASELINE_PROVIDER_IDS : []),
     ...LLM_CATALOG.map((provider) => provider.id),
   ];
 
@@ -178,24 +184,20 @@ export function AgentRosterConfig() {
     <div className="py-3 px-4 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <span className="text-sm font-medium text-gray-200">Agents</span>
-          <p className="text-xs text-gray-500 mt-0.5">Local browser runs spawn exactly this roster.</p>
+          <span className="text-sm font-medium text-gray-200">{translate("Agents")}</span>
+          <p className="text-xs text-gray-500 mt-0.5">{translate("Local browser runs spawn exactly this roster.")}</p>
         </div>
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => addEntry({ provider: 'baseline_rule' })}
+            onClick={() => addEntry({ provider: 'claude' })}
             className="px-2.5 py-1.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-500"
-          >
-            Add
-          </button>
+          >{translate("Add")}</button>
           <button
             type="button"
             onClick={resetRoster}
             className="px-2.5 py-1.5 text-xs rounded bg-gray-700 text-gray-200 hover:bg-gray-600"
-          >
-            Reset
-          </button>
+          >{translate("Reset")}</button>
         </div>
       </div>
 
@@ -205,7 +207,6 @@ export function AgentRosterConfig() {
             ? getProviderCatalogEntry(entry.provider)?.models ?? []
             : [];
           const isCustomModel = isLLMProviderId(entry.provider) &&
-            models.length > 0 &&
             !models.some((model) => model.id === entry.modelId);
           const reasoning = modelReasoning(entry.provider, entry.modelId);
 
@@ -219,21 +220,20 @@ export function AgentRosterConfig() {
                     className="w-3 h-3 rounded-full border border-white/20 shrink-0"
                     style={{ backgroundColor: entry.color }}
                   />
-                  <span className="text-xs font-medium text-gray-300 truncate">Agent {index + 1}</span>
+                  <span className="text-xs font-medium text-gray-300 truncate">{translate("Agent")}{" "}{index + 1}</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => removeEntry(index)}
                   disabled={roster.length <= 1}
                   className="text-xs text-gray-500 hover:text-red-300 disabled:opacity-40 disabled:hover:text-gray-500"
-                >
-                  Remove
-                </button>
+                >{translate("Remove")}</button>
               </div>
 
+              <AgentConnectionConfig entry={entry} update={(patch) => update(index, patch)} />
               <div className="grid grid-cols-[1fr_auto] gap-2">
                 <label>
-                  <span className="text-[11px] text-gray-400">Name</span>
+                  <span className="text-[11px] text-gray-400">{translate("Name")}</span>
                   <input
                     type="text"
                     value={entry.name}
@@ -242,7 +242,7 @@ export function AgentRosterConfig() {
                   />
                 </label>
                 <label>
-                  <span className="text-[11px] text-gray-400">Color</span>
+                  <span className="text-[11px] text-gray-400">{translate("Color")}</span>
                   <input
                     type="color"
                     value={entry.color}
@@ -270,14 +270,15 @@ export function AgentRosterConfig() {
               </div>
 
               <label className="block">
-                <span className="text-[11px] text-gray-400">Provider</span>
+                <span className="text-[11px] text-gray-400">{translate("Provider")}</span>
                 <select
+                  disabled={!!entry.connectionId}
                   value={entry.provider}
                   onChange={(event) => update(index, { provider: event.target.value as AgentRosterProvider })}
                   className="mt-1 w-full px-2 py-1.5 text-xs bg-gray-900 border border-gray-700 rounded focus:outline-none focus:border-blue-500"
                 >
                   {providerOptions.map((provider) => {
-                    const disabled = isLLMProviderId(provider) && !availability[provider].available;
+                    const disabled = !entry.connectionId && isLLMProviderId(provider) && !availability[provider].available;
                     const reason = isLLMProviderId(provider) ? availabilityLabel(availability[provider].reason) : '';
                     return (
                       <option key={provider} value={provider} disabled={disabled}>
@@ -291,8 +292,9 @@ export function AgentRosterConfig() {
               {isLLMProviderId(entry.provider) && (
                 <>
                   <label className="block">
-                    <span className="text-[11px] text-gray-400">Model</span>
+                    <span className="text-[11px] text-gray-400">{translate("Model")}</span>
                     <select
+                      aria-label={translate("Model for {agent}", { agent: entry.name })}
                       value={isCustomModel ? '__custom__' : entry.modelId}
                       onChange={(event) => {
                         const next = event.target.value === '__custom__'
@@ -304,18 +306,19 @@ export function AgentRosterConfig() {
                     >
                       {models.map((model) => (
                         <option key={model.id} value={model.id}>
-                          {model.label}
+                          {translateLabel(model.label)}
                         </option>
                       ))}
-                      <option value="__custom__">Custom model ID</option>
+                      <option value="__custom__">{translate("Custom model ID")}</option>
                     </select>
                   </label>
 
                   {isCustomModel && (
                     <label className="block">
-                      <span className="text-[11px] text-gray-400">Custom model ID</span>
+                      <span className="text-[11px] text-gray-400">{translate("Custom model ID")}</span>
                       <input
                         type="text"
+                        aria-label={translate("Custom model ID for {agent}", { agent: entry.name })}
                         value={entry.modelId}
                         onChange={(event) => update(index, { modelId: event.target.value })}
                         className="mt-1 w-full px-2 py-1.5 text-xs bg-gray-900 border border-gray-700 rounded focus:outline-none focus:border-blue-500"
@@ -323,11 +326,11 @@ export function AgentRosterConfig() {
                     </label>
                   )}
 
-                  <ReasoningControl
+                  {!entry.connectionId && <ReasoningControl
                     entry={entry}
                     reasoning={reasoning}
                     onUpdate={(patch) => update(index, patch)}
-                  />
+                  />}
                 </>
               )}
             </div>

@@ -1,3 +1,5 @@
+import { translateLabel, useLocale, translate } from '../../i18n';
+
 /**
  * AnalyticsDashboard - Main container with tabs
  */
@@ -24,6 +26,7 @@ const TABS = [
 ] as const;
 
 export function AnalyticsDashboard() {
+  useLocale();
   const isVisible = useIsAnalyticsVisible();
   const toggleVisibility = useToggleVisibility();
   const activeTab = useActiveTab();
@@ -46,9 +49,7 @@ export function AnalyticsDashboard() {
       <button
         onClick={toggleVisibility}
         className="fixed bottom-4 left-4 z-50 bg-city-surface border border-city-border rounded-lg px-3 py-2 text-sm text-city-text hover:bg-city-surface-hover transition-colors"
-      >
-        📊 Analytics
-      </button>
+      >{translate("📊 Analytics")}</button>
     );
   }
 
@@ -57,9 +58,9 @@ export function AnalyticsDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-city-border bg-city-surface-alt">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-city-text">📊 Analytics</span>
+          <span className="text-sm font-medium text-city-text">{translate("📊 Analytics")}</span>
           {isLoading && (
-            <span className="text-xs text-city-text-muted animate-pulse">Loading...</span>
+            <span className="text-xs text-city-text-muted animate-pulse">{translate("Loading...")}</span>
           )}
         </div>
 
@@ -69,14 +70,14 @@ export function AnalyticsDashboard() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              title={tab.title}
+              title={translateLabel(tab.title)}
               className={`w-6 h-6 rounded text-xs font-medium transition-colors ${
                 activeTab === tab.key
-                  ? 'bg-city-accent text-white'
+                  ? 'bg-city-accent text-gray-950'
                   : 'bg-city-surface text-city-text-muted hover:bg-city-surface-hover'
               }`}
             >
-              {tab.label}
+              {translateLabel(tab.label)}
             </button>
           ))}
 

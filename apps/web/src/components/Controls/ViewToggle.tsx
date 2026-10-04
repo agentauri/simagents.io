@@ -1,3 +1,4 @@
+import { useLocale, translate } from '../../i18n';
 /**
  * ViewToggle - Toggle button to switch between 2D and Isometric views
  */
@@ -5,6 +6,7 @@
 import { useEditorStore, useViewMode } from '../../stores/editor';
 
 export function ViewToggle() {
+  useLocale();
   const viewMode = useViewMode();
   const { toggleViewMode } = useEditorStore();
 
@@ -15,10 +17,10 @@ export function ViewToggle() {
         onClick={() => viewMode !== '2d' && toggleViewMode()}
         className={`h-full px-3 text-xs font-medium rounded-md transition-all duration-200 flex items-center gap-1.5 ${
           viewMode === '2d'
-            ? 'bg-city-accent text-white shadow-sm'
+            ? 'bg-city-accent text-gray-950 shadow-sm'
             : 'text-city-text-muted hover:text-city-text hover:bg-city-surface-hover'
         }`}
-        title="2D Grid View"
+        title={translate("2D Grid View")}
       >
         {/* 2D Grid Icon */}
         <svg
@@ -45,10 +47,10 @@ export function ViewToggle() {
         onClick={() => viewMode !== 'isometric' && toggleViewMode()}
         className={`h-full px-3 text-xs font-medium rounded-md transition-all duration-200 flex items-center gap-1.5 ${
           viewMode === 'isometric'
-            ? 'bg-city-accent text-white shadow-sm'
+            ? 'bg-city-accent text-gray-950 shadow-sm'
             : 'text-city-text-muted hover:text-city-text hover:bg-city-surface-hover'
         }`}
-        title="Isometric View"
+        title={translate("Isometric View")}
       >
         {/* Isometric Cube Icon */}
         <svg

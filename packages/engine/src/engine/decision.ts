@@ -23,8 +23,11 @@ export interface ActionDecision {
   telemetry?: DecisionTelemetry;
 }
 
+export interface PricingContext { providerId: string; modelId: string; endpoint: string }
 export interface DecisionTelemetry {
   modelId?: string;
+  pricingContext?: PricingContext;
+  costEligible?: boolean;
   tokens?: {
     input?: number;
     output?: number;

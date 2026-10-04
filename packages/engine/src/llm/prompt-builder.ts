@@ -31,7 +31,6 @@ import {
 import {
   buildEmergentSystemPrompt,
   buildEmergentObservationPrompt,
-  buildEmergentFullPrompt,
 } from './prompts/emergent-prompt';
 import {
   retrieveContextualMemories,
@@ -787,7 +786,7 @@ export function buildFullPrompt(
   // Check if emergent prompt mode is enabled
   if (isEmergentPromptEnabled()) {
     // Pass personality to emergent prompt for consistent behavior
-    return buildEmergentFullPrompt(obs, context?.personality);
+    return `${buildSystemPrompt(context?.personality)}\n\n${buildEmergentObservationPrompt(obs)}`;
   }
   return `${buildSystemPrompt(context?.personality)}\n\n${buildObservationPrompt(obs, context?.retrievedMemories)}`;
 }

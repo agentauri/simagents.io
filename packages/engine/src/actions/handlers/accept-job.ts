@@ -80,10 +80,10 @@ export async function handleAcceptJob(
     workerId: agent.id,
     salary: jobOffer.salary,
     paymentType: jobOffer.paymentType,
-    escrowAmount: jobOffer.escrowAmount,
+    escrowAmount: jobOffer.paymentType === 'upfront' ? 0 : jobOffer.escrowAmount,
     ticksRequired: jobOffer.duration,
     ticksWorked: 0,
-    amountPaid: 0,
+    amountPaid: jobOffer.paymentType === 'upfront' ? jobOffer.salary : 0,
     status: 'active',
     startedAtTick: intent.tick,
   });

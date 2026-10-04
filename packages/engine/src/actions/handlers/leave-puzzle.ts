@@ -23,10 +23,11 @@ import {
   updateParticipantStatus,
   getAgentFragmentsInGame,
   clearFragmentOwner,
+  addToPrizePool,
 } from '../../db/queries/puzzles';
 import { updateAgentBalance } from '../../db/queries/agents';
 import { storeMemory } from '../../db/queries/memories';
-import { CONFIG } from '../../config';
+import { getRuntimeConfig } from '../../config';
 
 export async function handleLeavePuzzle(
   intent: ActionIntent<LeavePuzzleParams>,
@@ -35,7 +36,7 @@ export async function handleLeavePuzzle(
   const { gameId } = intent.params;
 
   // Check if puzzle system is enabled
-  if (!CONFIG.puzzle.enabled) {
+  if (!getRuntimeConfig().puzzle.enabled) {
     return {
       success: false,
       error: 'Puzzle game system is not enabled',
@@ -60,8 +61,10 @@ export async function handleLeavePuzzle(
     };
   }
 
+  if (game.status !== 'open' && game.status !== 'active') return { success: false, error: 'Puzzle is no longer active' };
+
   // Check energy cost
-  const energyCost = CONFIG.puzzle.energyCosts.leavePuzzle;
+  const energyCost = getRuntimeConfig().puzzle.energyCosts.leavePuzzle;
   if (agent.energy < energyCost) {
     return {
       success: false,
@@ -70,7 +73,7 @@ export async function handleLeavePuzzle(
   }
 
   // Calculate penalty and refund
-  const penaltyFactor = CONFIG.puzzle.freeRiderPenalty.penaltyFactor;
+  const penaltyFactor = getRuntimeConfig().puzzle.freeRiderPenalty.penaltyFactor;
   const penaltyAmount = participant.stakedAmount * penaltyFactor;
   const refundAmount = participant.stakedAmount - penaltyAmount;
 
@@ -78,10 +81,12 @@ export async function handleLeavePuzzle(
   await updateParticipantStatus(participant.id, 'left');
 
   // Return owned fragments to pool (set owner to null)
-  const ownedFragments = await getAgentFragmentsInGame(agent.id, gameId);
+  const ownedFragments = (await getAgentFragmentsInGame(agent.id, gameId)).filter((fragment) => fragment.ownerId === agent.id);
   for (const fragment of ownedFragments) {
     await clearFragmentOwner(fragment.id);
   }
+
+  await addToPrizePool(gameId, -refundAmount);
 
   // Refund remaining stake to agent
   const newBalance = agent.balance + refundAmount;

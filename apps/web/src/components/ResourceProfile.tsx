@@ -1,3 +1,6 @@
+import { formatActionLabel } from '../i18n';
+import { translateLabel, useLocale, translate } from '../i18n';
+
 import { useMemo } from 'react';
 import { useWorldStore, useSelectedResource, useAgents, type BiomeType, BIOME_COLORS } from '../stores/world';
 
@@ -9,14 +12,20 @@ const RESOURCE_CONFIG: Record<string, { color: string; icon: string; label: stri
 };
 
 export function ResourceProfile() {
+  useLocale();
   const resource = useSelectedResource();
   const agents = useAgents();
   const selectResource = useWorldStore((s) => s.selectResource);
 
+  const agentsHere = useMemo(
+    () => resource ? agents.filter((a) => a.x === resource.x && a.y === resource.y && a.state !== 'dead') : [],
+    [agents, resource]
+  );
+
   if (!resource) {
     return (
       <div className="p-6 text-city-text-muted text-sm text-center">
-        <p>Resource not found</p>
+        <p>{translate("Resource not found")}</p>
       </div>
     );
   }
@@ -24,11 +33,6 @@ export function ResourceProfile() {
   const config = RESOURCE_CONFIG[resource.resourceType] || RESOURCE_CONFIG.food;
   const percent = Math.max(0, Math.min(100, (resource.currentAmount / resource.maxAmount) * 100));
 
-  // Count agents at this resource location (memoized)
-  const agentsHere = useMemo(
-    () => agents.filter((a) => a.x === resource.x && a.y === resource.y && a.state !== 'dead'),
-    [agents, resource.x, resource.y]
-  );
 
   return (
     <div className="p-4 space-y-5">
@@ -46,8 +50,7 @@ export function ResourceProfile() {
           </div>
           <div>
             <h3 className="font-semibold text-city-text text-base">
-              {config.label} Resource
-            </h3>
+              {translate('Resource {type}', { type: translateLabel(config.label) })}</h3>
             <span className="text-xs text-city-text-muted">
               {resource.resourceType}
             </span>
@@ -55,8 +58,8 @@ export function ResourceProfile() {
         </div>
         <button
           onClick={() => selectResource(null)}
-          className="w-6 h-6 rounded flex items-center justify-center text-city-text-muted hover:text-city-accent hover:bg-city-surface-hover transition-colors"
-          title="Close"
+          className="w-11 h-11 rounded flex items-center justify-center text-city-text-muted hover:text-city-accent hover:bg-city-surface-hover transition-colors"
+          title={translate("Close")}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -81,10 +84,9 @@ export function ResourceProfile() {
           className="px-2.5 py-1 rounded-full text-xs font-medium border border-current/20"
           style={{ backgroundColor: `${config.color}20`, color: config.color }}
         >
-          {config.label}
+          {translateLabel(config.label)}
         </span>
-        <span className="text-xs text-city-text-muted">
-          at{' '}
+        <span className="text-xs text-city-text-muted">{translate("at")}{' '}
           <span className="font-mono text-city-text">
             ({resource.x}, {resource.y})
           </span>
@@ -93,9 +95,7 @@ export function ResourceProfile() {
 
       {/* Quantity Section */}
       <div className="space-y-4">
-        <h4 className="text-xs font-medium text-city-text-muted uppercase tracking-wider">
-          Quantity
-        </h4>
+        <h4 className="text-xs font-medium text-city-text-muted uppercase tracking-wider">{translate("Quantity")}</h4>
 
         {/* Amount bar */}
         <div className="space-y-1.5">
@@ -104,7 +104,7 @@ export function ResourceProfile() {
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
               </svg>
-              <span>Amount</span>
+              <span>{translate("Amount")}</span>
             </div>
             <span className="font-mono font-medium text-city-text">
               {resource.currentAmount} / {resource.maxAmount}
@@ -132,13 +132,13 @@ export function ResourceProfile() {
               <path d="M12 22c-4.97 0-9-2.24-9-5v-3.5c0-1.83 2.02-3.41 5-4.13" />
               <circle cx="12" cy="8" r="5" />
             </svg>
-            <span className="text-xs">Biome</span>
+            <span className="text-xs">{translate("Biome")}</span>
           </div>
           <span
             className="text-sm font-medium capitalize"
             style={{ color: BIOME_COLORS[resource.biome as BiomeType] || '#888' }}
           >
-            {resource.biome}
+            {formatActionLabel(resource.biome)}
           </span>
         </div>
       )}
@@ -146,8 +146,7 @@ export function ResourceProfile() {
       {/* Agents at location */}
       {agentsHere.length > 0 && (
         <div className="space-y-3 pt-2 border-t border-city-border/30">
-          <h4 className="text-xs font-medium text-city-text-muted uppercase tracking-wider">
-            Agents Here ({agentsHere.length})
+          <h4 className="text-xs font-medium text-city-text-muted uppercase tracking-wider">{translate("Agents Here (")}{agentsHere.length})
           </h4>
           <div className="space-y-2">
             {agentsHere.map((agent) => (
@@ -165,7 +164,7 @@ export function ResourceProfile() {
                   {agent.llmType}
                 </span>
                 <span className="text-xs text-city-text-muted ml-auto">
-                  {agent.state}
+                  {formatActionLabel(agent.state)}
                 </span>
               </div>
             ))}
@@ -175,7 +174,7 @@ export function ResourceProfile() {
 
       {/* Resource Type Info */}
       <div className="pt-4 border-t border-city-border/30">
-        <p className="text-xs text-city-text-muted">{config.description}</p>
+        <p className="text-xs text-city-text-muted">{translateLabel(config.description)}</p>
       </div>
     </div>
   );

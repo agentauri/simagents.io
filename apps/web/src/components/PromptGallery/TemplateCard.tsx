@@ -1,3 +1,5 @@
+import { translateLabel, useLocale, translate } from '../../i18n';
+
 /**
  * TemplateCard - Card component for displaying a prompt template
  *
@@ -48,6 +50,7 @@ export function TemplateCard({
   onSelect,
   compact = false,
 }: TemplateCardProps) {
+  useLocale();
   const categoryColor = CATEGORY_COLORS[template.category];
   const categoryIcon = CATEGORY_ICONS[template.category];
 
@@ -99,11 +102,11 @@ export function TemplateCard({
               onClick={() => onSelect(template)}
               className={`shrink-0 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                 isSelected
-                  ? 'bg-city-accent text-white'
+                  ? 'bg-city-accent text-gray-950'
                   : 'bg-city-border/50 text-city-text hover:bg-city-border'
               }`}
             >
-              {isSelected ? 'Selected' : 'View'}
+              {isSelected ? translate("Selected") : translate("View")}
             </button>
           )}
         </div>
@@ -112,7 +115,7 @@ export function TemplateCard({
       {/* Body */}
       <div className="px-4 py-3">
         <p className="text-xs text-city-text-muted mb-3 line-clamp-2">
-          {template.description}
+          {translateLabel(template.description)}
         </p>
 
         {/* Tags */}

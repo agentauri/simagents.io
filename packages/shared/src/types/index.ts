@@ -45,7 +45,8 @@ export type LLMType =
   | 'grok'
   | 'mistral'
   | 'minimax'
-  | 'kimi';
+  | 'kimi'
+  | 'openrouter';
 
 // ============================================
 // Location Types

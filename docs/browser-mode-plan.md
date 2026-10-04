@@ -45,8 +45,11 @@ All local persistence must be bounded and validated on read.
 
 | Key | Contents |
 |-----|----------|
-| `simagents_api_keys` | BYOK provider keys |
-| `simagents_agent_roster` | Roster, model, color, reasoning settings |
+| `simagents_credential_vault_v1` | Optional AES-GCM credential archive |
+| `simagents_api_keys` | Legacy plaintext; explicit migration only, never automatically loaded |
+| `simagents_session_limits_v1` | Request/time/token limits (no secrets) |
+| `simagents_agent_roster` | Stable roster IDs, model/capabilities and connection references |
+| `simagents_connections_v1` | Connection metadata and credential references; no keys |
 | `simagents_proxy_url` | Optional user-provided proxy origin |
 | `simagents_world_snapshot` | Versioned world snapshot |
 | `simagents_event_ring` | Recent events |
@@ -60,9 +63,11 @@ Long runs should be exported as JSON or CSV.
 
 ## LLM Access
 
-Users provide keys in the browser. Direct-browser providers call their vendor API directly. Providers that do not allow browser calls require a user-supplied proxy URL.
+Users provide keys in browser memory, with optional passphrase-encrypted device storage. Every public roster entry requires BYOK credentials; the selected session request/time/token limits apply to outgoing inference. Direct-browser providers call their vendor API directly. Providers that do not allow browser calls require a user-supplied proxy URL.
 
-The app does not ship a proxy implementation as product infrastructure.
+Named profiles support Responses, compatible Chat Completions, Anthropic Messages and Gemini generateContent. Explicit model probes and first-page model listing are initiated by the user. Profile metadata is exported in snapshots without credentials; imported destinations are not automatically activated. Legacy provider-only metadata is converted to profiles; public sessions must verify the model before starting.
+
+The official relay implementation lives in `apps/relay`. It has not been deployed; builds must explicitly configure its origin before enabling it. It owns no simulation state and has no content persistence.
 
 ## Removed Surfaces
 
@@ -73,6 +78,6 @@ These are not part of the current product architecture:
 - queue workers
 - tenancy, auth, and admin enforcement
 - realtime HTTP streams
-- product-owned proxy deployment
+- production proxy deployment (implementation exists separately in `apps/relay`, but is undeployed)
 
-Historical docs may mention older designs, but current implementation work should stay inside the browser app, `packages/engine`, and `packages/shared`.
+Historical docs may mention older designs, but the simulation remains inside the browser app, `packages/engine`, and `packages/shared`; `apps/relay` is only a constrained provider transport.

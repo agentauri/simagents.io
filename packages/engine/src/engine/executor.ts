@@ -9,6 +9,7 @@ import { getAgentById, updateAgent } from '../engine-memory/queries/agents';
 import { materializeVitals } from './vitals';
 import { deleteAgentMeta, setAgentBusyUntil } from './agent-meta';
 import { tickFromSimTime } from './time';
+import { MutationQueue } from './mutation-queue';
 
 export interface ExecutorClock {
   nowMs(): number;
@@ -29,6 +30,8 @@ export interface ActionExecution {
  * processingTimeMs) exactly like the tick engine did.
  */
 export interface DecisionMeta {
+  pricingContext?: import('./decision').PricingContext;
+  costEligible?: boolean;
   reasoning?: string;
   usedFallback?: boolean;
   processingTimeMs?: number;
@@ -39,24 +42,25 @@ export interface DecisionMeta {
   };
 }
 
-interface QueueItem {
-  intent: ActionIntent;
-  decisionMeta?: DecisionMeta;
-  resolve: (execution: ActionExecution) => void;
-  reject: (error: unknown) => void;
-}
-
 export class ActionExecutor {
-  private readonly queue: QueueItem[] = [];
+  private readonly mutations = new MutationQueue();
   private readonly drainListeners = new Set<() => void>();
-  private draining = false;
+  private pending = 0;
 
   constructor(private readonly clock: ExecutorClock) {}
 
-  submit(intent: ActionIntent, decisionMeta?: DecisionMeta): Promise<ActionExecution> {
-    return new Promise((resolve, reject) => {
-      this.queue.push({ intent, decisionMeta, resolve, reject });
-      void this.drain();
+  mutate<T>(operation: () => T | Promise<T>): Promise<T> {
+    this.pending++;
+    return this.mutations.run(operation).finally(() => {
+      this.pending--;
+      if (this.pending === 0) this.notifyDrain();
+    });
+  }
+
+  submit(intent: ActionIntent, decisionMeta?: DecisionMeta, signal?: AbortSignal): Promise<ActionExecution> {
+    return this.mutate(() => {
+      if (signal?.aborted) throw new Error('Action cancelled');
+      return this.execute(intent, decisionMeta);
     });
   }
 
@@ -67,43 +71,11 @@ export class ActionExecutor {
       this.drainListeners.add(listener);
       return () => this.drainListeners.delete(listener);
     }
-
-    if (!this.draining && this.queue.length === 0) return Promise.resolve();
-    return new Promise((resolve) => {
-      const unsubscribe = this.onDrain(() => {
-        unsubscribe();
-        resolve();
-      });
-    });
+    return this.mutations.idle();
   }
 
   get pendingCount(): number {
-    return this.queue.length + (this.draining ? 1 : 0);
-  }
-
-  private async drain(): Promise<void> {
-    if (this.draining) return;
-    this.draining = true;
-
-    try {
-      while (this.queue.length > 0) {
-        const item = this.queue.shift();
-        if (!item) continue;
-
-        try {
-          item.resolve(await this.execute(item.intent, item.decisionMeta));
-        } catch (error) {
-          item.reject(error);
-        }
-      }
-    } finally {
-      this.draining = false;
-      if (this.queue.length > 0) {
-        void this.drain();
-      } else {
-        this.notifyDrain();
-      }
-    }
+    return this.pending;
   }
 
   private async execute(
@@ -121,7 +93,7 @@ export class ActionExecutor {
         success: false,
         error: 'agent_dead',
       };
-      const event = await this.emitActionFailed(intent, tick, simTimeMs, 'agent_dead');
+      const event = await this.emitActionFailed(intent, tick, simTimeMs, 'agent_dead', decisionMeta);
       return {
         intent,
         tick,
@@ -135,10 +107,9 @@ export class ActionExecutor {
     const result = await executeAction({ ...intent, tick }, agent);
     const events: WorldEvent[] = [];
 
+    if (result.changes) await updateAgent(intent.agentId, result.changes);
+
     if (result.success) {
-      if (result.changes) {
-        await updateAgent(intent.agentId, result.changes);
-      }
 
       const durationMs = actionDurationMs(intent.type, agent, result);
       setAgentBusyUntil(intent.agentId, simTimeMs + durationMs);
@@ -165,6 +136,7 @@ export class ActionExecutor {
               // absent (baselines) so payload key-presence checks stay clean.
               ...(decisionMeta?.modelId !== undefined ? { modelId: decisionMeta.modelId } : {}),
               ...(decisionMeta?.tokens !== undefined ? { tokens: decisionMeta.tokens } : {}),
+              ...(decisionMeta?.pricingContext !== undefined ? { pricingContext: decisionMeta.pricingContext, costEligible: decisionMeta.costEligible === true } : {}),
             },
           },
           tick,
@@ -180,7 +152,10 @@ export class ActionExecutor {
         intent.agentId,
         simTimeMs + getRuntimeConfig().durations.failedActionPenaltyMs
       );
-      events.push(await this.emitActionFailed(intent, tick, simTimeMs, result.error));
+      for (const event of result.events ?? []) {
+        events.push(await this.emitActionEvent(event, tick, simTimeMs));
+      }
+      events.push(await this.emitActionFailed(intent, tick, simTimeMs, result.error, decisionMeta));
     }
 
     return {
@@ -214,7 +189,8 @@ export class ActionExecutor {
     intent: ActionIntent,
     tick: number,
     simTimeMs: number,
-    error: string | undefined
+    error: string | undefined,
+    decisionMeta?: DecisionMeta
   ): Promise<WorldEvent> {
     const failure = error ?? 'Unknown action failure';
     const event: WorldEvent = {
@@ -224,6 +200,7 @@ export class ActionExecutor {
       timestamp: Date.now(),
       agentId: intent.agentId,
       payload: {
+        ...decisionMeta,
         action: intent.type,
         params: intent.params,
         error: failure,
@@ -257,6 +234,7 @@ export function actionDurationMs(
   agentBefore: Agent,
   result: ActionResult
 ): number {
+  if (result.durationMs !== undefined) return result.durationMs;
   const durations = getRuntimeConfig().durations;
 
   if (actionType === 'move') {

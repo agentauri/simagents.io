@@ -236,6 +236,7 @@ export const CONFIG = {
 
     // Phase 4: Reproduction (§36)
     spawnOffspring: {
+      maxPopulation: env('MAX_POPULATION', 100),
       /** Minimum balance required for reproduction */
       minBalance: env('SPAWN_MIN_BALANCE', 500),
       /** Minimum energy required for reproduction */
@@ -921,7 +922,7 @@ export function setEmergentPromptMode(enabled: boolean): void {
  * These allow modifying config values while the browser worker is alive.
  * Values here override the corresponding CONFIG values.
  */
-interface RuntimeConfigOverrides {
+export interface RuntimeConfigOverrides {
   simulation?: {
     tickIntervalMs?: number;
   };

@@ -16,6 +16,7 @@ import type {
   NewEmployment,
 } from '../../db/schema';
 import { store } from '../store';
+import { getAgentById, updateAgentBalance } from './agents';
 
 // =============================================================================
 // JOB OFFERS
@@ -109,7 +110,9 @@ export async function expireJobOffers(currentTick: number): Promise<number> {
   }
 
   for (const offer of offersToExpire) {
-    store.jobOffers.set(offer.id, { ...offer, status: 'expired', updatedAt: new Date() });
+    const employer = await getAgentById(offer.employerId);
+    if (employer) await updateAgentBalance(employer.id, employer.balance + offer.escrowAmount);
+    store.jobOffers.set(offer.id, { ...offer, escrowAmount: 0, status: 'expired', updatedAt: new Date() });
   }
 
   return offersToExpire.length;
@@ -176,7 +179,7 @@ export async function getActiveEmploymentsForEmployer(employerId: string): Promi
  */
 export async function getOldestActiveEmployment(workerId: string): Promise<Employment | undefined> {
   return [...store.employments.values()]
-    .filter((e) => e.workerId === workerId && e.status === 'active')
+    .filter((e) => e.workerId === workerId && e.status === 'active' && e.ticksWorked < e.ticksRequired)
     .sort((a, b) => a.startedAtTick - b.startedAtTick)[0];
 }
 
@@ -215,6 +218,7 @@ export async function updateEmploymentStatus(
   store.employments.set(id, {
     ...employment,
     status,
+    escrowAmount: status === 'active' ? employment.escrowAmount : 0,
     endedAtTick: endedAtTick ?? null,
     updatedAt: new Date(),
   });
@@ -233,6 +237,7 @@ export async function completeEmployment(
   store.employments.set(id, {
     ...employment,
     status: 'completed',
+    escrowAmount: 0,
     amountPaid: employment.amountPaid + finalPayment,
     endedAtTick,
     updatedAt: new Date(),
@@ -250,6 +255,7 @@ export async function updateEmploymentStatusAndPayment(
   store.employments.set(id, {
     ...employment,
     status,
+    escrowAmount: 0,
     amountPaid,
     endedAtTick: endedAtTick ?? null,
     updatedAt: new Date(),

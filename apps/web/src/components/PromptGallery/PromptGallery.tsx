@@ -1,3 +1,5 @@
+import { translateLabel, useLocale, translate } from '../../i18n';
+
 /**
  * PromptGallery - Main container for prompt template gallery
  *
@@ -26,6 +28,7 @@ import { TemplateComparison } from './TemplateComparison';
 type ViewMode = 'gallery' | 'comparison';
 
 export function PromptGallery() {
+  useLocale();
   const [viewMode, setViewMode] = useState<ViewMode>('gallery');
   const [selectedCategory, setSelectedCategory] = useState<TemplateCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -73,22 +76,18 @@ export function PromptGallery() {
               onClick={() => setViewMode('gallery')}
               className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                 viewMode === 'gallery'
-                  ? 'bg-city-accent text-white'
+                  ? 'bg-city-accent text-gray-950'
                   : 'text-city-text-muted hover:text-city-text'
               }`}
-            >
-              Gallery
-            </button>
+            >{translate("Gallery")}</button>
             <button
               onClick={() => setViewMode('comparison')}
               className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                 viewMode === 'comparison'
-                  ? 'bg-city-accent text-white'
+                  ? 'bg-city-accent text-gray-950'
                   : 'text-city-text-muted hover:text-city-text'
               }`}
-            >
-              Compare
-            </button>
+            >{translate("Compare")}</button>
           </div>
 
           {/* Category filter (gallery mode only) */}
@@ -104,7 +103,7 @@ export function PromptGallery() {
                       : 'text-city-text-muted hover:text-city-text hover:bg-city-border/50'
                   }`}
                 >
-                  {cat === 'all' ? 'All' : CATEGORY_LABELS[cat]}
+                  {cat === 'all' ? translate("All") : CATEGORY_LABELS[cat]}
                 </button>
               ))}
             </div>
@@ -131,7 +130,7 @@ export function PromptGallery() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search templates..."
+                  placeholder={translate("Search templates...")}
                   className="w-full pl-10 pr-4 py-2 bg-city-bg border border-city-border rounded-lg text-sm text-city-text placeholder:text-city-text-muted focus:outline-none focus:ring-2 focus:ring-city-accent/50"
                 />
               </div>
@@ -140,7 +139,7 @@ export function PromptGallery() {
 
           {/* Stats */}
           <div className="text-xs text-city-text-muted">
-            {filteredTemplates.length} template{filteredTemplates.length !== 1 ? 's' : ''}
+            {filteredTemplates.length}{" "}{translate("template")}{" "}{filteredTemplates.length !== 1 ? translate("s") : ''}
           </div>
         </div>
       </div>
@@ -215,7 +214,7 @@ export function PromptGallery() {
                 <div className="mb-4 flex items-start justify-between">
                   <div>
                     <h2 className="text-lg font-semibold text-city-text">{selectedTemplate.name}</h2>
-                    <p className="text-sm text-city-text-muted mt-1">{selectedTemplate.description}</p>
+                    <p className="text-sm text-city-text-muted mt-1">{translateLabel(selectedTemplate.description)}</p>
                     <div className="flex flex-wrap gap-1 mt-2">
                       {selectedTemplate.tags.map((tag) => (
                         <span
@@ -230,7 +229,7 @@ export function PromptGallery() {
                   <button
                     onClick={() => setSelectedTemplate(null)}
                     className="p-2 rounded-lg hover:bg-city-border/50 text-city-text-muted hover:text-city-text transition-colors"
-                    title="Close"
+                    title={translate("Close")}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -239,7 +238,7 @@ export function PromptGallery() {
                 </div>
                 <TemplateViewer
                   content={selectedTemplate.content}
-                  title="Full Template Content"
+                  title={translate("Full Template Content")}
                   maxHeight="calc(100vh - 300px)"
                 />
               </div>

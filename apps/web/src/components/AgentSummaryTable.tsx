@@ -1,3 +1,7 @@
+import { PanelAdjustmentControl } from './PanelAdjustmentControl';
+import { translateLabel, useLocale, translate } from '../i18n';
+
+import { useAllAgentStats } from '../stores/agentStats';
 import React, { useState, useCallback, useMemo, memo, type ReactNode } from 'react';
 import { useAgents, useEvents, useWorldStore, type WorldEvent } from '../stores/world';
 import { useDraggablePanel } from '../hooks/useDraggablePanel';
@@ -134,7 +138,9 @@ function calculateStrategy(agentId: string, events: WorldEvent[]): { type: strin
 }
 
 export function AgentSummaryTable() {
+  useLocale();
   const agents = useAgents();
+  const stats = useAllAgentStats();
   const events = useEvents();
   const selectAgent = useWorldStore((s) => s.selectAgent);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -142,8 +148,9 @@ export function AgentSummaryTable() {
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
 
   // Use draggable panel hook (replaces manual drag logic)
-  const { position, handlers } = useDraggablePanel({
+  const { panelRef, position, viewport, handlers, adjustments } = useDraggablePanel({
     initialPosition: INITIAL_POSITION,
+    minWidth: MIN_PANEL_WIDTH,
     clampToViewport: true,
   });
 
@@ -228,12 +235,15 @@ export function AgentSummaryTable() {
 
   return (
     <div
+      ref={panelRef}
+      aria-label={translate("Agents panel")}
       className="floating-panel fixed"
       style={{
         left: position.x,
         top: position.y,
         zIndex: 100,
-        minWidth: isCollapsed ? 'auto' : `${MIN_PANEL_WIDTH}px`,
+        minWidth: isCollapsed ? 'auto' : `min(${MIN_PANEL_WIDTH}px, calc(100vw - 16px))`,
+        maxWidth: viewport.width - 16, maxHeight: viewport.height - viewport.top - 8, overflow: 'auto',
       }}
     >
       {/* Header - Draggable */}
@@ -249,18 +259,19 @@ export function AgentSummaryTable() {
             <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
             <path d="M16 3.13a4 4 0 0 1 0 7.75" />
           </svg>
-          <span className="font-medium text-city-text text-sm">Agents</span>
+          <span className="font-medium text-city-text text-sm">{translate("Agents")}</span>
           <span className="text-xs text-city-text-muted">({sortedAgents.length})</span>
         </div>
         <div className="flex items-center gap-1">
+          <PanelAdjustmentControl label="Move agents panel" onKeyDown={handlers.onMoveKeyDown} adjust={adjustments.move} reset={adjustments.resetPosition} />
           <button
             onClick={() => setShowAll(!showAll)}
-            className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+            className={`w-11 h-11 rounded flex items-center justify-center transition-colors ${
               showAll
                 ? 'bg-city-accent/20 text-city-accent'
                 : 'text-city-text-muted hover:text-city-accent hover:bg-city-surface-hover'
             }`}
-            title={showAll ? 'Show active only' : 'Show all agents'}
+            title={showAll ? translate("Show active only") : translate("Show all agents")}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -268,8 +279,10 @@ export function AgentSummaryTable() {
             </svg>
           </button>
           <button
+            aria-label={translate(isCollapsed ? "Expand agents panel" : "Collapse agents panel")}
+            aria-expanded={!isCollapsed}
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="w-6 h-6 rounded flex items-center justify-center text-city-text-muted hover:text-city-accent hover:bg-city-surface-hover transition-colors"
+            className="w-11 h-11 rounded flex items-center justify-center text-city-text-muted hover:text-city-accent hover:bg-city-surface-hover transition-colors"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${isCollapsed ? 'rotate-180' : ''}`}>
               <polyline points="18 15 12 9 6 15" />
@@ -282,7 +295,7 @@ export function AgentSummaryTable() {
       {!isCollapsed && personalityDistribution && (
         <div className="px-3 pt-2 pb-1 border-b border-city-border/30">
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-[10px] text-city-text-muted uppercase tracking-wider">Personalities</span>
+            <span className="text-[10px] text-city-text-muted uppercase tracking-wider">{translate("Personalities")}</span>
           </div>
           <div className="flex h-2 rounded overflow-hidden bg-city-bg">
             {Object.entries(personalityDistribution).map(([trait, count]) => {
@@ -296,7 +309,7 @@ export function AgentSummaryTable() {
                     width: `${percentage}%`,
                     backgroundColor: PERSONALITY_COLORS[trait] || '#6b7280',
                   }}
-                  title={`${trait}: ${count} (${Math.round(percentage)}%)`}
+                  title={`${translateLabel(trait.charAt(0).toUpperCase() + trait.slice(1))}: ${count} (${Math.round(percentage)}%)`}
                 />
               );
             })}
@@ -321,19 +334,19 @@ export function AgentSummaryTable() {
           <table className="w-full">
             <thead>
               <tr className="text-city-text-muted text-[10px] uppercase tracking-wider">
-                <th className="text-left pb-2 font-medium">Agent</th>
-                <th className="text-center pb-2 font-medium">HP</th>
-                <th className="text-center pb-2 font-medium">HUN</th>
-                <th className="text-center pb-2 font-medium">NRG</th>
-                <th className="text-right pb-2 font-medium">Balance</th>
-                <th className="text-left pb-2 pl-4 font-medium">Strategy</th>
+                <th className="text-left pb-2 font-medium">{translate("Agent")}</th>
+                <th className="text-center pb-2 font-medium">{translate("HP")}</th>
+                <th className="text-center pb-2 font-medium">{translate("HUN")}</th>
+                <th className="text-center pb-2 font-medium">{translate("NRG")}</th>
+                <th className="text-right pb-2 font-medium">{translate("Balance")}</th>
+                <th className="text-left pb-2 pl-4 font-medium">{translate("Strategy")}</th>
               </tr>
             </thead>
             <tbody className="text-sm">
               {sortedAgents.map((agent) => {
                 const strategy = agentStrategies[agent.id];
                 const isExpanded = expandedAgents.has(agent.id);
-                const displayName = sanitizeText(agent.llmType, 20);
+                const displayName = sanitizeText(agent.name ?? agent.llmType, 100);
                 return (
                   <React.Fragment key={agent.id}>
                     <tr
@@ -346,9 +359,10 @@ export function AgentSummaryTable() {
                             className="w-2.5 h-2.5 rounded-full ring-1 ring-white/10"
                             style={{ backgroundColor: agent.color }}
                           />
-                          <span className="text-city-text capitalize text-xs font-medium">
-                            {displayName}
-                          </span>
+                          <button type="button" className="min-h-11 text-city-text text-left text-xs font-medium" onClick={event => toggleAgentExpand(agent.id, event)} aria-expanded={isExpanded} aria-controls={`agent-details-${agent.id}`} aria-label={translate('Agent details for {agent}', { agent: displayName })}>
+                            {displayName} {isExpanded ? '▾' : '▸'}
+                            <span className="block text-city-text-muted break-all">{stats[agent.id]?.lastModelId ?? translate('Model not yet reported')}</span>
+                          </button>
                         </div>
                       </td>
                       <td className="text-center py-1.5">
@@ -376,21 +390,21 @@ export function AgentSummaryTable() {
                         <div className="flex items-center gap-1.5">
                           <StrategyIcon type={strategy?.type || 'idle'} />
                           <span className="text-city-text-muted text-xs">
-                            {strategy?.label}
+                            {translateLabel(strategy?.label)}
                           </span>
                         </div>
                       </td>
                     </tr>
                     {/* Expanded details */}
                     {isExpanded && (
-                      <tr>
+                      <tr id={`agent-details-${agent.id}`}>
                         <td colSpan={6} className="pb-2">
                           <div className="ml-6 pl-3 border-l-2 border-city-border/30 py-2 space-y-2">
                             {/* Position */}
                             <div className="flex items-center gap-4 text-xs">
-                              <span className="text-city-text-muted">Position:</span>
+                              <span className="text-city-text-muted">{translate("Position:")}</span>
                               <span className="font-mono text-city-text">({agent.x}, {agent.y})</span>
-                              <span className="text-city-text-muted">State:</span>
+                              <span className="text-city-text-muted">{translate("State:")}</span>
                               <span className={`capitalize ${agent.state === 'dead' ? 'text-status-error' : 'text-city-text'}`}>
                                 {agent.state}
                               </span>
@@ -399,7 +413,7 @@ export function AgentSummaryTable() {
                             <div className="grid grid-cols-3 gap-3">
                               <div className="space-y-1">
                                 <div className="flex justify-between text-[10px]">
-                                  <span className="text-city-text-muted">Health</span>
+                                  <span className="text-city-text-muted">{translate("Health")}</span>
                                   <span className={agent.health < 30 ? 'text-status-error' : 'text-city-text'}>{Math.round(clampPercent(agent.health))}</span>
                                 </div>
                                 <div className="h-1 bg-city-bg rounded-full overflow-hidden">
@@ -411,7 +425,7 @@ export function AgentSummaryTable() {
                               </div>
                               <div className="space-y-1">
                                 <div className="flex justify-between text-[10px]">
-                                  <span className="text-city-text-muted">Hunger</span>
+                                  <span className="text-city-text-muted">{translate("Hunger")}</span>
                                   <span className={agent.hunger < 20 ? 'text-status-error' : 'text-city-text'}>{Math.round(clampPercent(agent.hunger))}</span>
                                 </div>
                                 <div className="h-1 bg-city-bg rounded-full overflow-hidden">
@@ -423,7 +437,7 @@ export function AgentSummaryTable() {
                               </div>
                               <div className="space-y-1">
                                 <div className="flex justify-between text-[10px]">
-                                  <span className="text-city-text-muted">Energy</span>
+                                  <span className="text-city-text-muted">{translate("Energy")}</span>
                                   <span className={agent.energy < 20 ? 'text-status-error' : 'text-city-text'}>{Math.round(clampPercent(agent.energy))}</span>
                                 </div>
                                 <div className="h-1 bg-city-bg rounded-full overflow-hidden">
@@ -438,9 +452,7 @@ export function AgentSummaryTable() {
                             <button
                               onClick={(e) => handleSelectAgent(agent.id, e)}
                               className="text-[10px] text-city-accent hover:text-city-accent/80 transition-colors"
-                            >
-                              View on map →
-                            </button>
+                            >{translate("View on map →")}</button>
                           </div>
                         </td>
                       </tr>
@@ -450,9 +462,7 @@ export function AgentSummaryTable() {
               })}
               {sortedAgents.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center text-city-text-muted py-6 text-xs">
-                    No active agents
-                  </td>
+                  <td colSpan={6} className="text-center text-city-text-muted py-6 text-xs">{translate("No active agents")}</td>
                 </tr>
               )}
             </tbody>

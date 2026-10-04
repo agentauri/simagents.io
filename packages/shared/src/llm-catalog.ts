@@ -37,6 +37,9 @@ export type AgentRosterProvider = LLMType | BaselineLLMType;
 export type ReasoningLevel = string | number | boolean;
 
 export interface AgentRosterEntry {
+  connectionId?: string;
+  capabilities?: import('./connections').ModelCapabilities;
+  id?: string;
   name: string;
   provider: AgentRosterProvider;
   modelId: string;
@@ -71,9 +74,10 @@ const grokEffort: ReasoningCapability = {
   default: 'low',
 };
 
-const zAiEndpoint = ['https://api.z.ai', 'api/coding/paas/v4/chat/completions'].join('/');
+const zAiEndpoint = ['https://api.z.ai', 'api/paas/v4/chat/completions'].join('/');
 
 export const LLM_CATALOG: ProviderCatalogEntry[] = [
+  { id: 'openrouter', displayName: 'OpenRouter', endpoint: 'https://openrouter.ai/api/v1/chat/completions', authStyle: 'bearer', cors: 'direct', docsUrl: 'https://openrouter.ai/settings/keys', defaultModelId: 'openai/gpt-5.4-mini', models: [] },
   {
     id: 'claude',
     displayName: 'Claude (Anthropic)',
@@ -113,9 +117,9 @@ export const LLM_CATALOG: ProviderCatalogEntry[] = [
     docsUrl: 'https://aistudio.google.com/apikey',
     defaultModelId: 'gemini-3.5-flash',
     models: [
-      { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', reasoning: geminiThinkingBudget },
-      { id: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro', reasoning: geminiThinkingBudget },
-      { id: 'gemini-3-flash', label: 'Gemini 3 Flash', reasoning: geminiThinkingBudget },
+      { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', reasoning: { kind: 'effort', levels: ['minimal', 'low', 'medium', 'high'], default: 'low' } },
+      { id: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro', reasoning: { kind: 'effort', levels: ['minimal', 'low', 'medium', 'high'], default: 'low' } },
+      { id: 'gemini-3-flash', label: 'Gemini 3 Flash', reasoning: { kind: 'effort', levels: ['minimal', 'low', 'medium', 'high'], default: 'low' } },
       { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', reasoning: geminiThinkingBudget },
       { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', reasoning: geminiThinkingBudget },
     ],

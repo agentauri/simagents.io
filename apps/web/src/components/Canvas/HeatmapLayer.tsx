@@ -1,3 +1,5 @@
+import { translateLabel, translate, useLocale } from '../../i18n';
+
 /**
  * Heatmap Layer Component
  *
@@ -42,6 +44,7 @@ interface HeatmapLayerProps {
 }
 
 export function HeatmapLayer({ camera, zoom, width, height }: HeatmapLayerProps) {
+  useLocale();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const { metric, opacity, enabled } = useHeatmapSettings();
@@ -117,7 +120,7 @@ export function HeatmapLayer({ camera, zoom, width, height }: HeatmapLayerProps)
         }
         break;
 
-      case 'activity':
+      case 'activity': {
         // Count recent events at each position (using deferred events)
         const recentEvents = deferredEvents.slice(0, 50);
         for (const event of recentEvents) {
@@ -145,8 +148,9 @@ export function HeatmapLayer({ camera, zoom, width, height }: HeatmapLayerProps)
         }
         break;
 
+      }
       case 'trust':
-      case 'conflict':
+      case 'conflict': {
         // Filter events by type (using deferred events and shared constants)
         const targetTypes: readonly string[] =
           metric === 'trust' ? TRUST_EVENT_TYPES : CONFLICT_EVENT_TYPES;
@@ -177,6 +181,7 @@ export function HeatmapLayer({ camera, zoom, width, height }: HeatmapLayerProps)
           }
         }
         break;
+      }
     }
 
     // Normalize grid values
@@ -258,6 +263,7 @@ export function HeatmapLayer({ camera, zoom, width, height }: HeatmapLayerProps)
  * UI for selecting heatmap metric and adjusting opacity
  */
 export function HeatmapControls() {
+  useLocale();
   const {
     setHeatmapMetric,
     setHeatmapOpacity,
@@ -291,15 +297,18 @@ export function HeatmapControls() {
         onMouseDown={handlers.onDragStart}
         onPointerDown={handlers.onDragStart}
       >
-        <span className="text-xs font-medium text-city-text">Heatmap</span>
+        <span className="text-xs font-medium text-city-text">{translate('Heatmap')}</span>
         <button
           onClick={toggleHeatmap}
-          className={`relative w-8 h-4 rounded-full transition-colors ${
+          role="switch"
+          aria-label={translate('Enable heatmap')}
+          aria-checked={heatmapEnabled}
+          className={`relative min-w-11 min-h-11 rounded transition-colors ${
             heatmapEnabled ? 'bg-city-accent' : 'bg-city-border'
           }`}
         >
           <div
-            className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${
+            className={`absolute top-4 w-3 h-3 rounded-full bg-white transition-transform ${
               heatmapEnabled ? 'left-4' : 'left-0.5'
             }`}
           />
@@ -315,18 +324,18 @@ export function HeatmapControls() {
                 onClick={() => setHeatmapMetric(m.value)}
                 className={`px-2 py-1 rounded text-[10px] transition-colors ${
                   heatmapMetric === m.value
-                    ? 'bg-city-accent text-white'
+                    ? 'bg-city-accent text-gray-950'
                     : 'bg-city-bg text-city-text-muted hover:bg-city-border'
                 }`}
               >
                 <span className="mr-1">{m.icon}</span>
-                {m.label}
+                {translateLabel(m.label)}
               </button>
             ))}
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-city-text-muted">Opacity</span>
+            <span className="text-[10px] text-city-text-muted">{translate("Opacity")}</span>
             <input
               type="range"
               min="0.1"

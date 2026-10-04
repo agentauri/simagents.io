@@ -1,3 +1,4 @@
+import { useLocale, translate } from '../../../i18n';
 /**
  * TemporalPanel - Temporal metrics visualization
  */
@@ -7,13 +8,12 @@ import { MetricCard } from '../MetricCard';
 import { LineChart } from '../charts/LineChart';
 
 export function TemporalPanel() {
+  useLocale();
   const temporal = useTemporalMetrics();
 
   if (!temporal) {
     return (
-      <div className="flex items-center justify-center h-32 text-city-text-muted text-sm">
-        Loading temporal metrics...
-      </div>
+      <div className="flex items-center justify-center h-32 text-city-text-muted text-sm">{translate("Loading temporal metrics...")}</div>
     );
   }
 
@@ -28,9 +28,9 @@ export function TemporalPanel() {
     ? tickDurations.reduce((sum, d) => sum + d.actionsExecuted, 0) / tickDurations.length
     : 0;
 
-  const totalEvents = eventsByTick.reduce((sum, d) => sum + d.eventCount, 0);
+  const totalEvents = temporal.totalEvents ?? eventsByTick.reduce((sum, d) => sum + d.eventCount, 0);
 
-  // Prepare line chart data for tick durations
+  // Prepare line chart data for decision latencys
   const durationLineData = [{
     id: 'duration',
     color: '#e07a5f',
@@ -75,33 +75,30 @@ export function TemporalPanel() {
       {/* Overview cards */}
       <div className="grid grid-cols-3 gap-2">
         <MetricCard
-          label="Current Tick"
+          label={translate("Current Tick")}
           value={currentTick}
         />
         <MetricCard
-          label="Avg Duration"
+          label={translate("Avg max decision latency")}
           value={`${avgDuration.toFixed(0)}ms`}
           color={avgDuration > 5000 ? 'warning' : 'default'}
         />
         <MetricCard
-          label="Total Events"
+          label={translate("Total Events")}
           value={totalEvents.toLocaleString()}
         />
       </div>
 
       {/* Actions per tick */}
       <div className="bg-city-surface-hover/20 rounded-lg p-3">
-        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">
-          Avg Actions/Tick: {avgActions.toFixed(1)}
+        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">{translate("Avg Actions/Tick:")}{" "}{avgActions.toFixed(1)}
         </div>
       </div>
 
       {/* Tick duration over time */}
       {tickDurations.length > 0 && (
         <div>
-          <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">
-            Tick Duration (ms)
-          </div>
+          <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">{translate("Max decision latency (ms)")}</div>
           <LineChart
             data={durationLineData}
             height={120}
@@ -112,9 +109,7 @@ export function TemporalPanel() {
       {/* Actions per tick over time */}
       {tickDurations.length > 0 && (
         <div>
-          <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">
-            Actions per Tick
-          </div>
+          <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">{translate("Actions per Tick")}</div>
           <LineChart
             data={actionsLineData}
             height={120}
@@ -125,9 +120,7 @@ export function TemporalPanel() {
       {/* Events per tick */}
       {eventsByTick.length > 0 && (
         <div>
-          <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">
-            Events per Tick
-          </div>
+          <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">{translate("Events per Tick")}</div>
           <LineChart
             data={eventsLineData}
             height={120}
@@ -138,9 +131,7 @@ export function TemporalPanel() {
       {/* Agent count over time */}
       {tickDurations.length > 0 && tickDurations.some((d) => d.agentCount > 0) && (
         <div>
-          <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">
-            Active Agents over Time
-          </div>
+          <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">{translate("Active Agents over Time")}</div>
           <LineChart
             data={agentCountData}
             height={120}
@@ -151,17 +142,15 @@ export function TemporalPanel() {
       {/* Recent ticks table */}
       {tickDurations.length > 0 && (
         <div>
-          <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">
-            Recent Ticks
-          </div>
+          <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">{translate("Recent Ticks")}</div>
           <div className="bg-city-surface-hover/20 rounded-lg overflow-hidden">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-city-border">
-                  <th className="px-2 py-1 text-left text-city-text-muted">Tick</th>
-                  <th className="px-2 py-1 text-right text-city-text-muted">Duration</th>
-                  <th className="px-2 py-1 text-right text-city-text-muted">Agents</th>
-                  <th className="px-2 py-1 text-right text-city-text-muted">Actions</th>
+                  <th className="px-2 py-1 text-left text-city-text-muted">{translate("Tick")}</th>
+                  <th className="px-2 py-1 text-right text-city-text-muted">{translate("Max decision latency")}</th>
+                  <th className="px-2 py-1 text-right text-city-text-muted">{translate("Agents")}</th>
+                  <th className="px-2 py-1 text-right text-city-text-muted">{translate("Actions")}</th>
                 </tr>
               </thead>
               <tbody>

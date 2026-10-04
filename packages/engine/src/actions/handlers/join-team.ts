@@ -28,7 +28,7 @@ import {
 } from '../../db/queries/puzzles';
 import { getAgentById } from '../../db/queries/agents';
 import { storeMemory, updateRelationshipTrust } from '../../db/queries/memories';
-import { CONFIG } from '../../config';
+import { getRuntimeConfig } from '../../config';
 
 export async function handleJoinTeam(
   intent: ActionIntent<JoinTeamParams>,
@@ -37,7 +37,7 @@ export async function handleJoinTeam(
   const { teamId } = intent.params;
 
   // Check if puzzle system is enabled
-  if (!CONFIG.puzzle.enabled) {
+  if (!getRuntimeConfig().puzzle.enabled) {
     return {
       success: false,
       error: 'Puzzle game system is not enabled',
@@ -98,10 +98,10 @@ export async function handleJoinTeam(
 
   // Check team is not full
   const members = await getTeamMembers(teamId);
-  if (members.length >= CONFIG.puzzle.maxTeamSize) {
+  if (members.length >= getRuntimeConfig().puzzle.maxTeamSize) {
     return {
       success: false,
-      error: `Team is full (max ${CONFIG.puzzle.maxTeamSize} members)`,
+      error: `Team is full (max ${getRuntimeConfig().puzzle.maxTeamSize} members)`,
     };
   }
 

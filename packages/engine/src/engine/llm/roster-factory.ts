@@ -1,22 +1,32 @@
+import type { RequestTrace } from './request-trace';
 import {
   getDefaultModelId,
   isBaselineProviderId,
   isLLMProviderId,
   type AgentRosterEntry,
   type LLMType,
+  type ConnectionProfile,
+  validateConnectionProfile,
 } from '@simagents/shared';
 import type { Agent } from '../../db/schema';
 import { store } from '../../engine-memory/store';
 import {
   BaselineDecisionProvider,
-  type DecisionContext,
   type DecisionProvider,
 } from '../decision';
-import type { LLMDecisionProviderConfig } from './llm-provider';
+// Keep the provider in the Worker entry bundle. A lazy chunk can import the
+// entry back and reinstall onmessage with an empty session in WebKit.
+import { LLMDecisionProvider } from './llm-provider';
 import { ProviderUnavailableError } from './request-builder';
+import type { RequestBudget } from './request-budget';
 import type { KeySource } from './keys';
 
 export interface RosterProviderFactoryOptions {
+  onTrace?: (trace: RequestTrace) => void;
+  traceSecrets?: string[];
+  budget?: RequestBudget;
+  connections?: ConnectionProfile[];
+  getRelayAccessToken?: (profile: ConnectionProfile) => string | undefined;
   proxyUrl?: string;
   maxTokens?: number;
   temperature?: number;
@@ -36,63 +46,62 @@ export function createRosterProviderFactory(
   keySource: KeySource,
   options: RosterProviderFactoryOptions = {}
 ): RosterProviderFactory {
-  // Deterministic binding: an agent is driven by the roster entry whose NAME
-  // matches the agent's seeded name. Seeding bakes identity (name/color/
-  // llmType) from the roster, agent names are persisted in world snapshots,
-  // and the roster store deduplicates names - so this mapping is stable
-  // across runner-sync order, world resume, and agent deaths. (A round-robin
-  // over request order would scramble identity vs. driving model, because
-  // getAliveAgents sorts by llmType, not roster order.)
-  const entriesByName = new Map<string, AgentRosterEntry>();
-  for (const entry of roster) {
-    if (!entriesByName.has(entry.name)) entriesByName.set(entry.name, entry);
-  }
-  const resolvedByAgentId = new Map<string, AgentRosterEntry | undefined>();
-
-  const entryForAgent = (agent: Agent): AgentRosterEntry | undefined => {
-    if (resolvedByAgentId.has(agent.id)) return resolvedByAgentId.get(agent.id);
-
-    const agentName = (agent as Agent & { name?: string }).name;
-    let entry = agentName ? entriesByName.get(agentName) : undefined;
-
-    if (!entry) {
-      // Reproduction newborns have no roster entry of their own: they inherit
-      // the provider of their first recorded parent (one lineage hop).
-      const lineage = [...store.agentLineages.values()].find(
-        (candidate) => candidate.agentId === agent.id
-      );
-      const parentIds = (lineage?.parentIds as string[] | null | undefined) ?? [];
-      const parentId = parentIds[0] ?? lineage?.spawnedByParentId ?? undefined;
-      const parent = parentId ? store.agents.get(parentId) : undefined;
-      const parentName = parent ? (parent as Agent & { name?: string }).name : undefined;
-      entry = parentName ? entriesByName.get(parentName) : undefined;
-    }
-
-    resolvedByAgentId.set(agent.id, entry);
-    return entry;
+  const connections = new Map((options.connections ?? []).map((profile) => [profile.id, validateConnectionProfile(profile)]));
+  const entriesById = new Map(roster.map((entry) => [entry.id ?? `legacy:${entry.name}`, entry]));
+  const entriesByName = new Map(roster.map((entry) => [entry.name, entry]));
+  const entryForAgent = (agent: Agent, visited = new Set<string>()): AgentRosterEntry | undefined => {
+    if (visited.has(agent.id)) return undefined;
+    visited.add(agent.id);
+    if (agent.rosterEntryId) return entriesById.get(agent.rosterEntryId);
+    if (agent.connectionId && entriesById.has(agent.connectionId)) return entriesById.get(agent.connectionId);
+    // Legacy snapshot migration only; new agents carry connectionId.
+    const entry = agent.name ? entriesByName.get(agent.name) : undefined;
+    if (entry) { agent.rosterEntryId = entry.id ?? `legacy:${entry.name}`; return entry; }
+    const lineage = [...store.agentLineages.values()].find((row) => row.agentId === agent.id);
+    const parentId = lineage?.parentIds?.[0] ?? lineage?.spawnedByParentId;
+    const parent = parentId ? store.agents.get(parentId) : undefined;
+    const inherited = parent ? entryForAgent(parent, visited) : undefined;
+    if (inherited) agent.rosterEntryId = inherited.id ?? `legacy:${inherited.name}`;
+    return inherited;
   };
 
   return (agent) => {
     const entry = entryForAgent(agent);
 
     if (!entry) {
-      return new BaselineDecisionProvider('baseline_rule');
+      throw new Error(`No configured connection for agent ${agent.id}`);
     }
     if (isBaselineProviderId(entry.provider)) {
       return new BaselineDecisionProvider(entry.provider);
     }
     if (!isLLMProviderId(entry.provider)) {
-      return new BaselineDecisionProvider('baseline_rule');
+      throw new Error(`No configured connection for agent ${agent.id}`);
     }
 
-    const provider = entry.provider as LLMType;
-    const apiKey = keySource.getKey(provider);
+    const connection = entry.connectionId ? connections.get(entry.connectionId) : undefined;
+    if (entry.connectionId && !connection) throw new Error(`Connection profile not found: ${entry.connectionId}`);
+    // Upgrade old snapshots without relying on a display name on later resumes.
+    if (entry.connectionId) {
+      agent.rosterEntryId = entry.id ?? `legacy:${entry.name}`;
+      agent.connectionId = entry.connectionId;
+    }
+    const provider = (connection?.providerId ?? entry.provider) as LLMType;
+    const apiKey = keySource.getKey(connection?.credentialRef ?? provider);
     if (!apiKey) {
       return new UnavailableDecisionProvider(provider, 'no-key');
     }
 
-    return new LazyLLMDecisionProvider({
+    return new LLMDecisionProvider({
       provider,
+      budget: options.budget,
+      onTrace: options.onTrace,
+      traceSecrets: options.traceSecrets,
+      connectionId: connection?.id ?? provider,
+      connection,
+      relayAccessToken: connection?.relayCredentialRef ? keySource.getKey(connection.relayCredentialRef) : undefined,
+      getRelayAccessToken: connection?.transport === 'official-relay' && options.getRelayAccessToken
+        ? () => options.getRelayAccessToken!(connection) : undefined,
+      capabilities: entry.capabilities,
       modelId: entry.modelId || getDefaultModelId(provider),
       reasoningLevel: entry.reasoningLevel,
       apiKey,
@@ -101,24 +110,6 @@ export function createRosterProviderFactory(
       temperature: options.temperature,
     });
   };
-}
-
-class LazyLLMDecisionProvider implements DecisionProvider {
-  readonly kind: LLMType;
-  private delegate: DecisionProvider | undefined;
-
-  constructor(private readonly config: LLMDecisionProviderConfig) {
-    this.kind = config.provider;
-  }
-
-  async decide(ctx: DecisionContext, signal: AbortSignal) {
-    if (!this.delegate) {
-      const { LLMDecisionProvider } = await import('./llm-provider');
-      this.delegate = new LLMDecisionProvider(this.config);
-    }
-
-    return this.delegate.decide(ctx, signal);
-  }
 }
 
 class UnavailableDecisionProvider implements DecisionProvider {

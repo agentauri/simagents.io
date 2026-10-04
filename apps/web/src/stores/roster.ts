@@ -6,6 +6,7 @@ import {
   type AgentRosterEntry,
   type AgentRosterProvider,
 } from '@simagents/shared';
+import { internalFixturesEnabled } from '../services/byok-preflight';
 import { create } from 'zustand';
 
 const ROSTER_STORAGE_KEY = 'simagents_agent_roster';
@@ -27,7 +28,8 @@ function canUseLocalStorage(): boolean {
 }
 
 function cloneDefaultRoster(): AgentRosterEntry[] {
-  return DEFAULT_AGENT_ROSTER.map((entry) => ({ ...entry }));
+  const defaults = internalFixturesEnabled() ? DEFAULT_AGENT_ROSTER : [{ name: 'Agent 1', provider: 'claude' as const, modelId: getDefaultModelId('claude'), color: '#e07a5f' }];
+  return defaults.map((entry) => ({ ...entry, id: 'id' in entry && entry.id ? entry.id : `legacy:${entry.name}` }));
 }
 
 function defaultName(provider: AgentRosterProvider, index: number): string {
@@ -51,6 +53,9 @@ function normalizeEntry(
   const color = entry.color?.trim() || DEFAULT_COLOR;
 
   return {
+    connectionId: entry.connectionId,
+    capabilities: entry.capabilities,
+    id: entry.id ?? `legacy:${name}`,
     name,
     provider,
     modelId,
@@ -60,11 +65,7 @@ function normalizeEntry(
   };
 }
 
-/**
- * The entry NAME is the stable key binding a seeded agent to its roster entry
- * (see engine/llm/roster-factory.ts) and it survives world resume, so
- * duplicates must be disambiguated everywhere the roster is mutated.
- */
+/** Names are display labels; connection identity is retained by entry.id. */
 function dedupeNames(entries: AgentRosterEntry[]): AgentRosterEntry[] {
   const seen = new Map<string, number>();
   return entries.map((entry) => {
@@ -111,7 +112,7 @@ export const useRosterStore = create<RosterState>((set, get) => ({
 
   addEntry: (entry) => {
     const roster = get().roster;
-    const normalized = normalizeEntry(entry, roster.length);
+    const normalized = normalizeEntry({ ...entry, id: crypto.randomUUID() }, roster.length);
     if (!normalized) return;
 
     const nextRoster = dedupeNames([...roster, normalized]);
@@ -131,17 +132,18 @@ export const useRosterStore = create<RosterState>((set, get) => ({
     if (!current) return;
 
     const providerChanged = patch.provider !== undefined && patch.provider !== current.provider;
+    const identityChanged = providerChanged || (patch.connectionId !== undefined && patch.connectionId !== current.connectionId) || (patch.modelId !== undefined && patch.modelId !== current.modelId);
     const merged = {
       ...current,
       ...patch,
+      capabilities: Object.hasOwn(patch, 'capabilities') ? patch.capabilities : identityChanged ? undefined : current.capabilities,
+      connectionId: providerChanged && patch.connectionId === undefined ? undefined : patch.connectionId ?? current.connectionId,
       modelId: providerChanged && patch.modelId === undefined
         ? undefined
         : patch.modelId ?? current.modelId,
       // A reasoning level only makes sense for the provider it was chosen for:
       // reset it on provider change so a stale value never leaks across kinds.
-      reasoningLevel: providerChanged && patch.reasoningLevel === undefined
-        ? undefined
-        : patch.reasoningLevel ?? current.reasoningLevel,
+      reasoningLevel: Object.hasOwn(patch, 'reasoningLevel') ? patch.reasoningLevel : identityChanged ? undefined : current.reasoningLevel,
     };
     const normalized = normalizeEntry(merged, index);
     if (!normalized) return;

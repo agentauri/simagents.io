@@ -1,0 +1,955 @@
+{
+  "schemaVersion": 1,
+  "version": "provider-minimum-v1",
+  "status": "draft-not-authorized",
+  "preparedAt": "2026-10-04",
+  "candidateCommit": null,
+  "candidateId": null,
+  "spaOrigin": null,
+  "relayOrigin": null,
+  "admissionOrigin": null,
+  "approval": null,
+  "budget": {
+    "proposedCurrency": "USD",
+    "proposedMaximum": 5,
+    "authorizedMaximum": null,
+    "maximumInferenceAttempts": 48,
+    "maximumOutputTokensPerAttempt": 1024,
+    "maximumPromptUtf8BytesPerAttempt": 32768,
+    "conservativeInputTokenAllowancePerAttempt": 65536,
+    "taxesAndAccountFeesIncludedInPublishedRates": false,
+    "stopOnFirstError": true,
+    "automaticRetries": 0,
+    "automaticFallbacks": 0,
+    "conservativeListedRateEstimateUsd": 2.254848
+  },
+  "worldProtocol": {
+    "seed": "provider-compatibility-v1",
+    "agents": 1,
+    "speed": 1,
+    "customPrompt": "For this release connection check, choose the signal action with message \"release verification\" and intensity 1. Return the required JSON action. Do not use tools or request a different model.",
+    "decisionsRequiredPerCombination": 3,
+    "probeRequiredPerCombination": 1,
+    "note": "The three decisions must pass through the production simulation and be recorded as world actions; mock/probe-only evidence cannot pass this matrix.",
+    "customPromptSha256": "58b9760cf12c34853e1515fb78aa2a3fdab5f24f03d8813cabd9633804636b0b"
+  },
+  "unverifiedVariants": [
+    "Direct/browser transport unless separately executed",
+    "Qwen China/other regions",
+    "GLM Coding Plan",
+    "Regional/commercial endpoints not explicitly listed",
+    "Azure/Bedrock/Vertex and local models are outside release scope"
+  ],
+  "combinations": [
+    {
+      "id": "openai-responses",
+      "providerId": "codex",
+      "exactRequestedModel": "gpt-5.4-mini-2026-03-17",
+      "protocol": "openai-responses",
+      "endpoint": "https://api.openai.com/v1/responses",
+      "regionOrPlan": "global standard",
+      "transport": "official-relay",
+      "apiVersion": "endpoint v1/v4 path; no extra version header",
+      "credentialReference": "SIMAGENTS_VERIFY_CODEX_API_KEY",
+      "relayCredentialReference": "memory-only staging admission token",
+      "capabilities": {
+        "temperature": false,
+        "output": "text-json",
+        "tokenParameter": "max_completion_tokens",
+        "reasoning": "effort",
+        "maxOutputTokens": 1024
+      },
+      "parameters": {
+        "maxOutputTokens": 1024,
+        "stream": false,
+        "tools": false,
+        "temperature": null,
+        "reasoningLevel": "none"
+      },
+      "pricing": {
+        "status": "documented-not-account-verified",
+        "currency": "USD",
+        "inputPerMillion": 0.75,
+        "outputPerMillion": 4.5,
+        "retrievedAt": "2026-10-04",
+        "source": "https://developers.openai.com/api/docs/models/gpt-5.4-mini",
+        "conditions": [
+          "global standard",
+          "Standard synchronous text requests; no batch, cache discounts, tools or promotion assumed",
+          "Billing/account access and current availability must be checked before the bounded run"
+        ]
+      },
+      "verification": {
+        "status": "unverified",
+        "testedVersion": null,
+        "verifiedAt": null,
+        "reportedModel": null,
+        "reportedUsage": null,
+        "latencyMs": null,
+        "errorCode": null,
+        "evidence": null
+      },
+      "calls": [
+        {
+          "attemptId": "openai-responses:probe",
+          "kind": "connection-probe",
+          "sequence": 1,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "openai-responses:decision-1",
+          "kind": "simulation-decision",
+          "sequence": 2,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "openai-responses:decision-2",
+          "kind": "simulation-decision",
+          "sequence": 3,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "openai-responses:decision-3",
+          "kind": "simulation-decision",
+          "sequence": 4,
+          "status": "not-authorized"
+        }
+      ]
+    },
+    {
+      "id": "openai-chat",
+      "providerId": "codex",
+      "exactRequestedModel": "gpt-5.4-mini-2026-03-17",
+      "protocol": "chat-completions",
+      "endpoint": "https://api.openai.com/v1/chat/completions",
+      "regionOrPlan": "global standard",
+      "transport": "official-relay",
+      "apiVersion": "endpoint v1/v4 path; no extra version header",
+      "credentialReference": "SIMAGENTS_VERIFY_CODEX_API_KEY",
+      "relayCredentialReference": "memory-only staging admission token",
+      "capabilities": {
+        "temperature": false,
+        "output": "text-json",
+        "tokenParameter": "max_completion_tokens",
+        "reasoning": "effort",
+        "maxOutputTokens": 1024
+      },
+      "parameters": {
+        "maxOutputTokens": 1024,
+        "stream": false,
+        "tools": false,
+        "temperature": null,
+        "reasoningLevel": "none"
+      },
+      "pricing": {
+        "status": "documented-not-account-verified",
+        "currency": "USD",
+        "inputPerMillion": 0.75,
+        "outputPerMillion": 4.5,
+        "retrievedAt": "2026-10-04",
+        "source": "https://developers.openai.com/api/docs/models/gpt-5.4-mini",
+        "conditions": [
+          "global standard",
+          "Standard synchronous text requests; no batch, cache discounts, tools or promotion assumed",
+          "Billing/account access and current availability must be checked before the bounded run"
+        ]
+      },
+      "verification": {
+        "status": "unverified",
+        "testedVersion": null,
+        "verifiedAt": null,
+        "reportedModel": null,
+        "reportedUsage": null,
+        "latencyMs": null,
+        "errorCode": null,
+        "evidence": null
+      },
+      "calls": [
+        {
+          "attemptId": "openai-chat:probe",
+          "kind": "connection-probe",
+          "sequence": 1,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "openai-chat:decision-1",
+          "kind": "simulation-decision",
+          "sequence": 2,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "openai-chat:decision-2",
+          "kind": "simulation-decision",
+          "sequence": 3,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "openai-chat:decision-3",
+          "kind": "simulation-decision",
+          "sequence": 4,
+          "status": "not-authorized"
+        }
+      ]
+    },
+    {
+      "id": "anthropic",
+      "providerId": "claude",
+      "exactRequestedModel": "claude-haiku-4-5-20251001",
+      "protocol": "anthropic-messages",
+      "endpoint": "https://api.anthropic.com/v1/messages",
+      "regionOrPlan": "first-party global",
+      "transport": "official-relay",
+      "apiVersion": "2023-06-01",
+      "credentialReference": "SIMAGENTS_VERIFY_CLAUDE_API_KEY",
+      "relayCredentialReference": "memory-only staging admission token",
+      "capabilities": {
+        "temperature": false,
+        "output": "text-json",
+        "tokenParameter": "max_tokens",
+        "reasoning": "none",
+        "maxOutputTokens": 1024
+      },
+      "parameters": {
+        "maxOutputTokens": 1024,
+        "stream": false,
+        "tools": false,
+        "temperature": null,
+        "reasoningLevel": null
+      },
+      "pricing": {
+        "status": "documented-not-account-verified",
+        "currency": "USD",
+        "inputPerMillion": 1,
+        "outputPerMillion": 5,
+        "retrievedAt": "2026-10-04",
+        "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+        "conditions": [
+          "first-party global",
+          "Standard synchronous text requests; no batch, cache discounts, tools or promotion assumed",
+          "Billing/account access and current availability must be checked before the bounded run"
+        ]
+      },
+      "verification": {
+        "status": "unverified",
+        "testedVersion": null,
+        "verifiedAt": null,
+        "reportedModel": null,
+        "reportedUsage": null,
+        "latencyMs": null,
+        "errorCode": null,
+        "evidence": null
+      },
+      "calls": [
+        {
+          "attemptId": "anthropic:probe",
+          "kind": "connection-probe",
+          "sequence": 1,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "anthropic:decision-1",
+          "kind": "simulation-decision",
+          "sequence": 2,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "anthropic:decision-2",
+          "kind": "simulation-decision",
+          "sequence": 3,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "anthropic:decision-3",
+          "kind": "simulation-decision",
+          "sequence": 4,
+          "status": "not-authorized"
+        }
+      ],
+      "notes": [
+        "Official model overview lists retirement not sooner than 2026-10-15. Recheck lifecycle immediately before execution/release."
+      ]
+    },
+    {
+      "id": "google",
+      "providerId": "gemini",
+      "exactRequestedModel": "gemini-2.5-flash-lite",
+      "protocol": "gemini-generate-content",
+      "endpoint": "https://generativelanguage.googleapis.com/v1beta/models",
+      "regionOrPlan": "Gemini Developer API paid standard",
+      "transport": "official-relay",
+      "apiVersion": "v1beta",
+      "credentialReference": "SIMAGENTS_VERIFY_GEMINI_API_KEY",
+      "relayCredentialReference": "memory-only staging admission token",
+      "capabilities": {
+        "temperature": false,
+        "output": "text-json",
+        "tokenParameter": "max_tokens",
+        "reasoning": "budget",
+        "maxOutputTokens": 1024
+      },
+      "parameters": {
+        "maxOutputTokens": 1024,
+        "stream": false,
+        "tools": false,
+        "temperature": null,
+        "reasoningLevel": 0
+      },
+      "pricing": {
+        "status": "documented-not-account-verified",
+        "currency": "USD",
+        "inputPerMillion": 0.1,
+        "outputPerMillion": 0.4,
+        "retrievedAt": "2026-10-04",
+        "source": "https://ai.google.dev/gemini-api/docs/pricing",
+        "conditions": [
+          "Gemini Developer API paid standard",
+          "Standard synchronous text requests; no batch, cache discounts, tools or promotion assumed",
+          "Billing/account access and current availability must be checked before the bounded run"
+        ]
+      },
+      "verification": {
+        "status": "unverified",
+        "testedVersion": null,
+        "verifiedAt": null,
+        "reportedModel": null,
+        "reportedUsage": null,
+        "latencyMs": null,
+        "errorCode": null,
+        "evidence": null
+      },
+      "calls": [
+        {
+          "attemptId": "google:probe",
+          "kind": "connection-probe",
+          "sequence": 1,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "google:decision-1",
+          "kind": "simulation-decision",
+          "sequence": 2,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "google:decision-2",
+          "kind": "simulation-decision",
+          "sequence": 3,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "google:decision-3",
+          "kind": "simulation-decision",
+          "sequence": 4,
+          "status": "not-authorized"
+        }
+      ],
+      "notes": [
+        "Explicit zero thinking budget is proposed; Gemini capability/parameter compatibility is unverified until execution."
+      ]
+    },
+    {
+      "id": "deepseek",
+      "providerId": "deepseek",
+      "exactRequestedModel": "deepseek-flash",
+      "protocol": "chat-completions",
+      "endpoint": "https://api.deepseek.com/v1/chat/completions",
+      "regionOrPlan": "global API peak/cache-miss conservative estimate",
+      "transport": "official-relay",
+      "apiVersion": "endpoint v1/v4 path; no extra version header",
+      "credentialReference": "SIMAGENTS_VERIFY_DEEPSEEK_API_KEY",
+      "relayCredentialReference": "memory-only staging admission token",
+      "capabilities": {
+        "temperature": false,
+        "output": "text-json",
+        "tokenParameter": "max_tokens",
+        "reasoning": "thinking-toggle",
+        "maxOutputTokens": 1024
+      },
+      "parameters": {
+        "maxOutputTokens": 1024,
+        "stream": false,
+        "tools": false,
+        "temperature": null,
+        "reasoningLevel": false
+      },
+      "pricing": {
+        "status": "documented-not-account-verified",
+        "currency": "USD",
+        "inputPerMillion": 0.3,
+        "outputPerMillion": 1.2,
+        "retrievedAt": "2026-10-04",
+        "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+        "conditions": [
+          "global API peak/cache-miss conservative estimate",
+          "Standard synchronous text requests; no batch, cache discounts, tools or promotion assumed",
+          "Billing/account access and current availability must be checked before the bounded run"
+        ]
+      },
+      "verification": {
+        "status": "unverified",
+        "testedVersion": null,
+        "verifiedAt": null,
+        "reportedModel": null,
+        "reportedUsage": null,
+        "latencyMs": null,
+        "errorCode": null,
+        "evidence": null
+      },
+      "calls": [
+        {
+          "attemptId": "deepseek:probe",
+          "kind": "connection-probe",
+          "sequence": 1,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "deepseek:decision-1",
+          "kind": "simulation-decision",
+          "sequence": 2,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "deepseek:decision-2",
+          "kind": "simulation-decision",
+          "sequence": 3,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "deepseek:decision-3",
+          "kind": "simulation-decision",
+          "sequence": 4,
+          "status": "not-authorized"
+        }
+      ]
+    },
+    {
+      "id": "alibaba",
+      "providerId": "qwen",
+      "exactRequestedModel": "qwen-plus-2025-12-01",
+      "protocol": "chat-completions",
+      "endpoint": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
+      "regionOrPlan": "Singapore international; <=256k; non-thinking",
+      "transport": "official-relay",
+      "apiVersion": "endpoint v1/v4 path; no extra version header",
+      "credentialReference": "SIMAGENTS_VERIFY_QWEN_API_KEY",
+      "relayCredentialReference": "memory-only staging admission token",
+      "capabilities": {
+        "temperature": false,
+        "output": "text-json",
+        "tokenParameter": "max_tokens",
+        "reasoning": "enable-thinking",
+        "maxOutputTokens": 1024
+      },
+      "parameters": {
+        "maxOutputTokens": 1024,
+        "stream": false,
+        "tools": false,
+        "temperature": null,
+        "reasoningLevel": false
+      },
+      "pricing": {
+        "status": "documented-not-account-verified",
+        "currency": "USD",
+        "inputPerMillion": 0.4,
+        "outputPerMillion": 1.2,
+        "retrievedAt": "2026-10-04",
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "conditions": [
+          "Singapore international; <=256k; non-thinking",
+          "Standard synchronous text requests; no batch, cache discounts, tools or promotion assumed",
+          "Billing/account access and current availability must be checked before the bounded run"
+        ]
+      },
+      "verification": {
+        "status": "unverified",
+        "testedVersion": null,
+        "verifiedAt": null,
+        "reportedModel": null,
+        "reportedUsage": null,
+        "latencyMs": null,
+        "errorCode": null,
+        "evidence": null
+      },
+      "calls": [
+        {
+          "attemptId": "alibaba:probe",
+          "kind": "connection-probe",
+          "sequence": 1,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "alibaba:decision-1",
+          "kind": "simulation-decision",
+          "sequence": 2,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "alibaba:decision-2",
+          "kind": "simulation-decision",
+          "sequence": 3,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "alibaba:decision-3",
+          "kind": "simulation-decision",
+          "sequence": 4,
+          "status": "not-authorized"
+        }
+      ]
+    },
+    {
+      "id": "zai",
+      "providerId": "glm",
+      "exactRequestedModel": "glm-4.7",
+      "protocol": "chat-completions",
+      "endpoint": "https://api.z.ai/api/paas/v4/chat/completions",
+      "regionOrPlan": "global pay-as-you-go; excludes Coding Plan",
+      "transport": "official-relay",
+      "apiVersion": "endpoint v1/v4 path; no extra version header",
+      "credentialReference": "SIMAGENTS_VERIFY_GLM_API_KEY",
+      "relayCredentialReference": "memory-only staging admission token",
+      "capabilities": {
+        "temperature": false,
+        "output": "text-json",
+        "tokenParameter": "max_tokens",
+        "reasoning": "thinking-toggle",
+        "maxOutputTokens": 1024
+      },
+      "parameters": {
+        "maxOutputTokens": 1024,
+        "stream": false,
+        "tools": false,
+        "temperature": null,
+        "reasoningLevel": false
+      },
+      "pricing": {
+        "status": "documented-not-account-verified",
+        "currency": "USD",
+        "inputPerMillion": 0.6,
+        "outputPerMillion": 2.2,
+        "retrievedAt": "2026-10-04",
+        "source": "https://docs.z.ai/guides/overview/pricing",
+        "conditions": [
+          "global pay-as-you-go; excludes Coding Plan",
+          "Standard synchronous text requests; no batch, cache discounts, tools or promotion assumed",
+          "Billing/account access and current availability must be checked before the bounded run"
+        ]
+      },
+      "verification": {
+        "status": "unverified",
+        "testedVersion": null,
+        "verifiedAt": null,
+        "reportedModel": null,
+        "reportedUsage": null,
+        "latencyMs": null,
+        "errorCode": null,
+        "evidence": null
+      },
+      "calls": [
+        {
+          "attemptId": "zai:probe",
+          "kind": "connection-probe",
+          "sequence": 1,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "zai:decision-1",
+          "kind": "simulation-decision",
+          "sequence": 2,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "zai:decision-2",
+          "kind": "simulation-decision",
+          "sequence": 3,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "zai:decision-3",
+          "kind": "simulation-decision",
+          "sequence": 4,
+          "status": "not-authorized"
+        }
+      ]
+    },
+    {
+      "id": "xai",
+      "providerId": "grok",
+      "exactRequestedModel": "grok-4.7",
+      "protocol": "chat-completions",
+      "endpoint": "https://api.x.ai/v1/chat/completions",
+      "regionOrPlan": "global standard; no tools",
+      "transport": "official-relay",
+      "apiVersion": "endpoint v1/v4 path; no extra version header",
+      "credentialReference": "SIMAGENTS_VERIFY_GROK_API_KEY",
+      "relayCredentialReference": "memory-only staging admission token",
+      "capabilities": {
+        "temperature": false,
+        "output": "text-json",
+        "tokenParameter": "max_tokens",
+        "reasoning": "effort",
+        "maxOutputTokens": 1024
+      },
+      "parameters": {
+        "maxOutputTokens": 1024,
+        "stream": false,
+        "tools": false,
+        "temperature": null,
+        "reasoningLevel": "none"
+      },
+      "pricing": {
+        "status": "documented-not-account-verified",
+        "currency": "USD",
+        "inputPerMillion": 2,
+        "outputPerMillion": 6,
+        "retrievedAt": "2026-10-04",
+        "source": "https://docs.x.ai/developers/models",
+        "conditions": [
+          "global standard; no tools",
+          "Standard synchronous text requests; no batch, cache discounts, tools or promotion assumed",
+          "Billing/account access and current availability must be checked before the bounded run"
+        ]
+      },
+      "verification": {
+        "status": "unverified",
+        "testedVersion": null,
+        "verifiedAt": null,
+        "reportedModel": null,
+        "reportedUsage": null,
+        "latencyMs": null,
+        "errorCode": null,
+        "evidence": null
+      },
+      "calls": [
+        {
+          "attemptId": "xai:probe",
+          "kind": "connection-probe",
+          "sequence": 1,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "xai:decision-1",
+          "kind": "simulation-decision",
+          "sequence": 2,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "xai:decision-2",
+          "kind": "simulation-decision",
+          "sequence": 3,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "xai:decision-3",
+          "kind": "simulation-decision",
+          "sequence": 4,
+          "status": "not-authorized"
+        }
+      ]
+    },
+    {
+      "id": "mistral",
+      "providerId": "mistral",
+      "exactRequestedModel": "mistral-small-2603",
+      "protocol": "chat-completions",
+      "endpoint": "https://api.mistral.ai/v1/chat/completions",
+      "regionOrPlan": "public API standard USD; no reasoning override",
+      "transport": "official-relay",
+      "apiVersion": "endpoint v1/v4 path; no extra version header",
+      "credentialReference": "SIMAGENTS_VERIFY_MISTRAL_API_KEY",
+      "relayCredentialReference": "memory-only staging admission token",
+      "capabilities": {
+        "temperature": false,
+        "output": "text-json",
+        "tokenParameter": "max_tokens",
+        "reasoning": "none",
+        "maxOutputTokens": 1024
+      },
+      "parameters": {
+        "maxOutputTokens": 1024,
+        "stream": false,
+        "tools": false,
+        "temperature": null,
+        "reasoningLevel": null
+      },
+      "pricing": {
+        "status": "documented-not-account-verified",
+        "currency": "USD",
+        "inputPerMillion": 0.15,
+        "outputPerMillion": 0.6,
+        "retrievedAt": "2026-10-04",
+        "source": "https://docs.mistral.ai/models/mistral-small-4-0-26-03",
+        "conditions": [
+          "public API standard USD; no reasoning override",
+          "Standard synchronous text requests; no batch, cache discounts, tools or promotion assumed",
+          "Billing/account access and current availability must be checked before the bounded run"
+        ]
+      },
+      "verification": {
+        "status": "unverified",
+        "testedVersion": null,
+        "verifiedAt": null,
+        "reportedModel": null,
+        "reportedUsage": null,
+        "latencyMs": null,
+        "errorCode": null,
+        "evidence": null
+      },
+      "calls": [
+        {
+          "attemptId": "mistral:probe",
+          "kind": "connection-probe",
+          "sequence": 1,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "mistral:decision-1",
+          "kind": "simulation-decision",
+          "sequence": 2,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "mistral:decision-2",
+          "kind": "simulation-decision",
+          "sequence": 3,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "mistral:decision-3",
+          "kind": "simulation-decision",
+          "sequence": 4,
+          "status": "not-authorized"
+        }
+      ]
+    },
+    {
+      "id": "minimax",
+      "providerId": "minimax",
+      "exactRequestedModel": "MiniMax-M2.7",
+      "protocol": "chat-completions",
+      "endpoint": "https://api.minimax.io/v1/chat/completions",
+      "regionOrPlan": "global standard; no priority or highspeed",
+      "transport": "official-relay",
+      "apiVersion": "endpoint v1/v4 path; no extra version header",
+      "credentialReference": "SIMAGENTS_VERIFY_MINIMAX_API_KEY",
+      "relayCredentialReference": "memory-only staging admission token",
+      "capabilities": {
+        "temperature": false,
+        "output": "text-json",
+        "tokenParameter": "max_tokens",
+        "reasoning": "none",
+        "maxOutputTokens": 1024
+      },
+      "parameters": {
+        "maxOutputTokens": 1024,
+        "stream": false,
+        "tools": false,
+        "temperature": null,
+        "reasoningLevel": null
+      },
+      "pricing": {
+        "status": "documented-not-account-verified",
+        "currency": "USD",
+        "inputPerMillion": 0.3,
+        "outputPerMillion": 1.2,
+        "retrievedAt": "2026-10-04",
+        "source": "https://platform.minimax.io/docs/guides/pricing-paygo",
+        "conditions": [
+          "global standard; no priority or highspeed",
+          "Standard synchronous text requests; no batch, cache discounts, tools or promotion assumed",
+          "Billing/account access and current availability must be checked before the bounded run"
+        ]
+      },
+      "verification": {
+        "status": "unverified",
+        "testedVersion": null,
+        "verifiedAt": null,
+        "reportedModel": null,
+        "reportedUsage": null,
+        "latencyMs": null,
+        "errorCode": null,
+        "evidence": null
+      },
+      "calls": [
+        {
+          "attemptId": "minimax:probe",
+          "kind": "connection-probe",
+          "sequence": 1,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "minimax:decision-1",
+          "kind": "simulation-decision",
+          "sequence": 2,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "minimax:decision-2",
+          "kind": "simulation-decision",
+          "sequence": 3,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "minimax:decision-3",
+          "kind": "simulation-decision",
+          "sequence": 4,
+          "status": "not-authorized"
+        }
+      ]
+    },
+    {
+      "id": "moonshot",
+      "providerId": "kimi",
+      "exactRequestedModel": "kimi-k2.6",
+      "protocol": "chat-completions",
+      "endpoint": "https://api.moonshot.ai/v1/chat/completions",
+      "regionOrPlan": "international API; uncached; excludes taxes",
+      "transport": "official-relay",
+      "apiVersion": "endpoint v1/v4 path; no extra version header",
+      "credentialReference": "SIMAGENTS_VERIFY_KIMI_API_KEY",
+      "relayCredentialReference": "memory-only staging admission token",
+      "capabilities": {
+        "temperature": false,
+        "output": "text-json",
+        "tokenParameter": "max_tokens",
+        "reasoning": "thinking-toggle",
+        "maxOutputTokens": 1024
+      },
+      "parameters": {
+        "maxOutputTokens": 1024,
+        "stream": false,
+        "tools": false,
+        "temperature": null,
+        "reasoningLevel": false
+      },
+      "pricing": {
+        "status": "documented-not-account-verified",
+        "currency": "USD",
+        "inputPerMillion": 0.95,
+        "outputPerMillion": 4,
+        "retrievedAt": "2026-10-04",
+        "source": "https://platform.kimi.ai/",
+        "conditions": [
+          "international API; uncached; excludes taxes",
+          "Standard synchronous text requests; no batch, cache discounts, tools or promotion assumed",
+          "Billing/account access and current availability must be checked before the bounded run"
+        ]
+      },
+      "verification": {
+        "status": "unverified",
+        "testedVersion": null,
+        "verifiedAt": null,
+        "reportedModel": null,
+        "reportedUsage": null,
+        "latencyMs": null,
+        "errorCode": null,
+        "evidence": null
+      },
+      "calls": [
+        {
+          "attemptId": "moonshot:probe",
+          "kind": "connection-probe",
+          "sequence": 1,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "moonshot:decision-1",
+          "kind": "simulation-decision",
+          "sequence": 2,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "moonshot:decision-2",
+          "kind": "simulation-decision",
+          "sequence": 3,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "moonshot:decision-3",
+          "kind": "simulation-decision",
+          "sequence": 4,
+          "status": "not-authorized"
+        }
+      ]
+    },
+    {
+      "id": "openrouter",
+      "providerId": "openrouter",
+      "exactRequestedModel": "openai/gpt-5.4-mini",
+      "protocol": "chat-completions",
+      "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+      "regionOrPlan": "standard routing base token rates; excludes credit purchase fees",
+      "transport": "official-relay",
+      "apiVersion": "endpoint v1/v4 path; no extra version header",
+      "credentialReference": "SIMAGENTS_VERIFY_OPENROUTER_API_KEY",
+      "relayCredentialReference": "memory-only staging admission token",
+      "capabilities": {
+        "temperature": false,
+        "output": "text-json",
+        "tokenParameter": "max_tokens",
+        "reasoning": "effort",
+        "maxOutputTokens": 1024
+      },
+      "parameters": {
+        "maxOutputTokens": 1024,
+        "stream": false,
+        "tools": false,
+        "temperature": null,
+        "reasoningLevel": "none",
+        "provider": {
+          "allow_fallbacks": false,
+          "require_parameters": true
+        }
+      },
+      "pricing": {
+        "status": "documented-not-account-verified",
+        "currency": "USD",
+        "inputPerMillion": 0.75,
+        "outputPerMillion": 4.5,
+        "retrievedAt": "2026-10-04",
+        "source": "https://openrouter.ai/openai/gpt-5.4-mini",
+        "conditions": [
+          "standard routing base token rates; excludes credit purchase fees",
+          "Standard synchronous text requests; no batch, cache discounts, tools or promotion assumed",
+          "Billing/account access and current availability must be checked before the bounded run"
+        ]
+      },
+      "verification": {
+        "status": "unverified",
+        "testedVersion": null,
+        "verifiedAt": null,
+        "reportedModel": null,
+        "reportedUsage": null,
+        "latencyMs": null,
+        "errorCode": null,
+        "evidence": null
+      },
+      "calls": [
+        {
+          "attemptId": "openrouter:probe",
+          "kind": "connection-probe",
+          "sequence": 1,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "openrouter:decision-1",
+          "kind": "simulation-decision",
+          "sequence": 2,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "openrouter:decision-2",
+          "kind": "simulation-decision",
+          "sequence": 3,
+          "status": "not-authorized"
+        },
+        {
+          "attemptId": "openrouter:decision-3",
+          "kind": "simulation-decision",
+          "sequence": 4,
+          "status": "not-authorized"
+        }
+      ]
+    }
+  ]
+}

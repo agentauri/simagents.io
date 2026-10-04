@@ -1,3 +1,5 @@
+import { translateLabel, useLocale, translate } from '../../i18n';
+
 import { useMemo } from 'react';
 import { useEditorGrid } from '../../stores/editor';
 import { getBuildingStats, DEFAULT_REQUIREMENTS } from '../../utils/buildingAssignment';
@@ -11,13 +13,14 @@ interface RequirementRowProps {
 }
 
 function RequirementRow({ type, label, current, required, color }: RequirementRowProps) {
+  useLocale();
   const isMet = current >= required;
 
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
         <div className={`w-2.5 h-2.5 rounded-full ${color}`} />
-        <span className="text-xs text-city-text-muted">{label}</span>
+        <span className="text-xs text-city-text-muted">{translateLabel(label)}</span>
       </div>
       <div className="flex items-center gap-1.5">
         <span
@@ -57,6 +60,7 @@ const TYPE_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 export function BuildingRequirements() {
+  useLocale();
   const grid = useEditorGrid();
 
   const stats = useMemo(() => getBuildingStats(grid), [grid]);
@@ -66,11 +70,9 @@ export function BuildingRequirements() {
   return (
     <div className={`p-3 rounded-lg transition-colors ${allMet ? 'bg-green-500/10' : 'bg-city-bg'}`}>
       <div className="flex items-center justify-between mb-2">
-        <h4 className="text-xs font-medium text-city-text">Requirements</h4>
+        <h4 className="text-xs font-medium text-city-text">{translate("Requirements")}</h4>
         {allMet && (
-          <span className="text-[10px] font-medium text-green-400 uppercase tracking-wide">
-            Ready!
-          </span>
+          <span className="text-[10px] font-medium text-green-400 uppercase tracking-wide">{translate("Ready!")}</span>
         )}
       </div>
       <div className="space-y-1.5">
@@ -90,9 +92,7 @@ export function BuildingRequirements() {
       </div>
       {allMet && (
         <div className="mt-2 pt-2 border-t border-green-500/20">
-          <p className="text-[10px] text-green-400/80 text-center">
-            Click "Start Simulation" to begin
-          </p>
+          <p className="text-[10px] text-green-400/80 text-center">{translate("Click \"Start Simulation\" to begin")}</p>
         </div>
       )}
     </div>

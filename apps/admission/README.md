@@ -1,0 +1,15 @@
+# Public relay admission
+
+This separate Worker implements account-free admission for the BYOK relay. It is implemented and tested locally; it has not been deployed or validated against genuine Turnstile or Cloudflare runtime bindings.
+
+`POST /v1/session` accepts exactly `{ proof, previousToken? }`. A new admission supplies one fresh Turnstile proof. Renewal also supplies the still-valid signed relay token; the same subject is retained. The response contains `{ token, expiresAt, renewAt }` in Unix seconds, with a 15-minute lifetime and renewal at minute 13. Responses are not cached. Provider credentials, prompts and responses do not belong to this API.
+
+Configuration requires a signing `AUTH_SECRET` shared with the relay, a private `TURNSTILE_SECRET`, exact HTTPS `ALLOWED_ORIGINS`, exact `TURNSTILE_HOSTNAMES`, `ADMISSION_LIMITER`, and the relay's `SubjectQuota` Durable Object binding. The empty checked-in settings fail closed. Siteverify must report the same hostname as the requesting SPA origin and action `simagents-session`; proof age is bounded and Siteverify enforces single use. Hostnames/actions and reused/expired proofs require genuine staging verification before release. See [Cloudflare server-side validation](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/).
+
+Issuance is limited by a daily HMAC address fingerprint and coordinated subject counters. Application counter records are cleaned up as the 60-second windows and 90-second leases expire, within the 24-hour retention ceiling and contain no raw address, provider key or content. The handler never logs caught exceptions. A total 15-second deadline covers slow client bodies, coordinators and validation. There are no automatic retries. Limits are supplementary abuse controls, not user accounts or personal identity.
+
+The SPA build needs `VITE_OFFICIAL_RELAY_URL`, `VITE_ADMISSION_URL` (HTTPS origins) and the public `VITE_TURNSTILE_SITE_KEY`. It loads the widget explicitly when access is requested, keeps authorization outside the credential vault, renews independently of provider keys, and blocks/pauses inference if interaction is needed or access fails/expires. Resumption always requires the user. The origin/relay identity is immutable within a running Worker session.
+
+Run `bun run --filter @simagents/admission test`, `typecheck` and `build` for local verification. `scripts/admission-browser-smoke.ts` runs a separately configured production fixture through the actual handlers with synthetic widget/provider traffic and simulated authorization timers. Its reports do not certify the publishable artifact or substitute for real Cloudflare checks.
+
+Deployment is not authorized by this repository. Prepare exact routes, origins, widget configuration, reviewed rate namespaces, coordinator migration, secret handling, infrastructure budget, monitoring owner and retained compatible rollback artifacts before requesting deployment approval. Both Workers and the SPA must be tied to the same candidate. No account/cloud-world storage is introduced.

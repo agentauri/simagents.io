@@ -1,3 +1,4 @@
+import { translate, useLocale } from '../i18n';
 import { useState, type ReactNode } from 'react';
 
 interface LayoutProps {
@@ -9,12 +10,13 @@ interface LayoutProps {
 }
 
 export function Layout({ header, toolbar, sidebar, feed, children }: LayoutProps) {
+  useLocale();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-city-bg">
+    <div className="h-dvh flex flex-col overflow-hidden bg-city-bg">
       {/* Header - Slim 48px, responsive padding */}
-      <header className="h-12 px-2 sm:px-4 bg-city-surface/80 backdrop-blur-md border-b border-city-border/50 flex items-center justify-between shrink-0 relative z-20">
+      <header className="app-header shrink-0 relative z-20">
         {header}
       </header>
 
@@ -28,7 +30,7 @@ export function Layout({ header, toolbar, sidebar, feed, children }: LayoutProps
       {/* Main content */}
       <div className="flex-1 overflow-hidden relative">
         {/* Canvas area - takes full width */}
-        <main className="absolute inset-0">{children}</main>
+        <main className="absolute inset-0" style={{ right: isSidebarOpen ? 280 : 0 }}>{children}</main>
 
         {/* Sidebar toggle button - hidden on mobile, visible on tablet+ */}
         <button
@@ -40,8 +42,10 @@ export function Layout({ header, toolbar, sidebar, feed, children }: LayoutProps
             right: isSidebarOpen ? '280px' : '0px',
             zIndex: 30,
           }}
-          className="hidden md:flex w-6 h-16 bg-city-surface/90 backdrop-blur border border-city-border border-r-0 rounded-l-lg items-center justify-center text-city-text-muted hover:text-city-accent hover:bg-city-surface-hover transition-all duration-300"
-          title={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          aria-expanded={isSidebarOpen}
+          aria-controls="desktop-observation-panel"
+          className="hidden lg:flex w-11 h-16 bg-city-surface/90 backdrop-blur border border-city-border border-r-0 rounded-l-lg items-center justify-center text-city-text-muted hover:text-city-accent hover:bg-city-surface-hover transition-all duration-300"
+          title={translate(isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar')}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -60,8 +64,8 @@ export function Layout({ header, toolbar, sidebar, feed, children }: LayoutProps
         </button>
 
         {/* Right sidebar - 280px width on desktop, hidden on mobile */}
-        <aside
-          className={`hidden md:flex absolute top-0 right-0 h-full w-[280px] bg-city-surface/95 backdrop-blur-md border-l border-city-border/50 flex-col z-20 transition-transform duration-300 ${
+        <aside id="desktop-observation-panel" aria-label={translate('Agent details and events')} inert={!isSidebarOpen}
+          className={`hidden lg:flex absolute top-0 right-0 h-full w-[280px] bg-city-surface/95 backdrop-blur-md border-l border-city-border/50 flex-col z-20 transition-transform duration-300 ${
             isSidebarOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
         >

@@ -11,8 +11,8 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://github.com/agentauri/simagents.io',
-  baseUrl: '/',
+  url: process.env.DOCS_URL ?? 'https://doc.simagents.io',
+  baseUrl: process.env.DOCS_BASE_URL ?? '/',
 
   organizationName: 'agentauri',
   projectName: 'simagents.io',
@@ -20,7 +20,7 @@ const config: Config = {
   onBrokenLinks: 'throw',
   markdown: {
     hooks: {
-      onBrokenMarkdownLinks: 'warn',
+      onBrokenMarkdownLinks: 'throw',
     },
   },
 
@@ -48,7 +48,6 @@ const config: Config = {
   ],
 
   themeConfig: {
-    image: 'img/simagents-social-card.png',
     colorMode: {
       defaultMode: 'dark',
       respectPrefersColorScheme: true,
@@ -84,8 +83,8 @@ const config: Config = {
               to: '/getting-started',
             },
             {
-              label: 'API Reference',
-              to: '/api-reference',
+              label: 'BYOK Security',
+              href: 'https://github.com/agentauri/simagents.io/blob/main/docs/security-byok.md',
             },
             {
               label: 'Research Guide',

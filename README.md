@@ -5,7 +5,7 @@
 
 > Browser-only multi-agent simulation for observing AI social behavior.
 
-Sim Agents is a Vite SPA. The world runs inside a Web Worker, the UI is React/Zustand/Canvas, and durable user state is bounded browser `localStorage` plus JSON/CSV export paths.
+Sim Agents is a Vite SPA. The world runs inside a Web Worker, the UI is React/Zustand/Canvas, and worlds, replay frames, event summaries and experiment data are stored in browser IndexedDB with a shared 50 MiB application budget and JSON/CSV export paths. Preferences and the optional encrypted credential vault remain in `localStorage`.
 
 ## Architecture
 
@@ -14,13 +14,15 @@ Sim Agents is a Vite SPA. The world runs inside a Web Worker, the UI is React/Zu
 | App | `apps/web` Vite + React |
 | Engine | `packages/engine` browser-safe continuous-time simulation |
 | Worker host | `apps/web/src/engine-host` |
-| Persistence | Versioned `localStorage` keys with import/export |
+| Persistence | IndexedDB with legacy migration, a 50 MiB data budget and import/export |
 | LLMs | BYOK provider calls, direct or through a user-provided proxy URL |
 | Shared catalog | `packages/shared/src/llm-catalog.ts` |
 
 Important local keys:
 
-- `simagents_api_keys`
+- `simagents_credential_vault_v1` (optional encrypted credentials)
+- `simagents_session_limits_v1` (non-secret request/time/token limits)
+- `simagents_connections_v1` (connection metadata without secrets)
 - `simagents_agent_roster`
 - `simagents_proxy_url`
 - `simagents_world_snapshot`
@@ -33,19 +35,25 @@ Important local keys:
 ## Getting Started
 
 ```bash
-bun install
+bun install --frozen-lockfile
 bun dev:web
 ```
 
-Open [http://localhost:5173](http://localhost:5173). Configure the roster and optional API keys in the app. Baseline agents run without provider keys.
+Use Bun 1.2.14 (see `.bun-version`). Open [http://localhost:5173](http://localhost:5173), enter or unlock provider keys, configure the roster, and review session limits before starting. Public builds require BYOK; internal baseline fixtures require `VITE_INTERNAL_TESTS=true` in development.
 
-Provider keys are plain browser storage values. See [BYOK Security Notes](docs/security-byok.md) before adding any feature that renders imported data, model output, or proxy responses.
+In Configuration → Connections, create a named connection, select its protocol/endpoint, and assign it to an agent. New OpenAI connections default to Responses. Set model capabilities, optionally load model IDs, then explicitly verify the model (one potentially billable request). Legacy provider-only settings are converted while retaining roster/model IDs and saved user-relay settings; public startup requires verification of the displayed connection. Invalid legacy settings remain blocked until corrected.
+
+Provider keys stay in memory by default. Optional encrypted storage requires a passphrase; legacy plaintext keys require explicit migration. See [BYOK Security Notes](docs/security-byok.md) before adding any feature that renders imported data, model output, or proxy responses.
+
+See [BYOK release status](docs/byok-release-status.md) for completed work and remaining release gates.
+
+The [official relay implementation](apps/relay/README.md) is available for deployment review but has not been deployed. Its option stays disabled until the build has `VITE_OFFICIAL_RELAY_URL`, `VITE_ADMISSION_URL` and `VITE_TURNSTILE_SITE_KEY`. Public access uses a security check without accounts or invitations. Authorization stays in memory for 15 minutes and renews separately from provider keys. Genuine Turnstile and Cloudflare runtime checks remain pending.
 
 ## Verification
 
 ```bash
 bun typecheck
-bun run --filter @simagents/engine test
+bun run test
 (cd apps/web && bun run build)
 node --check scripts/browser-smoke.mjs
 ```
@@ -53,10 +61,10 @@ node --check scripts/browser-smoke.mjs
 Bundle safety check after a web build:
 
 ```bash
-rg -n "fastify|postgres|redis|bullmq|drizzle|@server|/api/|EventSource" apps/web/dist
+node scripts/check-browser-bundle.mjs
 ```
 
-Passing state is no output.
+The checker rejects backend dependencies/control-plane calls while allowing vendor URLs such as OpenRouter and Z.ai that contain `/api/`.
 
 To run the browser smoke test against a running dev server:
 

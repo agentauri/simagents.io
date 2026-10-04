@@ -25,7 +25,7 @@ import {
   updateTeamTotalStake,
 } from '../../db/queries/puzzles';
 import { storeMemory } from '../../db/queries/memories';
-import { CONFIG } from '../../config';
+import { getRuntimeConfig } from '../../config';
 
 export async function handleFormTeam(
   intent: ActionIntent<FormTeamParams>,
@@ -34,7 +34,7 @@ export async function handleFormTeam(
   const { gameId, teamName } = intent.params;
 
   // Check if puzzle system is enabled
-  if (!CONFIG.puzzle.enabled) {
+  if (!getRuntimeConfig().puzzle.enabled) {
     return {
       success: false,
       error: 'Puzzle game system is not enabled',
@@ -77,7 +77,7 @@ export async function handleFormTeam(
   }
 
   // Check energy cost
-  const energyCost = CONFIG.puzzle.energyCosts.formTeam;
+  const energyCost = getRuntimeConfig().puzzle.energyCosts.formTeam;
   if (agent.energy < energyCost) {
     return {
       success: false,

@@ -1,3 +1,4 @@
+import { useLocale, translate } from '../../../i18n';
 /**
  * EconomyPanel - Economy metrics visualization
  */
@@ -7,13 +8,12 @@ import { MetricCard } from '../MetricCard';
 import { BarChart } from '../charts/BarChart';
 
 export function EconomyPanel() {
+  useLocale();
   const economy = useEconomyMetrics();
 
   if (!economy) {
     return (
-      <div className="flex items-center justify-center h-32 text-city-text-muted text-sm">
-        Loading economy metrics...
-      </div>
+      <div className="flex items-center justify-center h-32 text-city-text-muted text-sm">{translate("Loading economy metrics...")}</div>
     );
   }
 
@@ -27,9 +27,7 @@ export function EconomyPanel() {
   // Handle empty data case
   if (!byLlmType.length) {
     return (
-      <div className="flex items-center justify-center h-32 text-city-text-muted text-sm">
-        No economy data available yet...
-      </div>
+      <div className="flex items-center justify-center h-32 text-city-text-muted text-sm">{translate("No economy data available yet...")}</div>
     );
   }
 
@@ -65,12 +63,12 @@ export function EconomyPanel() {
       {/* Overview cards */}
       <div className="grid grid-cols-2 gap-2">
         <MetricCard
-          label="Money Supply"
+          label={translate("Money Supply")}
           value={moneySupply.toLocaleString()}
-          subtitle="Total CITY in circulation"
+          subtitle={translate("Total CITY in circulation")}
         />
         <MetricCard
-          label="Gini Index"
+          label={translate("Gini Index")}
           value={giniCoefficient.toFixed(3)}
           color={giniInfo.color}
           subtitle={giniInfo.text}
@@ -79,42 +77,38 @@ export function EconomyPanel() {
 
       {/* Balance distribution */}
       <div className="bg-city-surface-hover/20 rounded-lg p-3">
-        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">
-          Balance Distribution
-        </div>
+        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">{translate("Balance Distribution")}</div>
         <div className="grid grid-cols-4 gap-2 text-center">
           <div>
             <div className="text-lg font-bold text-city-text">
               {balanceDistribution.min.toLocaleString()}
             </div>
-            <div className="text-xs text-city-text-muted">Min</div>
+            <div className="text-xs text-city-text-muted">{translate("Min")}</div>
           </div>
           <div>
             <div className="text-lg font-bold text-city-text">
               {Math.round(balanceDistribution.median).toLocaleString()}
             </div>
-            <div className="text-xs text-city-text-muted">Median</div>
+            <div className="text-xs text-city-text-muted">{translate("Median")}</div>
           </div>
           <div>
             <div className="text-lg font-bold text-city-text">
               {Math.round(balanceDistribution.mean).toLocaleString()}
             </div>
-            <div className="text-xs text-city-text-muted">Mean</div>
+            <div className="text-xs text-city-text-muted">{translate("Mean")}</div>
           </div>
           <div>
             <div className="text-lg font-bold text-city-text">
               {balanceDistribution.max.toLocaleString()}
             </div>
-            <div className="text-xs text-city-text-muted">Max</div>
+            <div className="text-xs text-city-text-muted">{translate("Max")}</div>
           </div>
         </div>
       </div>
 
       {/* Gini visualization */}
       <div className="bg-city-surface-hover/20 rounded-lg p-3">
-        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">
-          Wealth Inequality (Gini)
-        </div>
+        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">{translate("Wealth Inequality (Gini)")}</div>
         <div className="relative h-3 bg-city-surface-hover rounded-full overflow-hidden">
           {/* Background gradient from green to red */}
           <div
@@ -130,16 +124,14 @@ export function EconomyPanel() {
           />
         </div>
         <div className="flex justify-between text-xs text-city-text-muted mt-1">
-          <span>0 (Equal)</span>
-          <span>1 (Unequal)</span>
+          <span>{translate("0 (Equal)")}</span>
+          <span>{translate("1 (Unequal)")}</span>
         </div>
       </div>
 
       {/* Total balance by LLM */}
       <div>
-        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">
-          Total Wealth by LLM
-        </div>
+        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">{translate("Total Wealth by LLM")}</div>
         <BarChart
           data={totalBalanceData}
           height={100}
@@ -149,9 +141,7 @@ export function EconomyPanel() {
 
       {/* Average balance by LLM */}
       <div>
-        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">
-          Avg Balance by LLM
-        </div>
+        <div className="text-xs text-city-text-muted mb-2 uppercase tracking-wide">{translate("Avg Balance by LLM")}</div>
         <BarChart
           data={avgBalanceData}
           height={100}

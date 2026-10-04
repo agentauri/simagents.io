@@ -49,6 +49,8 @@ export async function createAgent(agent: NewAgent): Promise<Agent> {
     id: agent.id ?? uuid(),
     tenantId: agent.tenantId ?? null,
     llmType: agent.llmType,
+    ...(agent.rosterEntryId ? { rosterEntryId: agent.rosterEntryId } : {}),
+    ...(agent.connectionId ? { connectionId: agent.connectionId } : {}),
     x: agent.x ?? 0,
     y: agent.y ?? 0,
     hunger: agent.hunger ?? 100,
@@ -70,7 +72,8 @@ export async function createAgent(agent: NewAgent): Promise<Agent> {
 export async function updateAgent(id: string, updates: Partial<Agent>): Promise<Agent | undefined> {
   const agent = store.agents.get(id);
   if (!agent) return undefined;
-  const updated: Agent = { ...agent, ...updates, updatedAt: new Date() };
+  const defined = Object.fromEntries(Object.entries(updates).filter(([, value]) => value !== undefined));
+  const updated: Agent = { ...agent, ...defined, updatedAt: new Date() };
   store.agents.set(id, updated);
   return updated;
 }

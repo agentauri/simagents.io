@@ -1,3 +1,8 @@
+import { AppError, errorIssue, isAppIssue, type AppIssue } from '@simagents/shared';
+import { formatIssue } from '../i18n/errors';
+import { recordRequestTrace } from '../services/promptLogs';
+import type { RequestTrace } from '@simagents/engine/engine/llm/request-trace';
+import { flushSecondaryData } from '../services/secondary-data';
 import type { AgentRosterEntry, LLMType } from '@simagents/shared';
 import type { DecisionInput } from '@simagents/engine/engine/decision';
 import type { SimEngineState } from '@simagents/engine/engine/engine';
@@ -22,8 +27,11 @@ import type {
 import type { WorldEvent } from '../stores/world';
 
 export interface EngineInitPayload {
+  captureRequests?: boolean;
+  limits?: import('@simagents/engine/engine/llm/request-budget').SessionLimits;
   roster: AgentRosterEntry[];
-  keys: Partial<Record<LLMType, string>>;
+  connections?: import('@simagents/shared').ConnectionProfile[];
+  keys: Partial<Record<string, string>>;
   proxyUrl?: string;
   speed: number;
   worldSeed?: string;
@@ -32,8 +40,11 @@ export interface EngineInitPayload {
   resume?: WorldSnapshotV1;
 }
 
-type WorkerCommand =
+export type WorkerCommand =
   | { cmd: 'init'; payload: EngineInitPayload }
+  | { cmd: 'validateSnapshot'; snapshot: WorldSnapshotV1 }
+  | { cmd: 'suspendRelayAccess'; relayUrl: string }
+  | { cmd: 'updateRelayToken'; relayUrl: string; token: string }
   | { cmd: 'start' }
   | { cmd: 'pause' }
   | { cmd: 'resume' }
@@ -68,6 +79,7 @@ export interface EngineExportPayload {
 }
 
 type WorkerMessage =
+  | { type: 'requestTrace'; trace: RequestTrace }
   | { type: 'ready'; state: SimEngineState }
   | { type: 'event'; event: WorldEvent }
   | { type: 'state'; state: SimEngineState }
@@ -76,9 +88,10 @@ type WorkerMessage =
   | { type: 'replayFrame'; frame: StoredReplayFrame }
   | { type: 'response'; requestId: string; payload: unknown }
   | { type: 'warning'; message: string }
-  | { type: 'error'; message: string; requestId?: string };
+  | { type: 'error'; message: string; requestId?: string; issue?: AppIssue };
 
 export interface StoredReplayFrame {
+  worldSeed?: string;
   schemaVersion: 1;
   tick: number;
   simTimeMs: number;
@@ -99,80 +112,91 @@ export interface BrowserAgentAdapterRegistration {
 type EventListener = (event: WorldEvent) => void;
 type StateListener = (state: SimEngineState) => void;
 type StatusListener = (status: EngineClientStatus) => void;
-type SnapshotListener = (payload: EngineSnapshotPayload) => void;
-type WarningListener = (message: string) => void;
+type SnapshotListener = (payload: EngineSnapshotPayload) => void | Promise<void>;
+type WarningListener = (message: string, issue?: AppIssue) => void;
 
 export type EngineClientStatus = 'disconnected' | 'connecting' | 'connected';
 
-class EngineClient {
+export class EngineClient {
+  constructor(private readonly commandTimeoutMs = 30_000) {}
+
   private worker: Worker | undefined;
   private status: EngineClientStatus = 'disconnected';
   private running = false;
   private paused = false;
-  private readyResolver: ((state: SimEngineState) => void) | undefined;
-  private readyRejecter: ((error: Error) => void) | undefined;
-  private stateResolver: ((state: SimEngineState) => void) | undefined;
-  private stateRejecter: ((error: Error) => void) | undefined;
-  private snapshotResolver: ((payload: EngineSnapshotPayload) => void) | undefined;
-  private snapshotRejecter: ((error: Error) => void) | undefined;
-  private exportResolver: ((payload: EngineExportPayload) => void) | undefined;
-  private exportRejecter: ((error: Error) => void) | undefined;
+  private sessionId = '';
+  private relayUrls = new Set<string>();
   private requestSeq = 0;
   private readonly pendingRequests = new Map<string, {
     resolve: (payload: unknown) => void;
     reject: (error: Error) => void;
+    timer: ReturnType<typeof setTimeout>;
   }>();
   private readonly eventListeners = new Set<EventListener>();
   private readonly stateListeners = new Set<StateListener>();
   private readonly statusListeners = new Set<StatusListener>();
+  private snapshotWrites: Promise<unknown> = Promise.resolve();
   private readonly snapshotListeners = new Set<SnapshotListener>();
   private readonly warningListeners = new Set<WarningListener>();
 
-  init(payload: EngineInitPayload): Promise<SimEngineState> {
-    this.ensureWorker();
+  async init(payload: EngineInitPayload): Promise<SimEngineState> {
+    if (payload.resume) await this.validateSnapshot(payload.resume);
+    this.resetHard();
+    this.sessionId = crypto.randomUUID();
+    this.relayUrls = new Set((payload.connections ?? []).filter(profile => profile.transport === 'official-relay').map(profile => profile.relayUrl!));
     this.setStatus('connecting');
-    this.running = false;
-    this.paused = false;
+    return this.request<SimEngineState>(() => ({ cmd: 'init', payload }));
+  }
 
-    return new Promise((resolve, reject) => {
-      this.readyResolver = resolve;
-      this.readyRejecter = reject;
-      this.post({ cmd: 'init', payload });
-    });
+  async validateSnapshot(snapshot: WorldSnapshotV1): Promise<void> {
+    await this.request(() => ({ cmd: 'validateSnapshot', snapshot }));
+  }
+
+  usesRelay(relayUrl: string): boolean { return this.status === 'connected' && this.relayUrls.has(relayUrl); }
+
+  async suspendRelayAccess(relayUrl: string): Promise<void> {
+    await this.request(() => ({ cmd: 'suspendRelayAccess', relayUrl }));
+    this.paused = true;
+    await this.snapshotWrites;
+    await flushSecondaryData();
+  }
+
+  async updateRelayToken(relayUrl: string, token: string): Promise<void> {
+    if (!this.worker || this.status !== 'connected') throw new Error('Engine not initialized');
+    await this.request(() => ({ cmd: 'updateRelayToken', relayUrl, token }));
   }
 
   async start(): Promise<void> {
+    await this.request(() => ({ cmd: 'start' }));
     this.running = true;
     this.paused = false;
-    this.setStatus('connected');
-    this.post({ cmd: 'start' });
   }
 
   async pause(): Promise<void> {
+    await this.request(() => ({ cmd: 'pause' }));
     this.paused = true;
-    this.post({ cmd: 'pause' });
+    await this.snapshotWrites;
+    await flushSecondaryData();
   }
 
   async resume(): Promise<void> {
+    await this.request(() => ({ cmd: 'resume' }));
     this.running = true;
     this.paused = false;
-    this.setStatus('connected');
-    this.post({ cmd: 'resume' });
   }
 
   async reset(): Promise<SimEngineState> {
+    const state = await this.request<SimEngineState>(() => ({ cmd: 'reset' }));
     this.running = false;
     this.paused = false;
-    return new Promise((resolve, reject) => {
-      this.stateResolver = resolve;
-      this.stateRejecter = reject;
-      this.post({ cmd: 'reset' });
-    });
+    return state;
   }
 
   resetHard(): void {
     this.worker?.terminate();
     this.worker = undefined;
+    this.sessionId = '';
+    this.relayUrls.clear();
     this.running = false;
     this.paused = false;
     this.rejectPending(new Error('Engine worker reset'));
@@ -180,56 +204,43 @@ class EngineClient {
   }
 
   async setSpeed(speed: number): Promise<void> {
-    this.post({ cmd: 'setSpeed', speed });
+    await this.request(() => ({ cmd: 'setSpeed', speed }));
   }
 
   async setRuntimeConfig(updates: Record<string, unknown>): Promise<void> {
-    this.post({ cmd: 'setRuntimeConfig', updates });
+    await this.request(() => ({ cmd: 'setRuntimeConfig', updates }));
   }
 
   async setCustomPrompt(prompt: string | null): Promise<void> {
-    this.post({ cmd: 'setCustomPrompt', prompt });
+    await this.request(() => ({ cmd: 'setCustomPrompt', prompt }));
   }
 
-  async getState(): Promise<SimEngineState> {
-    return new Promise((resolve, reject) => {
-      this.stateResolver = resolve;
-      this.stateRejecter = reject;
-      this.post({ cmd: 'getState' });
-    });
+  getState(): Promise<SimEngineState> {
+    return this.request(() => ({ cmd: 'getState' }));
   }
 
-  async requestSnapshot(): Promise<EngineSnapshotPayload> {
-    return new Promise((resolve, reject) => {
-      this.snapshotResolver = resolve;
-      this.snapshotRejecter = reject;
-      this.post({ cmd: 'snapshot' });
-    });
+  requestSnapshot(): Promise<EngineSnapshotPayload> {
+    return this.request(() => ({ cmd: 'snapshot' }));
   }
 
-  async exportWorld(): Promise<EngineExportPayload> {
-    return new Promise((resolve, reject) => {
-      this.exportResolver = resolve;
-      this.exportRejecter = reject;
-      this.post({ cmd: 'export' });
-    });
+  exportWorld(): Promise<EngineExportPayload> {
+    return this.request(() => ({ cmd: 'export' }));
   }
 
   async getReplayRange(): Promise<TickRange> {
-    return this.request<TickRange>((requestId) => ({ cmd: 'getReplayRange', requestId }));
+    return (await import('../stores/replay')).fetchTickRange();
   }
 
   async getReplayFrame(tick: number): Promise<WorldSnapshot> {
-    return this.request<WorldSnapshot>((requestId) => ({ cmd: 'getReplayFrame', requestId, tick }));
+    const replay = await import('../stores/replay');
+    await replay.fetchTickRange();
+    return replay.fetchWorldSnapshot(tick);
   }
 
   async getAgentTimeline(agentId: string, limit = 100): Promise<AgentTimelineEntry[]> {
-    return this.request<AgentTimelineEntry[]>((requestId) => ({
-      cmd: 'getAgentTimeline',
-      requestId,
-      agentId,
-      limit,
-    }));
+    const replay = await import('../stores/replay');
+    await replay.fetchTickRange();
+    return replay.fetchAgentTimeline(agentId, limit);
   }
 
   async getPuzzles(filter: PuzzleFilter = 'all'): Promise<PuzzleGame[]> {
@@ -249,13 +260,13 @@ class EngineClient {
   }
 
   async runExperiment(definition: BrowserExperimentDefinition): Promise<BrowserExperimentRun> {
-    if (definition.id || definition.name) saveExperimentDefinition(definition);
+    if (definition.id || definition.name) await saveExperimentDefinition(definition);
     const run = await this.request<BrowserExperimentRun>((requestId) => ({
       cmd: 'runExperiment',
       requestId,
       definition,
     }));
-    saveExperimentRun(run);
+    await saveExperimentRun(run);
     return run;
   }
 
@@ -265,7 +276,7 @@ class EngineClient {
       requestId,
       runId,
     }));
-    if (run) saveExperimentRun(run);
+    if (run) await saveExperimentRun(run);
     return run;
   }
 
@@ -278,12 +289,14 @@ class EngineClient {
   }
 
   async exportExperiment(runId: string): Promise<BrowserExperimentExport> {
+    const saved = (await loadExperimentRuns()).find(item => item.id === runId);
+    if (saved) return exportExperimentRun(saved);
     const run = await this.request<BrowserExperimentRun | undefined>((requestId) => ({
       cmd: 'exportExperiment',
       requestId,
       runId,
     }));
-    const storedRun = run ?? loadExperimentRuns().find((item) => item.id === runId);
+    const storedRun = run ?? (await loadExperimentRuns()).find((item) => item.id === runId);
     if (!storedRun) throw new Error(`Experiment run not found: ${runId}`);
     return exportExperimentRun(storedRun);
   }
@@ -340,26 +353,42 @@ class EngineClient {
     if (this.worker) return;
 
     this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
-    this.worker.onmessage = (message: MessageEvent<WorkerMessage>) => this.handleMessage(message.data);
+    const worker = this.worker;
+    this.worker.onmessage = (message: MessageEvent<WorkerMessage & { sessionId: string }>) => {
+      if (this.worker === worker && message.data.sessionId === this.sessionId) this.handleMessage(message.data);
+    };
     this.worker.onerror = (error) => {
-      this.rejectPending(new Error(error.message || 'Engine worker failed'));
-      this.setStatus('disconnected');
+      if (this.worker !== worker) return;
+      const message = error.message || 'Engine worker failed';
+      this.rejectPending(new Error(message));
+      this.resetHard();
+      for (const listener of this.warningListeners) listener(message);
     };
   }
 
-  private post(command: WorkerCommand): void {
-    this.ensureWorker();
-    this.worker!.postMessage(command);
-  }
-
   private request<T>(build: (requestId: string) => WorkerCommand): Promise<T> {
+    this.ensureWorker();
     const requestId = `req-${++this.requestSeq}`;
+    const command = build(requestId);
     return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingRequests.delete(requestId);
+        // Outcome is ambiguous: stop the session, never resend the request.
+        this.resetHard();
+        const message = `Engine command ${command.cmd} timed out. Restart explicitly; the request was not retried.`;
+        for (const listener of this.warningListeners) listener(message);
+        reject(new Error(message));
+      }, command.cmd === 'runExperiment' ? 3_600_000 : this.commandTimeoutMs);
       this.pendingRequests.set(requestId, {
-        resolve: (payload) => resolve(payload as T),
-        reject,
+        resolve: (payload) => resolve(payload as T), reject, timer,
       });
-      this.post(build(requestId));
+      try {
+        this.worker!.postMessage({ ...command, requestId, sessionId: this.sessionId });
+      } catch (error) {
+        clearTimeout(timer);
+        this.pendingRequests.delete(requestId);
+        reject(error);
+      }
     });
   }
 
@@ -367,15 +396,9 @@ class EngineClient {
     switch (message.type) {
       case 'ready':
         this.setStatus('connected');
-        this.readyResolver?.(message.state);
-        this.readyResolver = undefined;
-        this.readyRejecter = undefined;
         this.emitState(message.state);
         break;
       case 'state':
-        this.stateResolver?.(message.state);
-        this.stateResolver = undefined;
-        this.stateRejecter = undefined;
         this.emitState(message.state);
         break;
       case 'event':
@@ -388,21 +411,16 @@ class EngineClient {
           snapshot: message.snapshot,
           recentEvents: message.recentEvents,
         };
-        this.snapshotResolver?.(payload);
-        this.snapshotResolver = undefined;
-        this.snapshotRejecter = undefined;
         for (const listener of this.snapshotListeners) {
-          listener(payload);
+          const write = listener(payload);
+          this.snapshotWrites = Promise.all([this.snapshotWrites, write]).catch(() => undefined);
         }
         break;
       }
       case 'export':
-        this.exportResolver?.({
-          snapshot: message.snapshot,
-          events: message.events,
-        });
-        this.exportResolver = undefined;
-        this.exportRejecter = undefined;
+        break;
+      case 'requestTrace':
+        void recordRequestTrace(message.trace);
         break;
       case 'replayFrame':
         window.dispatchEvent(new CustomEvent('simagents:replay-frame', { detail: message.frame }));
@@ -410,6 +428,7 @@ class EngineClient {
       case 'response': {
         const pending = this.pendingRequests.get(message.requestId);
         if (pending) {
+          clearTimeout(pending.timer);
           this.pendingRequests.delete(message.requestId);
           pending.resolve(message.payload);
         }
@@ -418,27 +437,35 @@ class EngineClient {
       case 'warning':
         console.warn('[EngineWorker]', message.message);
         for (const listener of this.warningListeners) {
-          listener(message.message);
+          const issue = errorIssue(message.message);
+          listener(formatIssue(issue), issue);
         }
         break;
       case 'error': {
-        const error = new Error(message.message);
+        const issue = isAppIssue(message.issue) ? message.issue : errorIssue(message.message);
+        const error = new AppError(issue, formatIssue(issue));
         if (message.requestId) {
           const pending = this.pendingRequests.get(message.requestId);
           if (pending) {
+            clearTimeout(pending.timer);
             this.pendingRequests.delete(message.requestId);
             pending.reject(error);
             break;
           }
         }
+        this.running = false;
+        this.paused = true;
         this.rejectPending(error);
-        console.error('[EngineWorker]', error);
+        for (const listener of this.warningListeners) listener(error.message, issue);
+        console.error('[EngineWorker]', { code: issue.code });
         break;
       }
     }
   }
 
   private emitState(state: SimEngineState): void {
+    this.running = state.lifecycle === 'running' || state.lifecycle === 'paused';
+    this.paused = state.lifecycle === 'paused' || state.lifecycle === 'error';
     for (const listener of this.stateListeners) {
       listener(state);
     }
@@ -453,19 +480,8 @@ class EngineClient {
   }
 
   private rejectPending(error: Error): void {
-    this.readyRejecter?.(error);
-    this.stateRejecter?.(error);
-    this.snapshotRejecter?.(error);
-    this.exportRejecter?.(error);
-    this.readyResolver = undefined;
-    this.readyRejecter = undefined;
-    this.stateResolver = undefined;
-    this.stateRejecter = undefined;
-    this.snapshotResolver = undefined;
-    this.snapshotRejecter = undefined;
-    this.exportResolver = undefined;
-    this.exportRejecter = undefined;
-    for (const { reject } of this.pendingRequests.values()) {
+    for (const { reject, timer } of this.pendingRequests.values()) {
+      clearTimeout(timer);
       reject(error);
     }
     this.pendingRequests.clear();
@@ -473,6 +489,13 @@ class EngineClient {
 }
 
 const singleton = new EngineClient();
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && singleton.isRunning() && !singleton.isPaused()) {
+      void singleton.pause().catch(() => singleton.resetHard());
+    }
+  });
+}
 
 declare global {
   interface Window {
@@ -480,7 +503,7 @@ declare global {
   }
 }
 
-if (typeof window !== 'undefined' && import.meta.env.DEV) {
+if (typeof window !== 'undefined' && import.meta.env?.DEV) {
   window.__simagentsEngineClient = singleton;
 }
 

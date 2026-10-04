@@ -52,6 +52,10 @@ export async function handleQuitJob(
   // Get employer for trust updates
   const employer = await getAgentById(employment.employerId);
 
+  if (employer && employment.escrowAmount > 0) {
+    await updateAgentBalance(employer.id, employer.balance + employment.escrowAmount);
+  }
+
   // Mark employment as abandoned
   await updateEmploymentStatus(employment.id, 'abandoned', intent.tick);
 

@@ -1,3 +1,6 @@
+import { translateLabel, useLocale, translate } from '../../i18n';
+import { useDialogFocus } from '../../hooks/useDialogFocus';
+
 /**
  * Social Graph View
  *
@@ -43,6 +46,7 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
 }
 
 export function SocialGraphView() {
+  useLocale();
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const simulationRef = useRef<d3.Simulation<GraphNode, GraphLink> | null>(null);
@@ -54,6 +58,8 @@ export function SocialGraphView() {
   const selectedAgentId = useWorldStore((s) => s.selectedAgentId);
   const selectAgent = useWorldStore((s) => s.selectAgent);
   const toggleSocialGraph = useVisualizationStore((s) => s.toggleSocialGraph);
+
+  useDialogFocus(containerRef, visible, toggleSocialGraph);
 
   // Build graph data from events
   const graphData = useMemo(() => {
@@ -340,19 +346,23 @@ export function SocialGraphView() {
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 bg-city-bg/95 backdrop-blur-sm z-50 flex flex-col"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="social-graph-title"
+      tabIndex={-1}
+      className="fixed inset-0 bg-city-bg/95 backdrop-blur-sm z-[210] flex flex-col"
     >
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-city-border">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold text-city-text">Social Graph</h2>
+          <h2 id="social-graph-title" className="text-lg font-semibold text-city-text">{translate("Social Graph")}</h2>
           <span className="text-xs text-city-text-muted">
-            {graphData.nodes.length} agents, {graphData.links.length} connections
-          </span>
+            {graphData.nodes.length}{" "}{translate("agents,")}{" "}{graphData.links.length}{" "}{translate("connections")}</span>
         </div>
         <button
           onClick={toggleSocialGraph}
-          className="p-2 rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
+          aria-label={translate('Close social graph')}
+          className="min-h-11 min-w-11 p-2 rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -360,13 +370,19 @@ export function SocialGraphView() {
         </button>
       </div>
 
+      <label className="flex items-center gap-3 px-4 py-2 text-sm">{translate('Select agent')}
+        <select className="min-h-11 bg-city-surface border border-city-border rounded px-2" value={selectedAgentId ?? ''} onChange={event => selectAgent(event.target.value || null)}>
+          <option value="">—</option>
+          {agents.filter(agent => agent.state !== 'dead').map(agent => <option key={agent.id} value={agent.id}>{agent.name ?? agent.llmType}</option>)}
+        </select>
+      </label>
       {/* Legend */}
       <div className="flex items-center gap-4 px-4 py-2 border-b border-city-border/50 bg-city-surface/50">
-        <span className="text-xs text-city-text-muted">Edge Types:</span>
-        <EdgeTypeToggle type="trade" label="Trade" />
-        <EdgeTypeToggle type="harm" label="Harm" />
-        <EdgeTypeToggle type="gossip" label="Gossip" />
-        <EdgeTypeToggle type="distrust" label="Deceive" />
+        <span className="text-xs text-city-text-muted">{translate("Edge Types:")}</span>
+        <EdgeTypeToggle type="trade" label={translate("Trade")} />
+        <EdgeTypeToggle type="harm" label={translate("Harm")} />
+        <EdgeTypeToggle type="gossip" label={translate("Gossip")} />
+        <EdgeTypeToggle type="distrust" label={translate("Deceive")} />
       </div>
 
       {/* Graph */}
@@ -374,9 +390,7 @@ export function SocialGraphView() {
         <svg ref={svgRef} className="w-full h-full" />
 
         {/* Instructions */}
-        <div className="absolute bottom-4 left-4 text-xs text-city-text-muted bg-city-surface/80 px-3 py-2 rounded-lg">
-          Drag nodes to reposition • Scroll to zoom • Click node to select
-        </div>
+        <div className="absolute bottom-4 left-4 text-xs text-city-text-muted bg-city-surface/80 px-3 py-2 rounded-lg">{translate("Drag nodes to reposition • Scroll to zoom • Click node to select")}</div>
       </div>
     </div>
   );
@@ -386,6 +400,7 @@ export function SocialGraphView() {
  * Edge type toggle button
  */
 function EdgeTypeToggle({ type, label }: { type: SocialEdgeType; label: string }) {
+  useLocale();
   const socialGraphEdgeTypes = useVisualizationStore((s) => s.socialGraphEdgeTypes);
   const toggleSocialEdgeType = useVisualizationStore((s) => s.toggleSocialEdgeType);
   const isActive = socialGraphEdgeTypes.has(type);
@@ -408,7 +423,7 @@ function EdgeTypeToggle({ type, label }: { type: SocialEdgeType; label: string }
         className="w-3 h-0.5 rounded"
         style={{ backgroundColor: isActive ? '#fff' : color }}
       />
-      {label}
+      {translateLabel(label)}
     </button>
   );
 }
@@ -417,13 +432,14 @@ function EdgeTypeToggle({ type, label }: { type: SocialEdgeType; label: string }
  * Social Graph Button - Opens the graph view
  */
 export function SocialGraphButton() {
+  useLocale();
   const toggleSocialGraph = useVisualizationStore((s) => s.toggleSocialGraph);
 
   return (
     <button
       onClick={toggleSocialGraph}
       className="p-2 rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
-      title="Social Graph"
+      title={translate("Social Graph")}
     >
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <circle cx="12" cy="5" r="3" />

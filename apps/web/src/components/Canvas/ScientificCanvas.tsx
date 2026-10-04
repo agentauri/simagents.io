@@ -1,3 +1,5 @@
+import { CanvasPanControls } from './CanvasPanControls';
+import { useLocale, translate, formatActionLabel } from '../../i18n';
 /**
  * Scientific Canvas - Simple grid visualization for the scientific model
  *
@@ -56,6 +58,7 @@ function getTouchCenter(touch1: TouchPoint, touch2: TouchPoint): { x: number; y:
 }
 
 export function ScientificCanvas() {
+  const locale = useLocale();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -302,8 +305,8 @@ export function ScientificCanvas() {
     ctx.fillStyle = '#ffffff';
     ctx.font = `${fontSize}px monospace`;
     ctx.textAlign = 'left';
-    ctx.fillText(`Tick: ${tick}`, legendX, legendY);
-    ctx.fillText(`Agents: ${agents.length}`, legendX, legendY + lineHeight);
+    ctx.fillText(`${translate("Tick")}: ${tick}`, legendX, legendY);
+    ctx.fillText(`${translate("Agents")}: ${agents.length}`, legendX, legendY + lineHeight);
 
     // Resource type legend (hide on very small screens)
     if (width >= 320) {
@@ -314,18 +317,18 @@ export function ScientificCanvas() {
       ctx.fillStyle = COLORS.food;
       ctx.fillRect(legendX, resourceY, resourceSize, resourceSize);
       ctx.fillStyle = '#ffffff';
-      ctx.fillText('Food', legendX + resourceSize + 5, resourceY + resourceSize - 1);
+      ctx.fillText(translate("Food"), legendX + resourceSize + 5, resourceY + resourceSize - 1);
 
       ctx.fillStyle = COLORS.energy;
       ctx.fillRect(legendX + resourceSpacing, resourceY, resourceSize, resourceSize);
       ctx.fillStyle = '#ffffff';
-      ctx.fillText('Energy', legendX + resourceSpacing + resourceSize + 5, resourceY + resourceSize - 1);
+      ctx.fillText(translate("Energy"), legendX + resourceSpacing + resourceSize + 5, resourceY + resourceSize - 1);
 
       if (width >= 400) {
         ctx.fillStyle = COLORS.material;
         ctx.fillRect(legendX + resourceSpacing * 2 + 10, resourceY, resourceSize, resourceSize);
         ctx.fillStyle = '#ffffff';
-        ctx.fillText('Material', legendX + resourceSpacing * 2 + resourceSize + 15, resourceY + resourceSize - 1);
+        ctx.fillText(translate("Material"), legendX + resourceSpacing * 2 + resourceSize + 15, resourceY + resourceSize - 1);
       }
     }
 
@@ -338,7 +341,7 @@ export function ScientificCanvas() {
       ctx.font = `bold ${fontSize}px monospace`;
       ctx.fillStyle = '#888888';
       ctx.textAlign = 'right';
-      ctx.fillText('Biomes:', biomeX - 5, biomeY);
+      ctx.fillText(`${translate("Biomes")}:`, biomeX - 5, biomeY);
 
       ctx.textAlign = 'left';
       const biomes: [BiomeType, string][] = [
@@ -357,11 +360,11 @@ export function ScientificCanvas() {
         ctx.globalAlpha = 1;
         ctx.fillStyle = '#ffffff';
         ctx.font = `${fontSize - 2}px monospace`;
-        ctx.fillText(label, bx + biomeSize + 3, by);
+        ctx.fillText(formatActionLabel(label), bx + biomeSize + 3, by);
       });
     }
 
-  }, [agents, agentsByPosition, resourceSpawns, shelters, tick, selectedAgentId, selectedResourceId, camera, zoom, canvasSize]);
+  }, [locale, agents, agentsByPosition, resourceSpawns, shelters, tick, selectedAgentId, selectedResourceId, camera, zoom, canvasSize]);
 
   // Handle resize - use layoutEffect to set size before paint
   useLayoutEffect(() => {
@@ -380,6 +383,7 @@ export function ScientificCanvas() {
 
   // Handle wheel zoom - zooms towards mouse position
   const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) return; // Preserve browser zoom shortcuts.
     e.preventDefault();
 
     const canvas = canvasRef.current;
@@ -636,6 +640,15 @@ export function ScientificCanvas() {
     }
   }, [canvasRef.current?.width, canvasRef.current?.height]);
 
+  const handleMapKey = (event: React.KeyboardEvent) => {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    const direction: Record<string, [number, number]> = { ArrowLeft: [40, 0], ArrowRight: [-40, 0], ArrowUp: [0, 40], ArrowDown: [0, -40] };
+    if (direction[event.key]) { event.preventDefault(); const [x, y] = direction[event.key]; setCamera(current => ({ x: current.x + x, y: current.y + y })); }
+    else if (event.key === '+' || event.key === '=') { event.preventDefault(); setZoom(current => Math.min(3, current + 0.2)); }
+    else if (event.key === '-') { event.preventDefault(); setZoom(current => Math.max(0.5, current - 0.2)); }
+    else if (event.key.toLowerCase() === 'r') { event.preventDefault(); resetCamera(); }
+  };
+
   return (
     <div
       ref={containerRef}
@@ -644,6 +657,14 @@ export function ScientificCanvas() {
     >
       <canvas
         ref={canvasRef}
+        tabIndex={0}
+        role="img"
+        aria-label={translate('Interactive world map')}
+        aria-description={translate('Map keyboard help')}
+        onKeyDown={handleMapKey}
+        data-camera-x={camera.x}
+        data-camera-y={camera.y}
+        data-zoom={zoom}
         className="absolute inset-0"
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
@@ -671,31 +692,30 @@ export function ScientificCanvas() {
       </div>
 
       {/* Controls - responsive positioning and sizing */}
-      <div className="absolute bottom-4 right-4 flex flex-col gap-2 md:bottom-4 md:right-4" style={{ zIndex: 10 }}>
+      <div className="canvas-view-controls absolute top-2 right-2 grid grid-cols-2 gap-1" style={{ zIndex: 10 }}>
+        <CanvasPanControls onKeyDown={handleMapKey} reset={resetCamera} move={(x, y) => setCamera(current => ({ x: current.x - x, y: current.y - y }))} />
         <button
           type="button"
           onClick={() => setZoom((z) => Math.min(3, z + 0.2))}
-          className="w-10 h-10 md:w-10 md:h-10 bg-city-surface border border-city-border rounded-lg text-white hover:bg-city-accent active:bg-city-accent transition-colors font-bold text-lg shadow-lg"
-          title="Zoom in"
+          className="w-11 h-11 bg-city-surface border border-city-border rounded-lg text-city-text hover:bg-city-surface-hover active:bg-city-surface-hover transition-colors font-bold text-lg shadow-lg"
+          title={translate("Zoom in")}
         >
           +
         </button>
         <button
           type="button"
           onClick={() => setZoom((z) => Math.max(0.5, z - 0.2))}
-          className="w-10 h-10 md:w-10 md:h-10 bg-city-surface border border-city-border rounded-lg text-white hover:bg-city-accent active:bg-city-accent transition-colors font-bold text-lg shadow-lg"
-          title="Zoom out"
+          className="w-11 h-11 bg-city-surface border border-city-border rounded-lg text-city-text hover:bg-city-surface-hover active:bg-city-surface-hover transition-colors font-bold text-lg shadow-lg"
+          title={translate("Zoom out")}
         >
           -
         </button>
         <button
           type="button"
           onClick={resetCamera}
-          className="w-10 h-10 md:w-10 md:h-10 bg-city-surface border border-city-border rounded-lg text-white hover:bg-city-accent active:bg-city-accent transition-colors text-sm font-medium shadow-lg"
-          title="Reset camera"
-        >
-          R
-        </button>
+          className="w-11 h-11 bg-city-surface border border-city-border rounded-lg text-city-text hover:bg-city-surface-hover active:bg-city-surface-hover transition-colors text-sm font-medium shadow-lg"
+          title={translate("Reset camera")}
+        >{translate("R")}</button>
       </div>
 
       {/* Help text - responsive, hide on very small screens */}
@@ -703,9 +723,9 @@ export function ScientificCanvas() {
         className="absolute bottom-4 left-4 text-[10px] sm:text-xs text-gray-400 bg-black/40 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg hidden sm:block"
         style={{ zIndex: 10 }}
       >
-        <span className="hidden md:inline">Drag to pan | Scroll to zoom | </span>
-        <span className="md:hidden">Pinch to zoom | </span>
-        <span className="hidden sm:inline">Tap agent to select</span>
+        <span className="hidden md:inline">{translate("Drag to pan | Scroll to zoom |")}{" "}</span>
+        <span className="md:hidden">{translate("Pinch to zoom |")}{" "}</span>
+        <span className="hidden sm:inline">{translate("Tap agent to select")}</span>
       </div>
     </div>
   );

@@ -1,3 +1,5 @@
+import { translateLabel, useLocale, translate } from '../../i18n';
+
 /**
  * GenesisConfig Component
  *
@@ -37,6 +39,7 @@ const AVAILABLE_ARCHETYPES = [
 ];
 
 export function GenesisConfig() {
+  useLocale();
   const { genesisConfig, setGenesisConfig, isLoading } = useConfigStore();
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -70,7 +73,7 @@ export function GenesisConfig() {
     <div className="py-3 px-4 space-y-4">
       {/* Mode Selection */}
       <div className="space-y-2">
-        <span className="text-sm font-medium text-gray-200">Deployment Mode</span>
+        <span className="text-sm font-medium text-gray-200">{translate("Deployment Mode")}</span>
 
         {/* Standard Mode Radio */}
         <label className="flex items-center gap-3 p-2 rounded hover:bg-gray-800 cursor-pointer">
@@ -83,8 +86,8 @@ export function GenesisConfig() {
             className="w-4 h-4 text-blue-500 bg-gray-700 border-gray-600 focus:ring-blue-500"
           />
           <div>
-            <span className="text-sm text-gray-200">Standard</span>
-            <p className="text-xs text-gray-500">7 agents (1 per LLM)</p>
+            <span className="text-sm text-gray-200">{translate("Standard")}</span>
+            <p className="text-xs text-gray-500">{translate("7 agents (1 per LLM)")}</p>
           </div>
         </label>
 
@@ -99,8 +102,8 @@ export function GenesisConfig() {
             className="w-4 h-4 text-blue-500 bg-gray-700 border-gray-600 focus:ring-blue-500"
           />
           <div>
-            <span className="text-sm text-gray-200">Genesis</span>
-            <p className="text-xs text-gray-500">N agents per selected LLM mother</p>
+            <span className="text-sm text-gray-200">{translate("Genesis")}</span>
+            <p className="text-xs text-gray-500">{translate("N agents per selected LLM mother")}</p>
           </div>
         </label>
       </div>
@@ -111,7 +114,7 @@ export function GenesisConfig() {
           {/* Agents per Mother Slider */}
           <div className="space-y-2 pt-2 border-t border-gray-700">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-200">Agents per Mother</span>
+              <span className="text-sm text-gray-200">{translate("Agents per Mother")}</span>
               <span className="text-sm font-mono text-blue-400">{childrenPerMother}</span>
             </div>
             <input
@@ -132,7 +135,7 @@ export function GenesisConfig() {
 
           {/* Mother LLM Selection */}
           <div className="space-y-2 pt-2 border-t border-gray-700">
-            <span className="text-sm text-gray-200">Select Mother LLMs</span>
+            <span className="text-sm text-gray-200">{translate("Select Mother LLMs")}</span>
             <div className="grid grid-cols-2 gap-2">
               {ALL_MOTHERS.map((mother) => (
                 <label
@@ -150,7 +153,7 @@ export function GenesisConfig() {
                     className="w-4 h-4 text-blue-500 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
                   />
                   <span className={`w-2 h-2 rounded-full ${mother.color}`} />
-                  <span className="text-sm text-gray-200">{mother.label}</span>
+                  <span className="text-sm text-gray-200">{translateLabel(mother.label)}</span>
                 </label>
               ))}
             </div>
@@ -158,7 +161,7 @@ export function GenesisConfig() {
 
           {/* Total Agents Display */}
           <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded border border-gray-700">
-            <span className="text-sm text-gray-300">Total Agents</span>
+            <span className="text-sm text-gray-300">{translate("Total Agents")}</span>
             <span className="text-lg font-bold text-blue-400">
               {totalAgents}
               <span className="text-xs text-gray-500 ml-1">
@@ -169,9 +172,7 @@ export function GenesisConfig() {
 
           {/* Cost Warning */}
           {totalAgents > 100 && (
-            <div className="p-2 rounded bg-yellow-900/30 border border-yellow-700/50 text-xs text-yellow-300">
-              ⚠️ High agent count may increase LLM API costs significantly
-            </div>
+            <div className="p-2 rounded bg-yellow-900/30 border border-yellow-700/50 text-xs text-yellow-300">{translate("⚠️ High agent count may increase LLM API costs significantly")}</div>
           )}
 
           {/* Advanced Settings Toggle */}
@@ -180,9 +181,7 @@ export function GenesisConfig() {
             onClick={() => setShowAdvanced(!showAdvanced)}
             className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-200"
           >
-            <span className={`transition-transform ${showAdvanced ? 'rotate-90' : ''}`}>▶</span>
-            Advanced Settings
-          </button>
+            <span className={`transition-transform ${showAdvanced ? 'rotate-90' : ''}`}>▶</span>{translate("Advanced Settings")}</button>
 
           {/* Advanced Settings */}
           {showAdvanced && (
@@ -191,8 +190,8 @@ export function GenesisConfig() {
               <div className="space-y-2">
                 <label className="flex items-center justify-between cursor-pointer">
                   <div>
-                    <span className="text-xs text-gray-300">Use Configured Weights</span>
-                    <p className="text-xs text-gray-500">Override LLM-generated with your weights</p>
+                    <span className="text-xs text-gray-300">{translate("Use Configured Weights")}</span>
+                    <p className="text-xs text-gray-500">{translate("Override LLM-generated with your weights")}</p>
                   </div>
                   <button
                     type="button"
@@ -215,16 +214,14 @@ export function GenesisConfig() {
                   </button>
                 </label>
                 {useConfiguredPersonalities && (
-                  <p className="text-xs text-blue-400">
-                    💡 Personalities from "Personality Weights" section will be used
-                  </p>
+                  <p className="text-xs text-blue-400">{translate("💡 Personalities from \"Personality Weights\" section will be used")}</p>
                 )}
               </div>
 
               {/* Diversity Threshold */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-300">Diversity Threshold</span>
+                  <span className="text-xs text-gray-300">{translate("Diversity Threshold")}</span>
                   <span className="text-xs font-mono text-gray-400">
                     {diversityThreshold.toFixed(2)}
                   </span>
@@ -241,14 +238,12 @@ export function GenesisConfig() {
                   disabled={isLoading}
                   className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                 />
-                <p className="text-xs text-gray-500">
-                  Higher values ensure more diverse personalities
-                </p>
+                <p className="text-xs text-gray-500">{translate("Higher values ensure more diverse personalities")}</p>
               </div>
 
               {/* Required Archetypes */}
               <div className="space-y-2">
-                <span className="text-xs text-gray-300">Required Archetypes</span>
+                <span className="text-xs text-gray-300">{translate("Required Archetypes")}</span>
                 <div className="flex flex-wrap gap-1">
                   {AVAILABLE_ARCHETYPES.map((archetype) => (
                     <button
@@ -269,9 +264,7 @@ export function GenesisConfig() {
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-gray-500">
-                  Genesis will ensure these personality types are represented
-                </p>
+                <p className="text-xs text-gray-500">{translate("Genesis will ensure these personality types are represented")}</p>
               </div>
             </div>
           )}
@@ -279,9 +272,7 @@ export function GenesisConfig() {
       )}
 
       {/* Restart Warning */}
-      <div className="text-xs text-gray-500 pt-2 border-t border-gray-700">
-        ⚠️ Changes require simulation restart to take effect
-      </div>
+      <div className="text-xs text-gray-500 pt-2 border-t border-gray-700">{translate("⚠️ Changes require simulation restart to take effect")}</div>
     </div>
   );
 }

@@ -6,7 +6,10 @@
 
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
-import { getEngineClient } from '../engine-host/engine-client';
+import { appData } from '../services/app-data';
+import type { SavedWorld } from '../services/persistence';
+import type { ItemDescriptor } from '../services/app-data';
+import { replayFrameDescriptors, readReplayFrame } from '../services/replayFrames';
 
 // =============================================================================
 // Types
@@ -14,6 +17,8 @@ import { getEngineClient } from '../engine-host/engine-client';
 
 export interface ReplayAgent {
   id: string;
+  name?: string;
+  modelId?: string;
   llmType: string;
   x: number;
   y: number;
@@ -59,6 +64,9 @@ export interface WorldSnapshot {
 }
 
 export interface TickRange {
+  availableTicks?: number[];
+  missingTicks?: number;
+  unscopedFrames?: number;
   minTick: number;
   maxTick: number;
   currentTick: number;
@@ -165,14 +173,48 @@ export const useReplayError = () => useReplayStore((s) => s.error);
 // API Functions
 // =============================================================================
 
+let replayCache = new Map<number, ItemDescriptor>();
 export async function fetchTickRange(): Promise<TickRange> {
-  return getEngineClient().getReplayRange();
+  const all = await replayFrameDescriptors();
+  const saved = await appData.read<SavedWorld>('world:current');
+  const latest = all.reduce<ItemDescriptor | undefined>((found, frame) => !found || (frame.capturedAt ?? 0) > (found.capturedAt ?? 0) ? frame : found, undefined);
+  const seed = saved?.snapshot.worldSeed ?? latest?.world;
+  const candidates = all.filter(frame => frame.world === seed || frame.world === undefined)
+    .sort((a, b) => Number(a.world !== undefined) - Number(b.world !== undefined));
+  replayCache = new Map(candidates.map(frame => [frame.tick!, frame]));
+  const frames = [...replayCache.values()];
+  if (!frames.length) throw new Error('No saved replay frames are available.');
+  const ticks = [...replayCache.keys()].sort((a, b) => a - b);
+  return { minTick: ticks[0], maxTick: ticks.at(-1)!, currentTick: ticks.at(-1)!,
+    totalEvents: frames.reduce((sum, frame) => sum + (frame.eventCount ?? 0), 0),
+    unscopedFrames: frames.filter(frame => frame.world === undefined).length,
+    availableTicks: ticks, missingTicks: Math.max(ticks.at(-1)!, Number(saved?.snapshot.store.worldState.currentTick ?? 0)) - ticks[0] + 1 - ticks.length };
 }
 
 export async function fetchWorldSnapshot(tick: number): Promise<WorldSnapshot> {
-  return getEngineClient().getReplayFrame(tick);
+  const descriptor = replayCache.get(tick);
+  const frame = descriptor ? await readReplayFrame(descriptor.id) : undefined;
+  if (!frame) throw new Error(`Replay frame missing at tick ${tick}. No substitute frame was used.`);
+  return frame.snapshot;
 }
 
 export async function fetchAgentTimeline(agentId: string, limit = 100): Promise<AgentTimelineEntry[]> {
-  return getEngineClient().getAgentTimeline(agentId, limit);
+  const result: AgentTimelineEntry[] = [];
+  const seen = new Set<number>();
+  const frames = [...replayCache.values()].sort((a, b) => b.tick! - a.tick!);
+  // Decode only one frame at a time and stop when the requested timeline is full.
+  for (const descriptor of frames) {
+    const frame = await readReplayFrame(descriptor.id);
+    if (!frame) continue;
+    for (const event of [...frame.snapshot.events].sort((a, b) => b.tick - a.tick || b.id - a.id)) {
+      if (event.agentId !== agentId || seen.has(event.id)) continue;
+      seen.add(event.id);
+      result.push({ tick: event.tick, eventType: event.eventType,
+        action: typeof event.payload.action === 'string' ? event.payload.action : undefined,
+        success: event.eventType === 'action_failed' ? false : undefined,
+        description: typeof event.payload.reasoning === 'string' ? event.payload.reasoning : event.eventType });
+      if (result.length >= limit) return result;
+    }
+  }
+  return result;
 }

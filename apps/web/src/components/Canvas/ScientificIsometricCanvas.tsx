@@ -1,3 +1,5 @@
+import { CanvasPanControls } from './CanvasPanControls';
+import { useLocale, translate, formatActionLabel } from '../../i18n';
 /**
  * Scientific Isometric Canvas - Isometric grid visualization for the scientific model
  *
@@ -71,6 +73,7 @@ function lightenColor(hex: string, factor: number): string {
 }
 
 export function ScientificIsometricCanvas() {
+  const locale = useLocale();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -268,10 +271,10 @@ export function ScientificIsometricCanvas() {
 
     // Text shadow
     ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    ctx.fillText(agent.llmType.charAt(0).toUpperCase() + agent.llmType.slice(1), screenX + 1, screenY + 6 * scale + 1);
+    ctx.fillText((agent.name ?? agent.llmType), screenX + 1, screenY + 6 * scale + 1);
 
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(agent.llmType.charAt(0).toUpperCase() + agent.llmType.slice(1), screenX, screenY + 6 * scale);
+    ctx.fillText((agent.name ?? agent.llmType), screenX, screenY + 6 * scale);
   }, [zoom]);
 
   // Draw the canvas
@@ -436,9 +439,9 @@ export function ScientificIsometricCanvas() {
     ctx.font = 'bold 12px monospace';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`Tick: ${tick}`, 16, 22);
-    ctx.fillText(`Agents: ${agents.length}`, 16, 38);
-    ctx.fillText(`Resources: ${resourceSpawns.length}`, 16, 54);
+    ctx.fillText(`${translate("Tick")}: ${tick}`, 16, 22);
+    ctx.fillText(`${translate("Agents")}: ${agents.length}`, 16, 38);
+    ctx.fillText(`${translate("Resources")}: ${resourceSpawns.length}`, 16, 54);
 
     // Resource type legend
     const legendY = 78;
@@ -451,19 +454,19 @@ export function ScientificIsometricCanvas() {
     ctx.fillRect(16, legendY + 7, 10, 10);
     ctx.fillStyle = '#ffffff';
     ctx.font = '10px monospace';
-    ctx.fillText('Food', 30, legendY + 13);
+    ctx.fillText(translate("Food"), 30, legendY + 13);
 
     ctx.fillStyle = COLORS.energy;
     ctx.fillRect(76, legendY + 7, 10, 10);
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('Energy', 90, legendY + 13);
+    ctx.fillText(translate("Energy"), 90, legendY + 13);
 
     ctx.fillStyle = COLORS.material;
     ctx.fillRect(146, legendY + 7, 10, 10);
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('Mat', 160, legendY + 13);
+    ctx.fillText(translate("Material"), 160, legendY + 13);
 
-  }, [agents, resourceSpawns, shelters, tick, selectedAgentId, camera, zoom, gridToScreen, drawIsometricTile, drawIsometricBlock, drawAgent]);
+  }, [locale, agents, resourceSpawns, shelters, tick, selectedAgentId, camera, zoom, gridToScreen, drawIsometricTile, drawIsometricBlock, drawAgent]);
 
   // Handle resize
   useEffect(() => {
@@ -481,6 +484,7 @@ export function ScientificIsometricCanvas() {
 
   // Handle wheel zoom - zooms towards mouse position
   const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) return; // Preserve browser zoom shortcuts.
     e.preventDefault();
 
     const canvas = canvasRef.current;
@@ -575,6 +579,15 @@ export function ScientificIsometricCanvas() {
     setZoom(0.8);
   }, []);
 
+  const handleMapKey = (event: React.KeyboardEvent) => {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    const direction: Record<string, [number, number]> = { ArrowLeft: [40, 0], ArrowRight: [-40, 0], ArrowUp: [0, 40], ArrowDown: [0, -40] };
+    if (direction[event.key]) { event.preventDefault(); const [x, y] = direction[event.key]; setCamera(current => ({ x: current.x + x, y: current.y + y })); }
+    else if (event.key === '+' || event.key === '=') { event.preventDefault(); setZoom(current => Math.min(2.5, current + 0.2)); }
+    else if (event.key === '-') { event.preventDefault(); setZoom(current => Math.max(0.3, current - 0.2)); }
+    else if (event.key.toLowerCase() === 'r') { event.preventDefault(); resetCamera(); }
+  };
+
   return (
     <div
       ref={containerRef}
@@ -583,6 +596,14 @@ export function ScientificIsometricCanvas() {
     >
       <canvas
         ref={canvasRef}
+        tabIndex={0}
+        role="img"
+        aria-label={translate('Interactive world map')}
+        aria-description={translate('Map keyboard help')}
+        onKeyDown={handleMapKey}
+        data-camera-x={camera.x}
+        data-camera-y={camera.y}
+        data-zoom={zoom}
         className="absolute inset-0"
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
@@ -593,48 +614,43 @@ export function ScientificIsometricCanvas() {
       />
 
       {/* Controls */}
-      <div className="absolute bottom-4 right-4 flex flex-col gap-2" style={{ zIndex: 10 }}>
+      <div className="canvas-view-controls absolute top-2 right-2 grid grid-cols-2 gap-1" style={{ zIndex: 10 }}>
+        <CanvasPanControls onKeyDown={handleMapKey} reset={resetCamera} move={(x, y) => setCamera(current => ({ x: current.x - x, y: current.y - y }))} />
         <button
           type="button"
           onClick={() => setZoom((z) => Math.min(2.5, z + 0.2))}
-          className="w-10 h-10 bg-city-surface border border-city-border rounded-lg text-white hover:bg-city-accent transition-colors font-bold text-lg shadow-lg"
-          title="Zoom in"
+          className="w-11 h-11 bg-city-surface border border-city-border rounded-lg text-city-text hover:bg-city-surface-hover transition-colors font-bold text-lg shadow-lg"
+          title={translate("Zoom in")}
         >
           +
         </button>
         <button
           type="button"
           onClick={() => setZoom((z) => Math.max(0.3, z - 0.2))}
-          className="w-10 h-10 bg-city-surface border border-city-border rounded-lg text-white hover:bg-city-accent transition-colors font-bold text-lg shadow-lg"
-          title="Zoom out"
+          className="w-11 h-11 bg-city-surface border border-city-border rounded-lg text-city-text hover:bg-city-surface-hover transition-colors font-bold text-lg shadow-lg"
+          title={translate("Zoom out")}
         >
           -
         </button>
         <button
           type="button"
           onClick={resetCamera}
-          className="w-10 h-10 bg-city-surface border border-city-border rounded-lg text-white hover:bg-city-accent transition-colors text-sm font-medium shadow-lg"
-          title="Reset camera"
-        >
-          R
-        </button>
+          className="w-11 h-11 bg-city-surface border border-city-border rounded-lg text-city-text hover:bg-city-surface-hover transition-colors text-sm font-medium shadow-lg"
+          title={translate("Reset camera")}
+        >{translate("R")}</button>
       </div>
 
       {/* Help text */}
       <div
-        className="absolute bottom-4 left-4 text-xs text-gray-400 bg-black/40 px-3 py-2 rounded-lg"
+        className="absolute bottom-4 left-4 hidden sm:block text-xs text-gray-400 bg-black/40 px-3 py-2 rounded-lg"
         style={{ zIndex: 10 }}
-      >
-        Drag to pan | Scroll to zoom | Click agent to select
-      </div>
+      >{translate("Drag to pan | Scroll to zoom | Click agent to select")}</div>
 
       {/* Isometric indicator badge */}
       <div
-        className="absolute top-4 right-4 px-2 py-1 bg-city-accent/20 text-city-accent text-xs font-medium rounded border border-city-accent/30"
+        className="absolute top-28 right-4 hidden md:block px-2 py-1 bg-city-accent/20 text-city-accent text-xs font-medium rounded border border-city-accent/30"
         style={{ zIndex: 10 }}
-      >
-        Isometric View
-      </div>
+      >{translate("Isometric View")}</div>
     </div>
   );
 }

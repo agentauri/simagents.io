@@ -1,3 +1,4 @@
+import { translate, useLocale, type TranslationKey } from '../i18n';
 /**
  * MobileNav - Bottom navigation for mobile devices
  *
@@ -10,7 +11,7 @@
 
 import type { ReactNode } from 'react';
 
-export type MobileView = 'canvas' | 'agents' | 'events' | 'profile' | 'decisions';
+export type MobileView = 'canvas' | 'resources' | 'agents' | 'events' | 'profile' | 'decisions';
 
 interface MobileNavProps {
   currentView: MobileView;
@@ -34,6 +35,7 @@ export function MobileNav({
   agentCount,
   eventCount
 }: MobileNavProps) {
+  useLocale();
   const navItems: NavItem[] = [
     {
       id: 'canvas',
@@ -59,6 +61,7 @@ export function MobileNav({
         </svg>
       ),
     },
+    { id: 'resources', label: 'Resources', icon: <span aria-hidden="true">◇</span> },
     {
       id: 'events',
       label: 'Events',
@@ -95,13 +98,14 @@ export function MobileNav({
   }
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-city-surface/95 backdrop-blur-md border-t border-city-border/50 safe-area-bottom">
+    <nav className="mobile-navigation fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-city-surface/95 backdrop-blur-md border-t border-city-border/50 safe-area-bottom">
       <div className="flex items-center justify-around h-16 px-2">
         {navItems.map((item) => {
           const isActive = currentView === item.id;
           return (
             <button
               key={item.id}
+              aria-current={isActive ? 'page' : undefined}
               onClick={() => onViewChange(item.id)}
               className={`flex flex-col items-center justify-center flex-1 h-full py-2 px-1 relative transition-colors ${
                 isActive
@@ -112,13 +116,13 @@ export function MobileNav({
               <div className="relative">
                 {item.icon}
                 {item.badge !== undefined && item.badge > 0 && (
-                  <span className="absolute -top-1 -right-2 min-w-[16px] h-4 px-1 flex items-center justify-center text-[10px] font-bold bg-city-accent text-white rounded-full">
+                  <span className="absolute -top-1 -right-2 min-w-[16px] h-4 px-1 flex items-center justify-center text-[10px] font-bold bg-city-accent text-gray-950 rounded-full">
                     {item.badge}
                   </span>
                 )}
               </div>
               <span className={`text-[10px] mt-1 font-medium ${isActive ? 'text-city-accent' : ''}`}>
-                {item.label}
+                {translate(item.label as TranslationKey)}
               </span>
               {isActive && (
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-city-accent rounded-full" />

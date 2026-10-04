@@ -1,3 +1,4 @@
+import { accumulateMetrics } from '../../engine/metrics';
 /**
  * Event store queries — in-memory implementation.
  *
@@ -23,6 +24,7 @@ export async function appendEvent(event: Omit<NewEvent, 'version'>): Promise<Eve
     version: store.nextEventVersion++,
     createdAt: new Date(),
   };
+  accumulateMetrics(store.metrics, row, row.agentId ? store.agents.get(row.agentId)?.llmType : undefined, store.agents.size);
   store.events.push(row);
   if (store.events.length > STORE_EVENT_CAP) {
     store.events.splice(0, store.events.length - STORE_EVENT_CAP);
@@ -65,7 +67,7 @@ export async function getRecentEvents(limit = 50): Promise<Event[]> {
 }
 
 export async function getEventCount(): Promise<number> {
-  return store.events.length;
+  return store.metrics.totalEvents;
 }
 
 export async function getEventsByCategory(category: EventCategory, tick: number): Promise<Event[]> {

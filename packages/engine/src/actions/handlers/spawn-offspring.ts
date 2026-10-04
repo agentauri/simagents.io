@@ -12,6 +12,7 @@
  * EMERGENT: Agent evolution, trait selection, population dynamics.
  */
 
+import { store } from '../../engine-memory/store';
 import { v4 as uuid } from 'uuid';
 import type { ActionIntent, ActionResult, SpawnOffspringParams } from '../types';
 import type { Agent } from '../../db/schema';
@@ -19,7 +20,7 @@ import { getAgentById } from '../../db/queries/agents';
 import { storeMemory, updateRelationshipTrust, getRelationship } from '../../db/queries/memories';
 import { createReproductionState, createLineage, getActiveReproduction } from '../../db/queries/reproduction';
 import { getDistance } from '../../world/grid';
-import { CONFIG } from '../../config';
+import { getRuntimeConfig } from '../../config';
 
 export async function handleSpawnOffspring(
   intent: ActionIntent<SpawnOffspringParams>,
@@ -27,6 +28,12 @@ export async function handleSpawnOffspring(
 ): Promise<ActionResult> {
   const { partnerId, inheritSystemPrompt = true, mutationIntensity = 0.1 } = intent.params;
 
+  if (!inheritSystemPrompt) return { success: false, error: 'Per-offspring system prompts are not supported; use inheritSystemPrompt=true' };
+  const population = [...store.agents.values()].filter((a) => a.state !== 'dead').length;
+  const pendingBirths = [...store.reproductionStates.values()].filter((r) => r.status === 'gestating').length;
+  if (population + pendingBirths >= getRuntimeConfig().actions.spawnOffspring.maxPopulation) {
+    return { success: false, error: 'Population limit reached' };
+  }
   // Validate mutation intensity
   if (mutationIntensity < 0 || mutationIntensity > 1) {
     return {
@@ -45,9 +52,9 @@ export async function handleSpawnOffspring(
   }
 
   // Check minimum requirements
-  const minBalance = CONFIG.actions.spawnOffspring.minBalance;
-  const minEnergy = CONFIG.actions.spawnOffspring.minEnergy;
-  const minHealth = CONFIG.actions.spawnOffspring.minHealth;
+  const minBalance = getRuntimeConfig().actions.spawnOffspring.minBalance;
+  const minEnergy = getRuntimeConfig().actions.spawnOffspring.minEnergy;
+  const minHealth = getRuntimeConfig().actions.spawnOffspring.minHealth;
 
   if (agent.balance < minBalance) {
     return {
@@ -101,19 +108,19 @@ export async function handleSpawnOffspring(
       { x: agent.x, y: agent.y },
       { x: partnerAgent.x, y: partnerAgent.y }
     );
-    if (distance > CONFIG.actions.spawnOffspring.maxPartnerDistance) {
+    if (distance > getRuntimeConfig().actions.spawnOffspring.maxPartnerDistance) {
       return {
         success: false,
-        error: `Partner too far (distance: ${distance}, max: ${CONFIG.actions.spawnOffspring.maxPartnerDistance})`,
+        error: `Partner too far (distance: ${distance}, max: ${getRuntimeConfig().actions.spawnOffspring.maxPartnerDistance})`,
       };
     }
 
     // Check partner's relationship/trust (must have positive trust)
     const relationship = await getRelationship(partnerAgent.id, agent.id);
-    if (!relationship || relationship.trustScore < CONFIG.actions.spawnOffspring.minPartnerTrust) {
+    if (!relationship || relationship.trustScore < getRuntimeConfig().actions.spawnOffspring.minPartnerTrust) {
       return {
         success: false,
-        error: `Partner doesn't trust you enough for reproduction (need trust >= ${CONFIG.actions.spawnOffspring.minPartnerTrust})`,
+        error: `Partner doesn't trust you enough for reproduction (need trust >= ${getRuntimeConfig().actions.spawnOffspring.minPartnerTrust})`,
       };
     }
 
@@ -127,9 +134,9 @@ export async function handleSpawnOffspring(
   }
 
   // Calculate costs
-  const balanceCost = CONFIG.actions.spawnOffspring.balanceCost;
-  const energyCost = CONFIG.actions.spawnOffspring.energyCost;
-  const gestationTicks = CONFIG.actions.spawnOffspring.gestationTicks;
+  const balanceCost = getRuntimeConfig().actions.spawnOffspring.balanceCost;
+  const energyCost = getRuntimeConfig().actions.spawnOffspring.energyCost;
+  const gestationTicks = getRuntimeConfig().actions.spawnOffspring.gestationTicks;
 
   const newBalance = agent.balance - balanceCost;
   const newEnergy = Math.max(0, agent.energy - energyCost);
@@ -141,6 +148,7 @@ export async function handleSpawnOffspring(
     parentAgentId: agent.id,
     partnerAgentId: partnerId,
     gestationStartTick: intent.tick,
+    mutationIntensity,
     gestationDurationTicks: gestationTicks,
     status: 'gestating',
   });
@@ -180,14 +188,14 @@ export async function handleSpawnOffspring(
     await updateRelationshipTrust(
       agent.id,
       partnerId,
-      CONFIG.actions.spawnOffspring.trustGainOnReproduction,
+      getRuntimeConfig().actions.spawnOffspring.trustGainOnReproduction,
       intent.tick,
       'Reproduction partnership'
     );
     await updateRelationshipTrust(
       partnerId,
       agent.id,
-      CONFIG.actions.spawnOffspring.trustGainOnReproduction,
+      getRuntimeConfig().actions.spawnOffspring.trustGainOnReproduction,
       intent.tick,
       'Reproduction partnership'
     );

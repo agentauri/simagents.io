@@ -9,6 +9,8 @@ export interface WorldState {
 }
 
 export interface Agent {
+  connectionId?: string;
+  rosterEntryId?: string;
   id: string;
   tenantId: string | null;
   llmType: string;
@@ -325,6 +327,7 @@ export type NewAgentLineage = Partial<AgentLineage> &
   Pick<AgentLineage, 'agentId' | 'spawnedAtTick'>;
 
 export interface ReproductionState {
+  mutationIntensity?: number;
   id: string;
   tenantId: string | null;
   parentAgentId: string;
@@ -342,6 +345,7 @@ export type NewReproductionState = Partial<ReproductionState> &
   Pick<ReproductionState, 'parentAgentId' | 'gestationStartTick' | 'gestationDurationTicks' | 'status'>;
 
 export interface PuzzleGame {
+  prizeDistribution?: Array<{ agentId: string; amount: number; type: string }>;
   id: string;
   tenantId: string | null;
   gameType: string;

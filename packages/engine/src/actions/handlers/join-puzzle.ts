@@ -29,7 +29,7 @@ import {
 } from '../../db/queries/puzzles';
 import { updateAgentBalance } from '../../db/queries/agents';
 import { storeMemory } from '../../db/queries/memories';
-import { CONFIG } from '../../config';
+import { getRuntimeConfig } from '../../config';
 
 export async function handleJoinPuzzle(
   intent: ActionIntent<JoinPuzzleParams>,
@@ -38,7 +38,7 @@ export async function handleJoinPuzzle(
   const { gameId, stakeAmount } = intent.params;
 
   // Check if puzzle system is enabled
-  if (!CONFIG.puzzle.enabled) {
+  if (!getRuntimeConfig().puzzle.enabled) {
     return {
       success: false,
       error: 'Puzzle game system is not enabled',
@@ -63,7 +63,7 @@ export async function handleJoinPuzzle(
   }
 
   // Check registration window
-  if (game.startsAtTick && intent.tick > game.startsAtTick + CONFIG.puzzle.registrationWindow) {
+  if (game.startsAtTick && intent.tick > game.startsAtTick + getRuntimeConfig().puzzle.registrationWindow) {
     return {
       success: false,
       error: 'Registration window has closed for this puzzle',
@@ -81,6 +81,9 @@ export async function handleJoinPuzzle(
 
   // Check if already a participant in this specific game
   const existingParticipant = await getParticipant(agent.id, gameId);
+  if (existingParticipant && existingParticipant.status === 'banned') {
+    return { success: false, error: 'Banned participants cannot rejoin this puzzle' };
+  }
   if (existingParticipant && existingParticipant.status === 'active') {
     return {
       success: false,
@@ -101,16 +104,16 @@ export async function handleJoinPuzzle(
   const effectiveStake = stakeAmount ?? game.entryStake;
 
   // Validate stake amount
-  if (effectiveStake < CONFIG.puzzle.minEntryStake) {
+  if (effectiveStake < getRuntimeConfig().puzzle.minEntryStake) {
     return {
       success: false,
-      error: `Stake must be at least ${CONFIG.puzzle.minEntryStake} CITY`,
+      error: `Stake must be at least ${getRuntimeConfig().puzzle.minEntryStake} CITY`,
     };
   }
-  if (effectiveStake > CONFIG.puzzle.maxEntryStake) {
+  if (effectiveStake > getRuntimeConfig().puzzle.maxEntryStake) {
     return {
       success: false,
-      error: `Stake cannot exceed ${CONFIG.puzzle.maxEntryStake} CITY`,
+      error: `Stake cannot exceed ${getRuntimeConfig().puzzle.maxEntryStake} CITY`,
     };
   }
   if (effectiveStake < game.entryStake) {
@@ -137,6 +140,7 @@ export async function handleJoinPuzzle(
 
   // Create participant record
   const participant = await addPuzzleParticipant({
+    id: existingParticipant?.id,
     gameId,
     agentId: agent.id,
     stakedAmount: effectiveStake,

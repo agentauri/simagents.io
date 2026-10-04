@@ -1,3 +1,4 @@
+import { translate, useLocale, translateLabel } from '../../i18n';
 /**
  * ApiKeyInput Component
  *
@@ -30,6 +31,7 @@ export function ApiKeyInput({
   onClear,
   isLoading,
 }: ApiKeyInputProps) {
+  useLocale();
   const [showKey, setShowKey] = useState(false);
 
   // Determine badge color and text
@@ -41,7 +43,7 @@ export function ApiKeyInput({
       case 'user':
         return { text: 'User Key', color: 'bg-blue-800 text-blue-200' };
       default:
-        return { text: 'Not Set', color: 'bg-gray-700 text-gray-400' };
+        return { text: 'Not Set', color: 'bg-gray-700 text-gray-200' };
     }
   };
 
@@ -58,7 +60,7 @@ export function ApiKeyInput({
           {provider.displayName}
         </span>
         <span className={`text-xs px-2 py-0.5 rounded ${badge.color}`}>
-          {badge.text}
+          {translateLabel(badge.text)}
         </span>
       </div>
 
@@ -67,9 +69,11 @@ export function ApiKeyInput({
         <div className="relative flex-1">
           <input
             type={showKey ? 'text' : 'password'}
+            autoComplete="off"
+            aria-label={translate("{provider} API key", { provider: provider.displayName })}
             value={displayValue}
             onChange={(e) => onKeyChange(e.target.value)}
-            placeholder={hasKey ? '••••••••' : 'Enter API key...'}
+            placeholder={hasKey ? '••••••••' : translate("Enter API key...")}
             disabled={isLoading || status.disabled}
             className={`w-full bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed pr-10 ${
               isEditing ? 'border-yellow-500' : ''
@@ -80,8 +84,8 @@ export function ApiKeyInput({
             type="button"
             onClick={() => setShowKey(!showKey)}
             disabled={isLoading || status.disabled}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none"
-            aria-label={showKey ? 'Hide key' : 'Show key'}
+            className="absolute min-w-11 min-h-11 flex items-center justify-center right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none"
+            aria-label={translate(showKey ? 'Hide key' : 'Show key')}
           >
             {showKey ? (
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -107,7 +111,7 @@ export function ApiKeyInput({
                 : 'bg-yellow-800/50 text-yellow-300 hover:bg-yellow-800'
             }`}
           >
-            {status.disabled ? 'Enable' : 'Disable'}
+            {status.disabled ? translate("Enable") : translate("Disable")}
           </button>
         )}
 
@@ -117,23 +121,19 @@ export function ApiKeyInput({
             onClick={onClear}
             disabled={isLoading}
             className="px-2 py-1.5 text-xs rounded bg-red-800/50 text-red-300 hover:bg-red-800 transition-colors focus:outline-none focus:ring-1 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Clear
-          </button>
+          >{translate("Clear session key")}</button>
         )}
       </div>
 
       {/* Footer row: Cost info + Get Key link */}
       <div className="flex items-center justify-between text-xs">
-        <span className="text-gray-500">{provider.costInfo}</span>
+        <span className="text-gray-400">{provider.costInfo}</span>
         <a
           href={provider.docsUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="text-blue-400 hover:text-blue-300 hover:underline"
-        >
-          Get API Key &rarr;
-        </a>
+        >{translate("Get API Key &rarr;")}</a>
       </div>
     </div>
   );

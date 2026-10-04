@@ -1,3 +1,8 @@
+import { useRequestCaptureStore } from '../stores/requestCapture';
+import { profileVerificationIssue } from '../services/profile-verification-gate';
+import { useConnectionsStore } from '../stores/connections';
+import { useSessionLimitsStore } from '../stores/sessionLimits';
+import { byokPreflight, internalFixturesEnabled } from '../services/byok-preflight';
 import { getEngineClient } from '../engine-host/engine-client';
 import { engineStateToWorldState } from './useEngine';
 import { clearSavedWorld, loadSavedWorld } from '../services/persistence';
@@ -106,22 +111,24 @@ export function useWorldControl() {
 
   const start = async (options: StartOptions = {}): Promise<StartResult> => {
     try {
-      useAgentStatsStore.getState().resetAgentStats();
       const roster = useRosterStore.getState().roster;
       const keys = useApiKeysStore.getState().getActiveKeys();
       const proxyUrl = useSettingsStore.getState().proxyUrl.trim();
+      const connectionIssue = byokPreflight(roster, keys, proxyUrl, internalFixturesEnabled(), useConnectionsStore.getState().profiles);
+      if (connectionIssue) throw new Error(connectionIssue);
+      const verificationIssue = profileVerificationIssue(roster, useConnectionsStore.getState().profiles);
+      if (verificationIssue) throw new Error(verificationIssue);
+      useAgentStatsStore.getState().resetAgentStats();
       const pendingChanges = useConfigStore.getState().pendingChanges as Record<string, unknown>;
       const configOverrides = localRuntimeOverrides(pendingChanges);
       const client = getEngineClient();
-      const saved = options.resumeSavedWorld ? loadSavedWorld() : undefined;
-      if (!saved) {
-        clearSavedWorld();
-        clearReplayFrames();
-        clearPromptLogs();
-      }
+      const saved = options.resumeSavedWorld ? await loadSavedWorld() : undefined;
 
       const state = await client.init({
+        captureRequests: useRequestCaptureStore.getState().enabled,
         roster,
+        connections: useConnectionsStore.getState().profiles,
+        limits: useSessionLimitsStore.getState().limits,
         keys,
         proxyUrl: proxyUrl || undefined,
         speed: saved?.snapshot.speed ?? 10,
@@ -130,6 +137,7 @@ export function useWorldControl() {
         customPrompt: usePromptStore.getState().customPrompt,
         resume: saved?.snapshot,
       });
+      useRequestCaptureStore.getState().setEnabled(false);
       await client.start();
       const mapped = engineStateToWorldState(state);
       return {
@@ -159,9 +167,9 @@ export function useWorldControl() {
   const reset = async (): Promise<boolean> => {
     getEngineClient().resetHard();
     useAgentStatsStore.getState().resetAgentStats();
-    clearSavedWorld();
-    clearReplayFrames();
-    clearPromptLogs();
+    await clearSavedWorld();
+    await clearReplayFrames();
+    await clearPromptLogs();
     return true;
   };
 

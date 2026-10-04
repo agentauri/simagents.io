@@ -1,3 +1,5 @@
+import { useAllAgentStats } from '../../stores/agentStats';
+import { useLocale, translate } from '../../i18n';
 /**
  * Mobile Agent List - Full-screen version of agent summary for mobile
  */
@@ -6,6 +8,8 @@ import { memo } from 'react';
 import { useAgents, useWorldStore } from '../../stores/world';
 
 export const MobileAgentList = memo(function MobileAgentList() {
+  useLocale();
+  const stats = useAllAgentStats();
   const agents = useAgents();
   const selectAgent = useWorldStore((s) => s.selectAgent);
 
@@ -20,8 +24,7 @@ export const MobileAgentList = memo(function MobileAgentList() {
           <circle cx="9" cy="7" r="4" />
           <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
           <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-        </svg>
-        Agents ({sortedAgents.length})
+        </svg>{translate("Agents (")}{sortedAgents.length})
       </h3>
 
       <div className="space-y-2">
@@ -40,10 +43,10 @@ export const MobileAgentList = memo(function MobileAgentList() {
               </div>
               <div>
                 <div className="text-city-text font-medium capitalize text-sm">
-                  {agent.llmType}
+                  {agent.name ?? agent.llmType}
                 </div>
-                <div className="text-city-text-muted text-xs">
-                  HP: {Math.round(agent.health)} | E: {Math.round(agent.energy)} | H: {Math.round(agent.hunger)}
+                <div className="text-city-text-muted text-xs break-all">{stats[agent.id]?.lastModelId ?? translate("Model not yet reported")}</div>
+                <div className="text-city-text-muted text-xs">{translate("HP:")}{" "}{Math.round(agent.health)}{" "}{translate("| E:")}{" "}{Math.round(agent.energy)}{" "}{translate("| H:")}{" "}{Math.round(agent.hunger)}
                 </div>
               </div>
             </div>
@@ -57,9 +60,7 @@ export const MobileAgentList = memo(function MobileAgentList() {
         ))}
 
         {sortedAgents.length === 0 && (
-          <div className="text-center text-city-text-muted py-8 text-sm">
-            No active agents
-          </div>
+          <div className="text-center text-city-text-muted py-8 text-sm">{translate("No active agents")}</div>
         )}
       </div>
     </div>

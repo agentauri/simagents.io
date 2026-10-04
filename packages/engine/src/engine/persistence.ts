@@ -1,15 +1,19 @@
+import { validateSnapshotDomain } from './snapshot-domain';
+import { snapshotRNG, restoreRNG, initializeLegacyRNG, validRandomSnapshot, type RandomSnapshot } from '../utils/random';
+import { emptyMetrics, accumulateMetrics, validMetrics, type WorldMetrics } from './metrics';
 /**
  * Versioned persistence for the browser-only engine.
  *
  * Snapshots are plain JSON and are designed for localStorage handoff: the
  * worker owns serialization/hydration, while the main thread owns storage.
  *
- * RNG limitation: the snapshot records the world seed only. Per-agent RNG
- * streams are recreated from that seed on resume, so probabilistic sequences
- * after a reload can diverge from an uninterrupted run. That is acceptable for
- * browser-local persistence and keeps the snapshot compact.
+ * Random generator streams are saved independently from network timing. Restoring
+ * their state does not replay pending requests or guarantee identical LLM output.
  */
 
+import { validateRoster, validateConnectionProfile, type ConnectionProfile, type AgentRosterEntry } from '@simagents/shared';
+import { getRuntimeOverrides, resetRuntimeConfig, setRuntimeConfig, type RuntimeConfigOverrides } from '../config';
+import { getCustomSystemPrompt, setCustomSystemPrompt } from '../llm/prompt-manager';
 import type {
   Agent,
   AgentClaim,
@@ -128,6 +132,9 @@ export interface EngineMetadataSnapshotV1 {
 }
 
 export interface WorldSnapshotV1 {
+  random?: RandomSnapshot;
+  metrics?: WorldMetrics;
+  configuration?: { overrides: RuntimeConfigOverrides; customPrompt: string | null; connections?: ConnectionProfile[]; roster?: AgentRosterEntry[] };
   schemaVersion: 1;
   savedAtSimTimeMs: number;
   worldSeed: string;
@@ -171,8 +178,11 @@ const DATE_KEYS = new Set([
 const SNAPSHOT_EVENT_CAP = 500;
 
 export function serializeWorld(options: SerializeWorldOptions): WorldSnapshotV1 {
-  return {
+  const snapshot: WorldSnapshotV1 = {
     schemaVersion: WORLD_SNAPSHOT_SCHEMA_VERSION,
+    metrics: store.metrics,
+    random: snapshotRNG(),
+    configuration: { overrides: JSON.parse(JSON.stringify(getRuntimeOverrides())), customPrompt: getCustomSystemPrompt() },
     savedAtSimTimeMs: finiteNumber(options.savedAtSimTimeMs, 'savedAtSimTimeMs'),
     worldSeed: options.worldSeed,
     speed: finiteNumber(options.speed, 'speed'),
@@ -224,11 +234,19 @@ export function serializeWorld(options: SerializeWorldOptions): WorldSnapshotV1 
       },
     },
   };
+  return JSON.parse(JSON.stringify(snapshot)) as WorldSnapshotV1;
 }
 
 export function hydrateWorld(input: unknown): void {
   const snapshot = validateWorldSnapshotV1(input);
   resetStore();
+  if (snapshot.random) restoreRNG(snapshot.random);
+  else initializeLegacyRNG(snapshot.worldSeed);
+  if (snapshot.configuration) {
+    resetRuntimeConfig();
+    setRuntimeConfig(snapshot.configuration.overrides);
+    setCustomSystemPrompt(snapshot.configuration.customPrompt);
+  }
 
   store.worldState = reviveRow<WorldState>(snapshot.store.worldState);
   restoreRowsById(store.agents, snapshot.store.agents, 'agents');
@@ -236,6 +254,8 @@ export function hydrateWorld(input: unknown): void {
   restoreRowsById(store.shelters, snapshot.store.shelters, 'shelters');
   restoreInventory(snapshot.store.inventory);
   store.events = arrayRows<Event>(snapshot.store.events).slice(-STORE_EVENT_CAP);
+  store.metrics = snapshot.metrics ? JSON.parse(JSON.stringify(snapshot.metrics)) : emptyMetrics(false);
+  if (!snapshot.metrics) for (const event of store.events) accumulateMetrics(store.metrics, event, event.agentId ? store.agents.get(event.agentId)?.llmType : undefined, store.agents.size);
   restoreRowsById(store.memories, snapshot.store.memories, 'memories');
   restoreRelationships(snapshot.store.relationships);
   restoreEntries(store.scents, snapshot.store.scents, 'scents');
@@ -282,9 +302,24 @@ export function validateWorldSnapshotV1(input: unknown): WorldSnapshotV1 {
     );
   }
 
+  validateJson(input, 'snapshot');
   const snapshot = input as Partial<WorldSnapshotV1>;
+  if (snapshot.configuration !== undefined) {
+    if (!isObject(snapshot.configuration) || !isObject(snapshot.configuration.overrides) ||
+      (snapshot.configuration.customPrompt !== null && typeof snapshot.configuration.customPrompt !== 'string')) {
+      throw invalid('Invalid snapshot configuration');
+    }
+    if (snapshot.configuration.roster !== undefined) validateRoster(snapshot.configuration.roster);
+    if (snapshot.configuration.connections !== undefined) {
+      if (!Array.isArray(snapshot.configuration.connections) || snapshot.configuration.connections.length > 100) throw invalid('Invalid connection metadata');
+      for (const connection of snapshot.configuration.connections) validateConnectionProfile(connection);
+    }
+  }
+  if (snapshot.random !== undefined && !validRandomSnapshot(snapshot.random)) throw invalid('Invalid random generator state');
+  if (snapshot.metrics !== undefined && !validMetrics(snapshot.metrics)) throw invalid('Invalid cumulative metrics');
   requireFinite(snapshot.savedAtSimTimeMs, 'savedAtSimTimeMs');
   requireFinite(snapshot.speed, 'speed');
+  if (snapshot.speed! < 0 || snapshot.savedAtSimTimeMs! < 0) throw invalid('Negative snapshot time or speed');
   if (typeof snapshot.worldSeed !== 'string') {
     throw invalid('worldSeed must be a string');
   }
@@ -293,6 +328,8 @@ export function validateWorldSnapshotV1(input: unknown): WorldSnapshotV1 {
   validateStoreSnapshot(snapshot.store as Partial<WorldStoreSnapshotV1>);
   validateEngineSnapshot(snapshot.engine as Partial<EngineMetadataSnapshotV1>);
 
+  try { validateSnapshotDomain(snapshot as WorldSnapshotV1); }
+  catch (error) { throw invalid(error instanceof Error ? error.message : 'Invalid snapshot domain'); }
   return snapshot as WorldSnapshotV1;
 }
 
@@ -346,7 +383,33 @@ function validateStoreSnapshot(snapshot: Partial<WorldStoreSnapshotV1>): void {
   ];
   if (!isObject(snapshot.worldState)) throw invalid('store.worldState must be an object');
   for (const field of arrayFields) {
-    if (!Array.isArray(snapshot[field])) throw invalid(`store.${field} must be an array`);
+    const rows = snapshot[field];
+    if (!Array.isArray(rows)) throw invalid(`store.${field} must be an array`);
+    const entries = ['inventory', 'scents', 'forageCooldowns', 'publicWorkSessions'].includes(field);
+    const ids = new Set<string>();
+    const keyed = !entries && !['events', 'ledgerEntries', 'gossipEvents', 'retaliationChains', 'agentRoles', 'relationships'].includes(field);
+    for (const row of rows) {
+      if (entries) {
+        if (!Array.isArray(row) || row.length !== 2 || typeof row[0] !== 'string') throw invalid(`Invalid ${field} entry`);
+        if (field === 'forageCooldowns') requireFinite(row[1], field);
+        else if (!isObject(row[1])) throw invalid(`Invalid ${field} value`);
+      } else {
+        if (!isObject(row)) throw invalid(`Invalid ${field} row`);
+        if (keyed) {
+          if (typeof row.id !== 'string' || !row.id || ids.has(row.id)) throw invalid(`Invalid or duplicate ${field} id`);
+          ids.add(row.id);
+        }
+      }
+    }
+  }
+  for (const agent of snapshot.agents ?? []) {
+    for (const key of ['x', 'y', 'hunger', 'energy', 'health', 'balance']) {
+      requireFinite(agent[key], `agents.${key}`);
+      if ((agent[key] as number) < 0) throw invalid(`Negative agents.${key}`);
+    }
+    if (!Number.isInteger(agent.x) || !Number.isInteger(agent.y)) throw invalid('Fractional agent position');
+    for (const key of ['hunger', 'energy', 'health']) if ((agent[key] as number) > 100) throw invalid(`Invalid agents.${key}`);
+    for (const key of ['llmType', 'state', 'color']) if (typeof agent[key] !== 'string') throw invalid(`Invalid agents.${key}`);
   }
   requireFinite(snapshot.nextGossipId, 'store.nextGossipId');
   requireFinite(snapshot.nextEventId, 'store.nextEventId');
@@ -356,6 +419,17 @@ function validateStoreSnapshot(snapshot: Partial<WorldStoreSnapshotV1>): void {
 function validateEngineSnapshot(snapshot: Partial<EngineMetadataSnapshotV1>): void {
   if (!Array.isArray(snapshot.vitalsMeta)) throw invalid('engine.vitalsMeta must be an array');
   if (!Array.isArray(snapshot.agentMeta)) throw invalid('engine.agentMeta must be an array');
+  for (const [label, entries] of [['vitalsMeta', snapshot.vitalsMeta], ['agentMeta', snapshot.agentMeta]] as const) {
+    for (const entry of entries!) {
+      if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string' || !isObject(entry[1])) throw invalid(`Invalid ${label}`);
+      if (label === 'agentMeta') requireFinite((entry[1] as AgentEngineMeta).busyUntil, label);
+      else {
+        const meta = entry[1] as VitalsMeta;
+        requireFinite(meta.vitalsUpdatedAt, label);
+        if (!isObject(meta.criticalSince)) throw invalid('Invalid criticalSince');
+      }
+    }
+  }
   if (!isObject(snapshot.heartbeat)) throw invalid('engine.heartbeat must be an object');
   requireFinite(
     snapshot.heartbeat.lastCurrencyDecayBoundaryTick,
@@ -418,7 +492,10 @@ function arrayRows<T>(values: JsonObject[]): T[] {
 }
 
 function reviveRow<T>(value: JsonObject): T {
-  return reviveDates(value) as T;
+  // Only entity columns are dates; user/model payloads retain their JSON text.
+  return Object.fromEntries(Object.entries(value).map(([key, child]) => [key,
+    typeof child === 'string' && DATE_KEYS.has(key) ? new Date(child) : child,
+  ])) as T;
 }
 
 function mapValues<T>(map: Map<string, T>): JsonObject[] {
@@ -528,3 +605,16 @@ type _SnapshotRowTypes =
   | RetaliationChain
   | Shelter
   | WorldState;
+
+/** Reject malformed nested data before any reset or hydration takes place. */
+function validateJson(value: unknown, path: string, depth = 0): void {
+  if (depth > 50) throw invalid('Snapshot nesting exceeds limit');
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
+  if (typeof value === 'number') { requireFinite(value, path); return; }
+  if (Array.isArray(value)) { for (const item of value) validateJson(item, path, depth + 1); return; }
+  if (!isObject(value)) throw invalid(`Invalid JSON value at ${path}`);
+  for (const [key, item] of Object.entries(value)) {
+    if (['__proto__', 'constructor', 'prototype'].includes(key)) throw invalid('Unsafe snapshot key');
+    validateJson(item, `${path}.${key}`, depth + 1);
+  }
+}

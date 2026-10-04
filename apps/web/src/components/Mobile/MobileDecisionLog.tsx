@@ -1,3 +1,5 @@
+import { formatActionLabel } from '../../i18n';
+import { useLocale, translate } from '../../i18n';
 /**
  * Mobile Decision Log - Full-screen version for mobile
  */
@@ -6,6 +8,7 @@ import { memo, useMemo } from 'react';
 import { useAgents, useEvents } from '../../stores/world';
 
 export const MobileDecisionLog = memo(function MobileDecisionLog() {
+  useLocale();
   const events = useEvents();
   const agents = useAgents();
 
@@ -19,10 +22,10 @@ export const MobileDecisionLog = memo(function MobileDecisionLog() {
   }, [agents]);
 
   // Filter decision events
-  const actionTypes = ['agent_move', 'agent_work', 'agent_sleep', 'agent_buy', 'agent_consume'];
+  const isDecision = (event: typeof events[number]) => typeof event.payload.action === 'string' && event.type === `agent_${event.payload.action}`;
   const decisionEvents = useMemo(() =>
     events
-      .filter((e) => actionTypes.includes(e.type))
+      .filter(isDecision)
       .slice(0, 50),
     [events]
   );
@@ -32,8 +35,7 @@ export const MobileDecisionLog = memo(function MobileDecisionLog() {
       <h3 className="text-sm font-semibold text-city-text mb-3 flex items-center gap-2">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-city-accent">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-        Decisions ({decisionEvents.length})
+        </svg>{translate("Decisions (")}{decisionEvents.length})
       </h3>
 
       <div className="space-y-2">
@@ -49,8 +51,7 @@ export const MobileDecisionLog = memo(function MobileDecisionLog() {
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-city-text-muted font-mono bg-city-bg px-1.5 py-0.5 rounded">
-                    T{event.tick}
+                  <span className="text-[10px] text-city-text-muted font-mono bg-city-bg px-1.5 py-0.5 rounded">{translate("T")}{" "}{event.tick}
                   </span>
                   {agent && (
                     <div className="flex items-center gap-1.5">
@@ -65,11 +66,11 @@ export const MobileDecisionLog = memo(function MobileDecisionLog() {
                   )}
                 </div>
                 <span className="text-city-accent font-medium text-xs capitalize">
-                  {action}
+                  {formatActionLabel(action)}
                 </span>
               </div>
               {reasoning && (
-                <p className="text-[11px] text-city-text-muted/80 italic line-clamp-3">
+                <p className="text-[11px] text-city-text-muted italic line-clamp-3">
                   {reasoning}
                 </p>
               )}
@@ -78,9 +79,7 @@ export const MobileDecisionLog = memo(function MobileDecisionLog() {
         })}
 
         {decisionEvents.length === 0 && (
-          <div className="text-center text-city-text-muted py-8 text-sm">
-            No decisions yet
-          </div>
+          <div className="text-center text-city-text-muted py-8 text-sm">{translate("No decisions yet")}</div>
         )}
       </div>
     </div>

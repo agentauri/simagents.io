@@ -2,7 +2,12 @@ import type { Agent } from '../db/schema';
 import { getRuntimeConfig } from '../config';
 import { getAgentById, updateAgent } from '../engine-memory/queries/agents';
 import { getOrCreateVitalsMeta, setVitalsMeta, type VitalsMeta } from './vitals-meta';
-import { TICK_MS, simMinutes } from './time';
+import { store } from '../engine-memory/store';
+import { v4 as uuid } from 'uuid';
+import { publishEvent } from '../engine-memory/bus';
+import { appendEvent } from '../engine-memory/queries/events';
+import { getAgentBusyUntil } from './agent-meta';
+import { TICK_MS, simMinutes, tickFromSimTime } from './time';
 
 const MIN = 0;
 const MAX = 100;
@@ -179,10 +184,19 @@ export function computeVitals(agent: Agent, meta: VitalsMeta, nowMs: number): Vi
   const previousUpdatedAt = meta.vitalsUpdatedAt;
   const elapsedMs = Math.max(0, nowMs - previousUpdatedAt);
   const elapsedMinutes = simMinutes(elapsedMs);
-  const multiplier = STATE_MULTIPLIERS[agent.state] ?? STATE_MULTIPLIERS.idle;
+  const baseMultiplier = STATE_MULTIPLIERS[agent.state] ?? STATE_MULTIPLIERS.idle;
+  const inPuzzle = [...store.puzzleParticipants.values()].some((p) => {
+    const game = store.puzzleGames.get(p.gameId);
+    return p.agentId === agent.id && p.status === 'active' && game &&
+      ['open', 'active'].includes(game.status) && (game.endsAtTick === null || nowMs < game.endsAtTick * TICK_MS);
+  });
+  const focusFactor = inPuzzle ? 1 - getRuntimeConfig().puzzle.focusLock.needsDecayReduction : 1;
+  const multiplier = { hunger: baseMultiplier.hunger * focusFactor, energy: baseMultiplier.energy * focusFactor };
 
   const hungerRate = config.hungerDecay * multiplier.hunger;
-  const baseEnergyRate = config.energyDecay * multiplier.energy;
+  const baseEnergyRate = agent.state === 'sleeping'
+    ? -getRuntimeConfig().actions.sleep.energyRestoredPerTick
+    : config.energyDecay * multiplier.energy;
   const hungerLowCrossing = thresholdCrossingTimeMs(
     agent.hunger,
     hungerRate,
@@ -238,9 +252,11 @@ export function computeVitals(agent: Agent, meta: VitalsMeta, nowMs: number): Vi
     simMinutes(damageDurationAfterGraceMs(previousUpdatedAt, nowMs, hungerCriticalSince));
   // Unlike hunger, critical energy damages health immediately (no grace period),
   // matching legacy needs-decay semantics where only hunger was grace-gated.
-  const energyDamage =
-    config.criticalEnergyHealthDamage *
-    simMinutes(damageDurationAfterGraceMs(previousUpdatedAt, nowMs, energyCriticalSince, 0));
+  const recoveryRate = -baseEnergyRate - (hungryExtraMs > 0 ? config.hungerEnergyDrain : 0);
+  const energyDamageMs = agent.state === 'sleeping' && recoveryRate > 0
+    ? Math.min(elapsedMs, Math.max(0, (config.criticalEnergyThreshold - agent.energy) / recoveryRate * TICK_MS))
+    : damageDurationAfterGraceMs(previousUpdatedAt, nowMs, energyCriticalSince, 0);
+  const energyDamage = config.criticalEnergyHealthDamage * simMinutes(energyDamageMs);
 
   const hungerRegenCrossing = thresholdCrossingTimeMs(agent.hunger, hungerRate, 70);
   const energyRegenCrossing = energyThresholdCrossingTimeMs(
@@ -322,16 +338,44 @@ export async function materializeVitals(
   agentId: string,
   nowMs: number
 ): Promise<MaterializedVitals | undefined> {
-  const agent = await getAgentById(agentId);
-  if (!agent) return undefined;
+  let agent = await getAgentById(agentId);
+  if (!agent || agent.state === 'dead') return undefined;
 
-  const meta = getOrCreateVitalsMeta(agentId, 0);
+  let meta = getOrCreateVitalsMeta(agentId, 0);
+  const wakeAt = getAgentBusyUntil(agentId);
+  if (agent.state === 'sleeping' && wakeAt > 0 && nowMs >= wakeAt) {
+    const asleep = computeVitals(agent, meta, Math.max(meta.vitalsUpdatedAt, wakeAt));
+    if (asleep.vitals.dead) return commitVitals(agent, asleep, wakeAt);
+    agent = (await updateAgent(agentId, { ...asleep.newState, state: 'idle' }))!;
+    meta = asleep.meta;
+    await lifecycleEvent(agentId, 'agent_woke', wakeAt, { finalEnergy: agent.energy });
+  }
   const computed = computeVitals(agent, meta, nowMs);
-  const updated = await updateAgent(agentId, computed.newState);
-  setVitalsMeta(agentId, computed.meta);
+  return commitVitals(agent, computed, nowMs);
+}
+
+async function commitVitals(agent: Agent, computed: VitalsComputation, nowMs: number): Promise<MaterializedVitals> {
+  const updated = await updateAgent(agent.id, {
+    ...computed.newState,
+    ...(computed.vitals.dead ? { state: 'dead', diedAt: new Date() } : {}),
+  });
+  setVitalsMeta(agent.id, computed.meta);
+  if (computed.vitals.dead) {
+    await lifecycleEvent(agent.id, 'agent_died', nowMs, {
+      cause: computed.newState.hunger < getNeedsConfig().criticalHungerThreshold ? 'starvation' : 'exhaustion',
+      finalState: computed.newState,
+    });
+  }
 
   return {
     ...computed,
     agent: updated ?? agent,
   };
+}
+
+async function lifecycleEvent(agentId: string, type: string, simTimeMs: number, payload: Record<string, unknown>): Promise<void> {
+  const tick = tickFromSimTime(simTimeMs);
+  const data = { ...payload, simTimeMs };
+  await appendEvent({ tick, agentId, eventType: type, payload: data });
+  await publishEvent({ id: uuid(), agentId, type, tick, timestamp: Date.now(), payload: data });
 }

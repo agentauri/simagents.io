@@ -1,0 +1,77 @@
+#!/usr/bin/env node
+import { productText, setSmokeLanguage } from './browser-helpers.mjs';
+import { createRequire } from 'node:module';
+import { mkdir } from 'node:fs/promises';
+const require = createRequire(import.meta.url);
+const playwright = process.env.PLAYWRIGHT_MODULE_DIR ? createRequire(`${process.env.PLAYWRIGHT_MODULE_DIR}/package.json`)('playwright') : require('playwright');
+const browserName = process.env.SIMAGENTS_SMOKE_BROWSER ?? 'chromium';
+const width = Number(process.env.SIMAGENTS_SMOKE_WIDTH ?? 1280);
+const base = process.env.SIMAGENTS_SMOKE_URL ?? 'http://127.0.0.1:5185/';
+const browser = await playwright[browserName].launch({ headless: true });
+const context = await browser.newContext({ viewport: { width, height: 844 } });
+let calls = 0;
+const assert = (condition, message) => { if (!condition) throw new Error(message); };
+await context.route('**/*', route => new URL(route.request().url()).origin === new URL(base).origin ? route.continue() : route.abort());
+await context.route('https://api.anthropic.com/v1/messages', route => {
+  const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
+  if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+  calls++;
+  return route.fulfill({ status: 200, headers, contentType: 'application/json', body: JSON.stringify({ content: [{ type: 'text', text: '{"action":"signal","params":{"message":"setup fixture","intensity":1}}' }] }) });
+});
+await context.addInitScript(() => { if (!localStorage.getItem('fixture_initialized')) {
+  localStorage.setItem('fixture_initialized', 'true');
+  localStorage.setItem('simagents_session_limits_v1', JSON.stringify({ maxRequests: 1, maxDurationSeconds: 900, maxOutputTokens: 1024, maxConcurrentPerConnection: 2, requestsPerMinutePerConnection: 30 }));
+} });
+const page = await context.newPage();
+await setSmokeLanguage(page);
+page.setDefaultTimeout(15000);
+try {
+  await page.goto(base, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: productText('Set up a simulation'), exact: true }).click();
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(label => document.activeElement?.textContent === label, productText('Set up a simulation'));
+  await page.getByRole('button', { name: productText('Set up a simulation'), exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: productText('Set up your simulation') });
+  await dialog.waitFor();
+  assert(await dialog.getByRole('button', { name: productText('Continue'), exact: true }).isDisabled(), 'No-key connection advanced');
+  await dialog.getByRole('button', { name: new RegExp('^' + productText('Edit') + ' ') }).first().click();
+  await dialog.getByLabel(productText('Connection API key'), { exact: true }).fill('synthetic-setup-key');
+  await dialog.getByRole('button', { name: productText('Save connection'), exact: true }).click();
+  assert(calls === 0, 'Connection save triggered inference');
+  await dialog.getByRole('button', { name: productText('Continue'), exact: true }).click();
+  assert(await dialog.getByRole('button', { name: productText('Continue'), exact: true }).isDisabled(), 'Unverified model advanced');
+  await dialog.getByRole('button', { name: productText('Verify model for Agent 1 (1 request)'), exact: true }).click();
+  await dialog.getByText(productText('Verified in this tab'), { exact: true }).waitFor();
+  assert(calls === 1, 'Verification count wrong');
+  await dialog.getByRole('button', { name: productText('Continue'), exact: true }).click();
+  await dialog.getByRole('button', { name: productText('Apply Puzzle collaboration'), exact: true }).click();
+  assert(await dialog.getByLabel(productText('Balance (CITY)'), { exact: true }).inputValue() === '100', 'Preset was not applied');
+  await dialog.getByLabel(productText('Balance (CITY)'), { exact: true }).fill('125');
+  assert(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'Setup overflows horizontally');
+  const footerButton = dialog.getByRole('button', { name: productText('Continue'), exact: true });
+  const box = await footerButton.boundingBox();
+  assert(box && box.y >= 0 && box.y + box.height <= 844, 'Setup footer outside viewport');
+  await mkdir('.tmp/setup', { recursive: true });
+  await page.screenshot({ path: `.tmp/setup/${browserName}-${width}.png` });
+  await footerButton.click();
+  await dialog.getByLabel(productText('Tokens per response'), { exact: true }).fill('128');
+  assert(await dialog.getByRole('button', { name: productText('Review and start'), exact: true }).isDisabled(), 'Changing token limit bypassed verification');
+  await dialog.getByRole('button', { name: productText('Return to model verification'), exact: true }).click();
+  await dialog.getByRole('button', { name: productText('Verify model for Agent 1 (1 request)'), exact: true }).click();
+  await dialog.getByText(productText('Verified in this tab'), { exact: true }).waitFor();
+  await dialog.getByRole('button', { name: productText('Continue'), exact: true }).click();
+  assert(await dialog.getByLabel(productText('Balance (CITY)'), { exact: true }).inputValue() === '125', 'Back navigation lost custom settings');
+  await dialog.getByRole('button', { name: productText('Continue'), exact: true }).click();
+  assert(calls === 2, 'Navigation triggered inference');
+  await page.keyboard.press('End');
+  await dialog.getByRole('button', { name: productText('Review and start'), exact: true }).focus();
+  await page.keyboard.press('Tab');
+  assert(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')) === productText('Close simulation setup'), 'Focus escaped setup');
+  await dialog.getByRole('button', { name: productText('Review and start'), exact: true }).click();
+  await page.getByRole('dialog', { name: productText('Start Simulation') }).getByRole('button', { name: productText('Start'), exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: productText('The request budget is exhausted. Start a new session explicitly to make more requests.') }).waitFor();
+  assert(calls === 3, 'Unexpected simulation requests');
+  assert(!(await page.evaluate(() => JSON.stringify(localStorage))).includes('synthetic-setup-key'), 'Key leaked into localStorage');
+  console.log(`PASS ${browserName} ${width}px: guided connection, explicit verification, editable preset, budget re-verification, focus containment and BYOK start; only mocked requests.`);
+} catch (error) { console.error((await page.locator('body').innerText()).slice(-7000)); throw error; }
+finally { await context.close(); await browser.close(); }

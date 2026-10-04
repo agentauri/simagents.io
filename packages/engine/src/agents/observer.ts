@@ -379,7 +379,7 @@ export async function buildObservation(
   let myPuzzleTeam: MyPuzzleTeam | undefined;
   let puzzleParticipation: PuzzleParticipationInfo | undefined;
   let inActivePuzzle = false;
-  let nearbyPuzzlePlayers: NearbyPuzzlePlayer[] = [];
+  const nearbyPuzzlePlayers: NearbyPuzzlePlayer[] = [];
 
   if (CONFIG.puzzle.enabled && isValidUuid) {
     // Check if agent is in an active puzzle
@@ -546,10 +546,11 @@ export function formatEvent(event: { type: string; tick: number; payload: Record
     case 'needs_warning':
       description = `Warning: ${event.payload.need} is ${event.payload.level}`;
       break;
-    case 'balance_changed':
+    case 'balance_changed': {
       const change = event.payload.change as number;
       description = `Balance ${change >= 0 ? '+' : ''}${change} CITY`;
       break;
+    }
     case 'agent_traded': {
       const offered = payload.offered as { itemType: string; quantity: number };
       const received = payload.received as { itemType: string; quantity: number };

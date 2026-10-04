@@ -27,6 +27,7 @@ export async function createReproductionState(
     id: state.id ?? uuid(),
     tenantId: state.tenantId ?? null,
     parentAgentId: state.parentAgentId,
+    mutationIntensity: state.mutationIntensity ?? 0.1,
     partnerAgentId: state.partnerAgentId ?? null,
     gestationStartTick: state.gestationStartTick,
     gestationDurationTicks: state.gestationDurationTicks,
@@ -189,7 +190,7 @@ export async function getLineageTree(
   const agent = await getLineage(agentId);
   const children = await getOffspring(agentId);
 
-  let parents: AgentLineage[] = [];
+  const parents: AgentLineage[] = [];
   let siblings: AgentLineage[] = [];
 
   if (agent && agent.parentIds && Array.isArray(agent.parentIds)) {

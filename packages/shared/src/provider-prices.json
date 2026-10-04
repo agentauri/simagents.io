@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 1,
+  "version": "published-text-prices-2026-10-04",
+  "prices": [
+    {
+      "providerId": "codex",
+      "modelId": "gpt-5.4-mini-2026-03-17",
+      "endpoint": "https://api.openai.com/v1/responses",
+      "currency": "USD",
+      "inputPerMillion": 0.75,
+      "outputPerMillion": 4.5,
+      "retrievedAt": "2026-10-04",
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.4-mini",
+      "conditions": [
+        "price-standard-text",
+        "price-no-discounts",
+        "price-taxes-extra"
+      ],
+      "maximumInputTokensPerRequest": null
+    },
+    {
+      "providerId": "codex",
+      "modelId": "gpt-5.4-mini-2026-03-17",
+      "endpoint": "https://api.openai.com/v1/chat/completions",
+      "currency": "USD",
+      "inputPerMillion": 0.75,
+      "outputPerMillion": 4.5,
+      "retrievedAt": "2026-10-04",
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.4-mini",
+      "conditions": [
+        "price-standard-text",
+        "price-no-discounts",
+        "price-taxes-extra"
+      ],
+      "maximumInputTokensPerRequest": null
+    },
+    {
+      "providerId": "claude",
+      "modelId": "claude-haiku-4-5-20251001",
+      "endpoint": "https://api.anthropic.com/v1/messages",
+      "currency": "USD",
+      "inputPerMillion": 1,
+      "outputPerMillion": 5,
+      "retrievedAt": "2026-10-04",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "conditions": [
+        "price-standard-text",
+        "price-no-discounts",
+        "price-taxes-extra"
+      ],
+      "maximumInputTokensPerRequest": null
+    },
+    {
+      "providerId": "gemini",
+      "modelId": "gemini-2.5-flash-lite",
+      "endpoint": "https://generativelanguage.googleapis.com/v1beta/models",
+      "currency": "USD",
+      "inputPerMillion": 0.1,
+      "outputPerMillion": 0.4,
+      "retrievedAt": "2026-10-04",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "conditions": [
+        "price-standard-text",
+        "price-no-discounts",
+        "price-taxes-extra"
+      ],
+      "maximumInputTokensPerRequest": null
+    },
+    {
+      "providerId": "deepseek",
+      "modelId": "deepseek-flash",
+      "endpoint": "https://api.deepseek.com/v1/chat/completions",
+      "currency": "USD",
+      "inputPerMillion": 0.3,
+      "outputPerMillion": 1.2,
+      "retrievedAt": "2026-10-04",
+      "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+      "conditions": [
+        "price-standard-text",
+        "price-no-discounts",
+        "price-taxes-extra",
+        "price-deepseek-peak"
+      ],
+      "maximumInputTokensPerRequest": null
+    },
+    {
+      "providerId": "qwen",
+      "modelId": "qwen-plus-2025-12-01",
+      "endpoint": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
+      "currency": "USD",
+      "inputPerMillion": 0.4,
+      "outputPerMillion": 1.2,
+      "retrievedAt": "2026-10-04",
+      "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+      "conditions": [
+        "price-standard-text",
+        "price-no-discounts",
+        "price-taxes-extra",
+        "price-qwen-international"
+      ],
+      "maximumInputTokensPerRequest": 256000
+    },
+    {
+      "providerId": "glm",
+      "modelId": "glm-4.7",
+      "endpoint": "https://api.z.ai/api/paas/v4/chat/completions",
+      "currency": "USD",
+      "inputPerMillion": 0.6,
+      "outputPerMillion": 2.2,
+      "retrievedAt": "2026-10-04",
+      "source": "https://docs.z.ai/guides/overview/pricing",
+      "conditions": [
+        "price-standard-text",
+        "price-no-discounts",
+        "price-taxes-extra",
+        "price-zai-paygo"
+      ],
+      "maximumInputTokensPerRequest": null
+    },
+    {
+      "providerId": "grok",
+      "modelId": "grok-4.7",
+      "endpoint": "https://api.x.ai/v1/chat/completions",
+      "currency": "USD",
+      "inputPerMillion": 2,
+      "outputPerMillion": 6,
+      "retrievedAt": "2026-10-04",
+      "source": "https://docs.x.ai/developers/models",
+      "conditions": [
+        "price-standard-text",
+        "price-no-discounts",
+        "price-taxes-extra"
+      ],
+      "maximumInputTokensPerRequest": null
+    },
+    {
+      "providerId": "mistral",
+      "modelId": "mistral-small-2603",
+      "endpoint": "https://api.mistral.ai/v1/chat/completions",
+      "currency": "USD",
+      "inputPerMillion": 0.15,
+      "outputPerMillion": 0.6,
+      "retrievedAt": "2026-10-04",
+      "source": "https://docs.mistral.ai/models/mistral-small-4-0-26-03",
+      "conditions": [
+        "price-standard-text",
+        "price-no-discounts",
+        "price-taxes-extra"
+      ],
+      "maximumInputTokensPerRequest": null
+    },
+    {
+      "providerId": "minimax",
+      "modelId": "MiniMax-M2.7",
+      "endpoint": "https://api.minimax.io/v1/chat/completions",
+      "currency": "USD",
+      "inputPerMillion": 0.3,
+      "outputPerMillion": 1.2,
+      "retrievedAt": "2026-10-04",
+      "source": "https://platform.minimax.io/docs/guides/pricing-paygo",
+      "conditions": [
+        "price-standard-text",
+        "price-no-discounts",
+        "price-taxes-extra",
+        "price-minimax-standard"
+      ],
+      "maximumInputTokensPerRequest": null
+    },
+    {
+      "providerId": "kimi",
+      "modelId": "kimi-k2.6",
+      "endpoint": "https://api.moonshot.ai/v1/chat/completions",
+      "currency": "USD",
+      "inputPerMillion": 0.95,
+      "outputPerMillion": 4,
+      "retrievedAt": "2026-10-04",
+      "source": "https://platform.kimi.ai/",
+      "conditions": [
+        "price-standard-text",
+        "price-no-discounts",
+        "price-taxes-extra"
+      ],
+      "maximumInputTokensPerRequest": null
+    },
+    {
+      "providerId": "openrouter",
+      "modelId": "openai/gpt-5.4-mini",
+      "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+      "currency": "USD",
+      "inputPerMillion": 0.75,
+      "outputPerMillion": 4.5,
+      "retrievedAt": "2026-10-04",
+      "source": "https://openrouter.ai/openai/gpt-5.4-mini",
+      "conditions": [
+        "price-standard-text",
+        "price-no-discounts",
+        "price-taxes-extra",
+        "price-openrouter-fees"
+      ],
+      "maximumInputTokensPerRequest": null
+    }
+  ]
+}

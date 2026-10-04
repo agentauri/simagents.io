@@ -71,9 +71,7 @@ function getCooldownKey(agentId: string, x: number, y: number): string {
   return `${agentId}:${x}:${y}`;
 }
 
-export interface ForageParams {
-  // No params needed - just forage at current location
-}
+export type ForageParams = Record<string, never>;
 
 export async function handleForage(
   intent: ActionIntent<ForageParams>,

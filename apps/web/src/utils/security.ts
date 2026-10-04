@@ -84,6 +84,7 @@ export function stripControlCharacters(text: string): string {
   // - Bidirectional override characters (U+202A-U+202E)
   // - Zero-width characters (U+200B-U+200F, U+FEFF)
   // - Other control characters except newlines and tabs
+  // eslint-disable-next-line no-control-regex -- Deliberately strip control characters.
   return text.replace(/[\u200B-\u200F\u202A-\u202E\uFEFF\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
 }
 

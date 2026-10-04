@@ -1,3 +1,4 @@
+import { useLocale } from '../../i18n';
 import { type TileCatalogEntry, SPRITE_WIDTH, SPRITE_HEIGHT } from '../../utils/tiles';
 
 interface TileButtonProps {
@@ -11,6 +12,7 @@ const THUMB_WIDTH = 40;
 const THUMB_HEIGHT = 70;
 
 export function TileButton({ tile, selected, onClick }: TileButtonProps) {
+  useLocale();
   // Calculate background position for sprite sheet
   const bgPosX = -tile.col * SPRITE_WIDTH * (THUMB_WIDTH / SPRITE_WIDTH);
   const bgPosY = -tile.row * SPRITE_HEIGHT * (THUMB_HEIGHT / SPRITE_HEIGHT);

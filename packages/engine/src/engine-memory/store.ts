@@ -1,3 +1,5 @@
+import { resetRNG } from '../utils/random';
+import { emptyMetrics, type WorldMetrics } from '../engine/metrics';
 /**
  * In-Memory Store — Phase 1 spike
  *
@@ -52,6 +54,7 @@ import {
 } from '../actions/state/public-work-sessions';
 
 export interface InMemoryStore {
+  metrics: WorldMetrics;
   worldState: WorldState;
   agents: Map<string, Agent>;
   resourceSpawns: Map<string, ResourceSpawn>;
@@ -141,6 +144,7 @@ export const store: InMemoryStore = {
   shelters: new Map(),
   inventory: new Map(),
   events: [],
+  metrics: emptyMetrics(),
   memories: new Map(),
   relationships: new Map(),
   scents: new Map(),
@@ -184,12 +188,14 @@ export function relationshipKey(agentId: string, otherAgentId: string): string {
 
 /** Wipe the store back to an empty world (mirrors resetWorldData). */
 export function resetStore(): void {
+  resetRNG();
   store.worldState = freshWorldState();
   store.agents.clear();
   store.resourceSpawns.clear();
   store.shelters.clear();
   store.inventory.clear();
   store.events = [];
+  store.metrics = emptyMetrics();
   store.memories.clear();
   store.relationships.clear();
   store.scents.clear();

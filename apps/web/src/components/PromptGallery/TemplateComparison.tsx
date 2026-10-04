@@ -1,3 +1,5 @@
+import { translateLabel, useLocale, translate } from '../../i18n';
+
 /**
  * TemplateComparison - Side-by-side template comparison view
  *
@@ -20,6 +22,7 @@ export function TemplateComparison({
   initialLeft = 'prescriptive',
   initialRight = 'emergent',
 }: TemplateComparisonProps) {
+  useLocale();
   const [leftId, setLeftId] = useState(initialLeft);
   const [rightId, setRightId] = useState(initialRight);
 
@@ -39,7 +42,7 @@ export function TemplateComparison({
 
   const renderSelect = (value: string, onChange: (id: string) => void, label: string) => (
     <div className="flex-1">
-      <label className="block text-xs text-city-text-muted mb-1">{label}</label>
+      <label className="block text-xs text-city-text-muted mb-1">{translateLabel(label)}</label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -66,9 +69,9 @@ export function TemplateComparison({
 
     return (
       <div className="flex items-center gap-3 text-xs text-city-text-muted">
-        <span>{lines} lines</span>
-        <span>{words.toLocaleString()} words</span>
-        <span>{chars.toLocaleString()} chars</span>
+        <span>{lines}{" "}{translate("lines")}</span>
+        <span>{words.toLocaleString()}{" "}{translate("words")}</span>
+        <span>{chars.toLocaleString()}{" "}{translate("chars")}</span>
       </div>
     );
   };
@@ -101,12 +104,12 @@ export function TemplateComparison({
             <div>
               <div className="mb-3">
                 <h3 className="text-sm font-semibold text-city-text">{leftTemplate.name}</h3>
-                <p className="text-xs text-city-text-muted mt-1">{leftTemplate.description}</p>
+                <p className="text-xs text-city-text-muted mt-1">{translateLabel(leftTemplate.description)}</p>
               </div>
               <TemplateViewer content={leftTemplate.content} maxHeight="400px" />
             </div>
           ) : (
-            <div className="text-center text-city-text-muted py-8">Select a template</div>
+            <div className="text-center text-city-text-muted py-8">{translate("Select a template")}</div>
           )}
         </div>
         <div className="p-4">
@@ -114,12 +117,12 @@ export function TemplateComparison({
             <div>
               <div className="mb-3">
                 <h3 className="text-sm font-semibold text-city-text">{rightTemplate.name}</h3>
-                <p className="text-xs text-city-text-muted mt-1">{rightTemplate.description}</p>
+                <p className="text-xs text-city-text-muted mt-1">{translateLabel(rightTemplate.description)}</p>
               </div>
               <TemplateViewer content={rightTemplate.content} maxHeight="400px" />
             </div>
           ) : (
-            <div className="text-center text-city-text-muted py-8">Select a template</div>
+            <div className="text-center text-city-text-muted py-8">{translate("Select a template")}</div>
           )}
         </div>
       </div>

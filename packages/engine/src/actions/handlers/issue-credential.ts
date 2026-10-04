@@ -20,7 +20,7 @@ import { getAgentById } from '../../db/queries/agents';
 import { storeMemory, updateRelationshipTrust } from '../../db/queries/memories';
 import { createCredential } from '../../db/queries/credentials';
 import { getDistance } from '../../world/grid';
-import { CONFIG } from '../../config';
+import { getRuntimeConfig } from '../../config';
 import { hmacSha256Hex } from '../../utils/hash';
 
 const VALID_CLAIM_TYPES = ['skill', 'experience', 'membership', 'character', 'custom'];
@@ -97,15 +97,15 @@ export async function handleIssueCredential(
     { x: agent.x, y: agent.y },
     { x: subjectAgent.x, y: subjectAgent.y }
   );
-  if (distance > CONFIG.actions.issueCredential.maxDistance) {
+  if (distance > getRuntimeConfig().actions.issueCredential.maxDistance) {
     return {
       success: false,
-      error: `Subject agent is too far (distance: ${distance}, max: ${CONFIG.actions.issueCredential.maxDistance})`,
+      error: `Subject agent is too far (distance: ${distance}, max: ${getRuntimeConfig().actions.issueCredential.maxDistance})`,
     };
   }
 
   // Check energy
-  const energyCost = CONFIG.actions.issueCredential.energyCost;
+  const energyCost = getRuntimeConfig().actions.issueCredential.energyCost;
   if (agent.energy < energyCost) {
     return {
       success: false,
@@ -137,7 +137,7 @@ export async function handleIssueCredential(
   await updateRelationshipTrust(
     subjectAgentId,
     agent.id,
-    CONFIG.actions.issueCredential.trustGainOnIssue,
+    getRuntimeConfig().actions.issueCredential.trustGainOnIssue,
     intent.tick,
     `Received ${claimType} credential: "${truncate(description, 50)}"`
   );

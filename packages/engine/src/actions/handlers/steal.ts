@@ -20,7 +20,7 @@ import { updateRelationshipTrust, storeMemory } from '../../db/queries/memories'
 import { checkIsRetaliation, recordRetaliationChain } from '../../db/queries/roles';
 import { getDistance } from '../../world/grid';
 import { findWitnesses } from '../utils/witnesses';
-import { CONFIG } from '../../config';
+import { getRuntimeConfig } from '../../config';
 import { random } from '../../utils/random';
 
 // Hunger cost for stealing (sneaking is tiring)
@@ -37,10 +37,10 @@ export async function handleSteal(
     return { success: false, error: 'Quantity must be at least 1' };
   }
 
-  if (quantity > CONFIG.actions.steal.maxItemsPerAction) {
+  if (quantity > getRuntimeConfig().actions.steal.maxItemsPerAction) {
     return {
       success: false,
-      error: `Cannot steal more than ${CONFIG.actions.steal.maxItemsPerAction} items at once`,
+      error: `Cannot steal more than ${getRuntimeConfig().actions.steal.maxItemsPerAction} items at once`,
     };
   }
 
@@ -64,15 +64,15 @@ export async function handleSteal(
     { x: agent.x, y: agent.y },
     { x: targetAgent.x, y: targetAgent.y }
   );
-  if (distance > CONFIG.actions.steal.maxDistance) {
+  if (distance > getRuntimeConfig().actions.steal.maxDistance) {
     return {
       success: false,
-      error: `Target too far (distance: ${distance}, max: ${CONFIG.actions.steal.maxDistance})`,
+      error: `Target too far (distance: ${distance}, max: ${getRuntimeConfig().actions.steal.maxDistance})`,
     };
   }
 
   // Check energy
-  const energyCost = CONFIG.actions.steal.energyCost;
+  const energyCost = getRuntimeConfig().actions.steal.energyCost;
   if (agent.energy < energyCost) {
     return {
       success: false,
@@ -93,7 +93,7 @@ export async function handleSteal(
   // Higher if target is sleeping, lower if target has more health
   const sleepBonus = targetAgent.state === 'sleeping' ? 0.2 : 0;
   const healthPenalty = (targetAgent.health / 100) * 0.2;
-  const successRate = CONFIG.actions.steal.baseSuccessRate + sleepBonus - healthPenalty;
+  const successRate = getRuntimeConfig().actions.steal.baseSuccessRate + sleepBonus - healthPenalty;
   const succeeded = random() < Math.min(successRate, 0.9);
 
   // Energy and hunger consumed regardless
@@ -105,7 +105,7 @@ export async function handleSteal(
     agent.id,
     targetAgentId,
     { x: agent.x, y: agent.y },
-    CONFIG.actions.steal.witnessRadius
+    getRuntimeConfig().actions.steal.witnessRadius
   );
 
   if (succeeded) {
@@ -133,7 +133,7 @@ export async function handleSteal(
     await updateRelationshipTrust(
       targetAgentId,
       agent.id,
-      CONFIG.actions.steal.trustImpactVictim,
+      getRuntimeConfig().actions.steal.trustImpactVictim,
       intent.tick,
       `Stole ${quantity}x ${targetItemType} from me`
     );
@@ -168,7 +168,7 @@ export async function handleSteal(
       await updateRelationshipTrust(
         witness.id,
         agent.id,
-        CONFIG.actions.steal.trustImpactWitness,
+        getRuntimeConfig().actions.steal.trustImpactWitness,
         intent.tick,
         `Witnessed stealing from another agent`
       );
@@ -214,7 +214,7 @@ export async function handleSteal(
     await updateRelationshipTrust(
       targetAgentId,
       agent.id,
-      Math.floor(CONFIG.actions.steal.trustImpactVictim / 2),
+      Math.floor(getRuntimeConfig().actions.steal.trustImpactVictim / 2),
       intent.tick,
       `Attempted to steal from me`
     );

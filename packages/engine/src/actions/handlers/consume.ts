@@ -9,15 +9,15 @@ import type { ActionIntent, ActionResult, ConsumeParams } from '../types';
 import type { Agent } from '../../db/schema';
 import { getInventoryItem, removeFromInventory } from '../../db/queries/inventory';
 import { storeMemory } from '../../db/queries/memories';
-import { CONFIG } from '../../config';
+import { getRuntimeConfig } from '../../config';
 
 export async function handleConsume(
   intent: ActionIntent<ConsumeParams>,
   agent: Agent
 ): Promise<ActionResult> {
-  const { itemType } = intent.params;
+  const { itemType, quantity = 1 } = intent.params;
 
-  const effects = CONFIG.actions.consume.effects[itemType];
+  const effects = getRuntimeConfig().actions.consume.effects[itemType];
   if (!effects) {
     return {
       success: false,
@@ -27,7 +27,7 @@ export async function handleConsume(
 
   // Check if agent has the item in inventory
   const inventoryItem = await getInventoryItem(agent.id, itemType);
-  if (!inventoryItem || inventoryItem.quantity < 1) {
+  if (!inventoryItem || inventoryItem.quantity < quantity) {
     return {
       success: false,
       error: `No ${itemType} in inventory`,
@@ -35,19 +35,19 @@ export async function handleConsume(
   }
 
   // Remove item from inventory
-  await removeFromInventory(agent.id, itemType, 1);
+  await removeFromInventory(agent.id, itemType, quantity);
 
   // Calculate new needs values
   const changes: Partial<Agent> = {};
 
   if (effects.hunger !== undefined) {
-    changes.hunger = Math.min(100, agent.hunger + effects.hunger);
+    changes.hunger = Math.min(100, agent.hunger + effects.hunger * quantity);
   }
   if (effects.energy !== undefined) {
-    changes.energy = Math.min(100, agent.energy + effects.energy);
+    changes.energy = Math.min(100, agent.energy + effects.energy * quantity);
   }
   if (effects.health !== undefined) {
-    changes.health = Math.min(100, agent.health + effects.health);
+    changes.health = Math.min(100, agent.health + effects.health * quantity);
   }
 
   // Build effect description
@@ -82,6 +82,7 @@ export async function handleConsume(
         agentId: agent.id,
         payload: {
           itemType,
+          quantity,
           effects,
           previousState: {
             hunger: agent.hunger,

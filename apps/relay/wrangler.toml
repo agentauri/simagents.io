@@ -1,0 +1,42 @@
+name = "simagents-relay"
+main = "dist/worker.js"
+no_bundle = true
+compatibility_date = "2026-09-17"
+account_id = "f7f02ae9a218a57974d176a3eaaaca90"
+workers_dev = false
+preview_urls = false
+
+# No request/body/credential logging or content analytics. Durable storage contains temporary technical counters only.
+[observability]
+enabled = false
+
+[vars]
+# Configure exact HTTPS SPA origins before deployment. Empty means fail closed.
+ALLOWED_ORIGINS = "https://app.simagents.io"
+# AUTH_SECRET must be supplied with Wrangler secrets, never in this file.
+
+[[ratelimits]]
+name = "REQUEST_LIMITER"
+namespace_id = "19001"
+[ratelimits.simple]
+limit = 60
+period = 60
+
+[[ratelimits]]
+name = "EDGE_LIMITER"
+namespace_id = "19002"
+[ratelimits.simple]
+limit = 120
+period = 60
+
+# Coordinated per-subject counters; edge bindings above are locality-specific supplements.
+[[durable_objects.bindings]]
+name = "SUBJECT_QUOTAS"
+class_name = "SubjectQuota"
+[[migrations]]
+tag = "subject-quota-v1"
+new_sqlite_classes = ["SubjectQuota"]
+
+[[routes]]
+pattern = "relay.simagents.io"
+custom_domain = true

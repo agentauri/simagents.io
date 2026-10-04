@@ -2,7 +2,7 @@
  * Seeded Random Number Generator
  *
  * Provides deterministic random number generation for reproducible experiments.
- * Uses seedrandom library for cryptographically secure PRNG with seed support.
+ * Uses seedrandom for reproducible pseudorandom streams; not for security.
  *
  * Usage:
  * - Call initializeRNG(seed) at experiment/simulation start
@@ -14,7 +14,50 @@
 import seedrandom from 'seedrandom';
 
 // Global RNG instance
+type StatefulRng = seedrandom.StatefulPRNG<seedrandom.State.Arc4>;
 let rng: ReturnType<typeof seedrandom> | null = null;
+const agentStreams = new Map<string, StatefulRng>();
+let completeHistory = false;
+export interface RandomSnapshot {
+  schemaVersion: 1;
+  complete: boolean;
+  seed: string | null;
+  world: seedrandom.State.Arc4 | null;
+  agents: Array<[string, seedrandom.State.Arc4]>;
+}
+export function validRandomSnapshot(value: unknown): value is RandomSnapshot {
+  const data = value as RandomSnapshot;
+  const byte = (n: unknown) => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n < 256;
+  const state = (v: unknown): boolean => {
+    const row = v as seedrandom.State.Arc4;
+    return !!row && byte(row.i) && byte(row.j) && Array.isArray(row.S) && row.S.length === 256 && row.S.every(byte) && new Set(row.S).size === 256;
+  };
+  return !!data && data.schemaVersion === 1 && typeof data.complete === 'boolean' &&
+    (typeof data.seed === 'string' || data.seed === null) && (data.world === null ? data.seed === null && !data.complete : typeof data.seed === 'string' && state(data.world)) &&
+    Array.isArray(data.agents) && data.agents.length <= 10000 && data.agents.every(row => Array.isArray(row) && row.length === 2 && typeof row[0] === 'string' && state(row[1])) && new Set(data.agents.map(row => row[0])).size === data.agents.length;
+}
+export function snapshotRNG(): RandomSnapshot {
+  if (rngStack.length) throw new Error('Cannot snapshot inside a temporary random scope');
+  return { schemaVersion: 1, complete: completeHistory, seed: currentSeed,
+    world: rng ? (rng as StatefulRng).state() : null,
+    agents: [...agentStreams].map(([id, source]) => [id, source.state()]) };
+}
+export function restoreRNG(data: RandomSnapshot): void {
+  if (!validRandomSnapshot(data)) throw new Error('Invalid random generator state');
+  resetRNG();
+  currentSeed = data.seed; completeHistory = data.complete;
+  rng = data.world ? seedrandom('', { state: data.world }) : null;
+  for (const [id, state] of data.agents) agentStreams.set(id, seedrandom('', { state }));
+}
+export function initializeLegacyRNG(seed: string): void { initializeRNG(seed); completeHistory = false; }
+export function agentRng(id: string, seed: string): RandomSource {
+  let source = agentStreams.get(id);
+  if (!source) { source = seedrandom(seed, { state: true }); agentStreams.set(id, source); }
+  return source;
+}
+export function pruneAgentRng(aliveIds: Set<string>): void {
+  for (const id of agentStreams.keys()) if (!aliveIds.has(id)) agentStreams.delete(id);
+}
 
 // Current seed for debugging/logging
 let currentSeed: string | null = null;
@@ -31,8 +74,9 @@ const rngStack: Array<ReturnType<typeof seedrandom> | null> = [];
  */
 export function initializeRNG(seed: string): void {
   currentSeed = seed;
-  rng = seedrandom(seed);
-  console.log(`[SeededRNG] Initialized with seed: ${seed}`);
+  rng = seedrandom(seed, { state: true });
+  agentStreams.clear();
+  completeHistory = true;
 }
 
 /**
@@ -52,7 +96,8 @@ export function setSeed(seed: string | number): void {
 export function resetRNG(): void {
   rng = null;
   currentSeed = null;
-  console.log('[SeededRNG] Reset to unseeded mode');
+  agentStreams.clear();
+  completeHistory = false;
 }
 
 /**

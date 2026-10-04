@@ -1,3 +1,4 @@
+import { translate, useLocale, translateLabel } from '../../i18n';
 /**
  * Event Filters Component
  *
@@ -9,7 +10,7 @@
  * - Collapsible panel
  */
 
-import { useState } from 'react';
+import { useState, useId } from 'react';
 import {
   useVisualizationStore,
   ALL_EVENT_TYPES,
@@ -19,6 +20,8 @@ import {
 } from '../../stores/visualization';
 
 export function EventFilters() {
+  useLocale();
+  const contentId = useId();
   const [isExpanded, setIsExpanded] = useState(false);
 
   const {
@@ -54,79 +57,31 @@ export function EventFilters() {
 
   return (
     <div className="bg-city-surface/95 backdrop-blur-sm rounded-lg border border-city-border overflow-hidden">
-      {/* Header */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-3 py-2 flex items-center justify-between hover:bg-city-border/30 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <svg
-            className={`w-4 h-4 text-city-text-muted transition-transform ${
-              isExpanded ? 'rotate-90' : ''
-            }`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 5l7 7-7 7"
-            />
-          </svg>
-          <span className="text-xs font-medium text-city-text">Event Filters</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-city-text-muted">
-            {visibleCount}/{totalCount}
-          </span>
-          <div
-            role="switch"
-            aria-checked={eventFilterEnabled}
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleEventFilter();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                e.stopPropagation();
-                toggleEventFilter();
-              }
-            }}
-            className={`relative w-8 h-4 rounded-full transition-colors cursor-pointer ${
-              eventFilterEnabled ? 'bg-city-accent' : 'bg-city-border'
-            }`}
-          >
-            <div
-              className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${
-                eventFilterEnabled ? 'left-4' : 'left-0.5'
-              }`}
-            />
-          </div>
-        </div>
-      </button>
+      <div className="flex items-center gap-2 p-2">
+        <button type="button" aria-expanded={isExpanded} aria-controls={contentId}
+          onClick={() => setIsExpanded(!isExpanded)} className="min-h-11 flex-1 text-left text-xs">
+          {translate('Event Filters')} <span className="text-city-text-muted">{visibleCount}/{totalCount}</span>
+        </button>
+        <button type="button" role="switch" aria-label={translate('Enable event filtering')} aria-checked={eventFilterEnabled}
+          onClick={toggleEventFilter} className="min-h-11 min-w-11 rounded px-2 text-xs"
+          style={{ background: eventFilterEnabled ? 'var(--color-city-accent)' : 'var(--color-city-bg)', color: eventFilterEnabled ? '#241a15' : 'var(--color-city-text)' }}>
+          {translate(eventFilterEnabled ? 'On' : 'Off')}
+        </button>
+      </div>
 
       {/* Expanded content */}
       {isExpanded && (
-        <div className="px-3 pb-3 border-t border-city-border/50">
+        <div id={contentId} className="px-3 pb-3 border-t border-city-border/50">
           {/* Quick actions */}
           <div className="flex gap-2 mt-2 mb-3">
             <button
               onClick={() => setAllEventTypes(true)}
               className="flex-1 px-2 py-1 text-[10px] bg-city-bg rounded hover:bg-city-border transition-colors text-city-text-muted"
-            >
-              Select All
-            </button>
+            >{translate("Select All")}</button>
             <button
               onClick={() => setAllEventTypes(false)}
               className="flex-1 px-2 py-1 text-[10px] bg-city-bg rounded hover:bg-city-border transition-colors text-city-text-muted"
-            >
-              Clear All
-            </button>
+            >{translate("Clear All")}</button>
           </div>
 
           {/* Categories */}
@@ -134,7 +89,7 @@ export function EventFilters() {
             {categories.map((category) => (
               <div key={category.label}>
                 <div className="text-[10px] text-city-text-muted mb-1.5 font-medium">
-                  {category.label}
+                  {translateLabel(category.label)}
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {category.types.map((type) => {
@@ -156,7 +111,7 @@ export function EventFilters() {
                           opacity: isVisible ? 1 : 0.5,
                         }}
                       >
-                        {label}
+                        {translateLabel(label)}
                       </button>
                     );
                   })}
@@ -175,6 +130,7 @@ export function EventFilters() {
  * Inline version for use in tight spaces
  */
 export function EventFilterPills() {
+  useLocale();
   const { visibleEventTypes, toggleEventType } = useVisualizationStore();
 
   // Only show most important types inline
@@ -201,7 +157,7 @@ export function EventFilterPills() {
               opacity: isVisible ? 1 : 0.4,
             }}
           >
-            {label}
+            {translateLabel(label)}
           </button>
         );
       })}

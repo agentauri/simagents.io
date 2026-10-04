@@ -1,3 +1,4 @@
+import { useLocale, translate } from '../../i18n';
 import { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { useWorldStore, useAgents, useLocations, useBubbles } from '../../stores/world';
 import { useEditorStore, useIsEditorMode, useEditorGrid, useSelectedTile } from '../../stores/editor';
@@ -13,6 +14,7 @@ export interface IsometricCanvasHandle {
 }
 
 export const IsometricCanvas = forwardRef<IsometricCanvasHandle>(function IsometricCanvas(_, ref) {
+  useLocale();
   const containerRef = useRef<HTMLDivElement>(null);
   const baseRef = useRef<HTMLCanvasElement>(null);
   const agentsRef = useRef<HTMLCanvasElement>(null);
@@ -314,7 +316,7 @@ export const IsometricCanvas = forwardRef<IsometricCanvasHandle>(function Isomet
             rendererRef.current?.setZoom(newZoom);
           }}
           className="w-10 h-10 bg-city-surface border border-city-border rounded-lg text-white hover:bg-city-accent transition-colors font-bold text-lg shadow-lg"
-          title="Zoom in"
+          title={translate("Zoom in")}
         >
           +
         </button>
@@ -326,7 +328,7 @@ export const IsometricCanvas = forwardRef<IsometricCanvasHandle>(function Isomet
             rendererRef.current?.setZoom(newZoom);
           }}
           className="w-10 h-10 bg-city-surface border border-city-border rounded-lg text-white hover:bg-city-accent transition-colors font-bold text-lg shadow-lg"
-          title="Zoom out"
+          title={translate("Zoom out")}
         >
           -
         </button>
@@ -334,10 +336,8 @@ export const IsometricCanvas = forwardRef<IsometricCanvasHandle>(function Isomet
           type="button"
           onClick={handleDoubleClick}
           className="w-10 h-10 bg-city-surface border border-city-border rounded-lg text-white hover:bg-city-accent transition-colors text-sm font-medium shadow-lg"
-          title="Reset camera (or double-click)"
-        >
-          R
-        </button>
+          title={translate("Reset camera (or double-click)")}
+        >{translate("R")}</button>
       </div>
 
       {/* Help text */}
@@ -346,8 +346,8 @@ export const IsometricCanvas = forwardRef<IsometricCanvasHandle>(function Isomet
         style={{ zIndex: 10 }}
       >
         {isEditorMode
-          ? 'Click to place | Right-click to erase | Space+drag to pan | Scroll to zoom'
-          : 'Click to select | Space+drag to pan | Scroll to zoom | Double-click to reset'}
+          ? translate("Click to place | Right-click to erase | Space+drag to pan | Scroll to zoom")
+          : translate("Click to select | Space+drag to pan | Scroll to zoom | Double-click to reset")}
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+import { useLocale, translate } from '../i18n';
 import { useWorldStore, useSelectedLocation, useAgents } from '../stores/world';
 
 // Location type configurations
@@ -13,6 +14,7 @@ interface LocationProfileProps {
 }
 
 export function LocationProfile({ locationId }: LocationProfileProps) {
+  useLocale();
   const location = useSelectedLocation();
   const agents = useAgents();
   const selectLocation = useWorldStore((s) => s.selectLocation);
@@ -20,7 +22,7 @@ export function LocationProfile({ locationId }: LocationProfileProps) {
   if (!location) {
     return (
       <div className="p-6 text-city-text-muted text-sm text-center">
-        <p>Location not found</p>
+        <p>{translate("Location not found")}</p>
       </div>
     );
   }
@@ -58,7 +60,7 @@ export function LocationProfile({ locationId }: LocationProfileProps) {
         <button
           onClick={() => selectLocation(null)}
           className="w-6 h-6 rounded flex items-center justify-center text-city-text-muted hover:text-city-accent hover:bg-city-surface-hover transition-colors"
-          title="Close"
+          title={translate("Close")}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -85,8 +87,7 @@ export function LocationProfile({ locationId }: LocationProfileProps) {
         >
           {location.type.charAt(0).toUpperCase() + location.type.slice(1)}
         </span>
-        <span className="text-xs text-city-text-muted">
-          at{' '}
+        <span className="text-xs text-city-text-muted">{translate("at")}{' '}
           <span className="font-mono text-city-text">
             ({location.x}, {location.y})
           </span>
@@ -95,9 +96,7 @@ export function LocationProfile({ locationId }: LocationProfileProps) {
 
       {/* Stats Section */}
       <div className="space-y-4">
-        <h4 className="text-xs font-medium text-city-text-muted uppercase tracking-wider">
-          Statistics
-        </h4>
+        <h4 className="text-xs font-medium text-city-text-muted uppercase tracking-wider">{translate("Statistics")}</h4>
 
         {/* Work Multiplier */}
         <div className="flex items-center justify-between py-2 border-b border-city-border/30">
@@ -105,11 +104,10 @@ export function LocationProfile({ locationId }: LocationProfileProps) {
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
             </svg>
-            <span className="text-xs">Work Multiplier</span>
+            <span className="text-xs">{translate("Work Multiplier")}</span>
           </div>
           <span className="text-sm font-bold" style={{ color: config.color }}>
-            {config.multiplier}x
-          </span>
+            {config.multiplier}{" "}{translate("x")}</span>
         </div>
 
         {/* Agents Present */}
@@ -121,7 +119,7 @@ export function LocationProfile({ locationId }: LocationProfileProps) {
               <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
               <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
-            <span className="text-xs">Agents Present</span>
+            <span className="text-xs">{translate("Agents Present")}</span>
           </div>
           <span className="text-sm font-bold text-city-text">
             {agentsHere.length}
@@ -132,9 +130,7 @@ export function LocationProfile({ locationId }: LocationProfileProps) {
       {/* Agents at location */}
       {agentsHere.length > 0 && (
         <div className="space-y-3">
-          <h4 className="text-xs font-medium text-city-text-muted uppercase tracking-wider">
-            Agents Here
-          </h4>
+          <h4 className="text-xs font-medium text-city-text-muted uppercase tracking-wider">{translate("Agents Here")}</h4>
           <div className="space-y-2">
             {agentsHere.map((agent) => (
               <div
@@ -163,16 +159,16 @@ export function LocationProfile({ locationId }: LocationProfileProps) {
       <div className="pt-4 border-t border-city-border/30">
         <div className="text-xs text-city-text-muted">
           {location.type === 'commercial' && (
-            <p>Agents can buy items here. Best work pay (1.5x).</p>
+            <p>{translate("Agents can buy items here. Best work pay (1.5x).")}</p>
           )}
           {location.type === 'industrial' && (
-            <p>Factory work available. Good pay (1.2x).</p>
+            <p>{translate("Factory work available. Good pay (1.2x).")}</p>
           )}
           {location.type === 'civic' && (
-            <p>Public services. Standard work pay (1.0x).</p>
+            <p>{translate("Public services. Standard work pay (1.0x).")}</p>
           )}
           {location.type === 'residential' && (
-            <p>Housing area. Lower work pay (0.8x).</p>
+            <p>{translate("Housing area. Lower work pay (0.8x).")}</p>
           )}
         </div>
       </div>

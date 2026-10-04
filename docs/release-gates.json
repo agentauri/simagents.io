@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "candidateCommit": null,
+  "candidateId": null,
+  "gates": {
+    "publicUiEnItAccessibility": null,
+    "actionMatrixAndSnapshotValidation": null,
+    "sixtyMinuteTwentyAgentSoak": null,
+    "cloudflareAdmissionAndRenewal": null,
+    "elevenProviderLiveCompatibility": null,
+    "candidateRemoteCi": null,
+    "fiveParticipantUsability": null,
+    "stagingMonitoringAndOperator": null,
+    "rollbackWithinFifteenMinutes": null,
+    "rollbackReadsIndexedDbVersionTwo": null,
+    "publicBetaExit": null
+  }
+}

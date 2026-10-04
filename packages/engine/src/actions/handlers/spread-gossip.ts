@@ -22,7 +22,7 @@ import { getAgentById } from '../../db/queries/agents';
 import { storeMemory, updateRelationshipTrust } from '../../db/queries/memories';
 import { recordGossipEvent } from '../../db/queries/gossip';
 import { getDistance } from '../../world/grid';
-import { CONFIG } from '../../config';
+import { getRuntimeConfig } from '../../config';
 
 const VALID_TOPICS = ['skill', 'behavior', 'transaction', 'warning', 'recommendation'];
 
@@ -110,15 +110,15 @@ export async function handleSpreadGossip(
     { x: agent.x, y: agent.y },
     { x: targetAgent.x, y: targetAgent.y }
   );
-  if (distance > CONFIG.actions.spreadGossip.maxDistance) {
+  if (distance > getRuntimeConfig().actions.spreadGossip.maxDistance) {
     return {
       success: false,
-      error: `Target too far for communication (distance: ${distance}, max: ${CONFIG.actions.spreadGossip.maxDistance})`,
+      error: `Target too far for communication (distance: ${distance}, max: ${getRuntimeConfig().actions.spreadGossip.maxDistance})`,
     };
   }
 
   // Check energy
-  const energyCost = CONFIG.actions.spreadGossip.energyCost;
+  const energyCost = getRuntimeConfig().actions.spreadGossip.energyCost;
   if (agent.energy < energyCost) {
     return {
       success: false,
@@ -150,7 +150,7 @@ export async function handleSpreadGossip(
     await updateRelationshipTrust(
       targetAgentId,
       agent.id,
-      CONFIG.actions.spreadGossip.trustGainPositive,
+      getRuntimeConfig().actions.spreadGossip.trustGainPositive,
       intent.tick,
       `Shared positive gossip about another agent`
     );
@@ -159,7 +159,7 @@ export async function handleSpreadGossip(
     await updateRelationshipTrust(
       targetAgentId,
       agent.id,
-      CONFIG.actions.spreadGossip.trustPenaltyNegative,
+      getRuntimeConfig().actions.spreadGossip.trustPenaltyNegative,
       intent.tick,
       `Spread negative gossip about another agent`
     );
