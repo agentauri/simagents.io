@@ -226,10 +226,13 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
+      - name: Setup pinned Bun binary without OS packages
+        timeout-minutes: 5
+        run: |
+          npm install --prefix "$RUNNER_TEMP/bun-runtime" --no-save --ignore-scripts "@oven/bun-linux-x64@$BUN_VERSION"
+          binary="$RUNNER_TEMP/bun-runtime/node_modules/@oven/bun-linux-x64/bin/bun"
+          test "$("$binary" --version)" = "$BUN_VERSION"
+          echo "$(dirname "$binary")" >> "$GITHUB_PATH"
 
       - name: Cache Bun dependencies
         uses: actions/cache@v6

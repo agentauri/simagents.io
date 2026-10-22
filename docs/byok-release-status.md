@@ -328,6 +328,16 @@ and its six local rollback-reader cases, EN/IT native quota refusal and isolated
 ENOSPC reports remain retained, without promotion to a successful CI candidate.
 The continuous-hour and external release requirements remain open.
 
+The first image-based run (`39861275215`, `159c8a6`) pulled and initialized the
+container successfully, then stopped in `setup-bun`: the minimal image lacks
+`unzip`. Its complete WebKit job log is `.tmp/ci-159-webkit.log`. Browser jobs
+now install the official `@oven/bun-linux-x64` npm binary at the existing
+`BUN_VERSION`, with lifecycle scripts disabled, and verify its actual version
+before adding its directory to the job PATH. The registry package layout was
+checked (`bin/bun`); this avoids introducing OS package installation. Other
+jobs retain their existing Bun action. See [Bun installation](https://bun.sh/docs/installation).
+Remote verification remains required; neither failed run is a CI pass.
+
 ## Historical implementation checkpoints
 
 
