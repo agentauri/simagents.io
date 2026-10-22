@@ -44,6 +44,52 @@ test('invalid budgets fail before a session can start', () => {
   for (const value of [NaN, Infinity, 0, -1, 1.5]) expect(() => validateSessionLimits({ ...DEFAULT_SESSION_LIMITS, maxRequests: value })).toThrow();
 });
 
+test('system suspension expires duration even when the pacing clock is frozen', async () => {
+  let wall = 0;
+  const budget = new RequestBudget({ ...DEFAULT_SESSION_LIMITS, maxDurationSeconds: 1 }, undefined, () => 0, () => wall);
+  try {
+    budget.start(); wall = 3600000;
+    await expect(budget.acquire('after-suspend', signal())).rejects.toThrow('duration');
+    expect(budget.snapshot()).toMatchObject({ requests: 0, elapsedMs: 3600000 });
+  } finally { budget.dispose(); }
+});
+
+test('a queued request cannot be admitted after wall duration expires', async () => {
+  let wall = 0;
+  const budget = new RequestBudget({ ...DEFAULT_SESSION_LIMITS, maxDurationSeconds: 1, maxConcurrentPerConnection: 1 }, undefined, () => 0, () => wall);
+  try {
+    const release = await budget.acquire('same', signal());
+    const queued = budget.acquire('same', signal());
+    wall = 2000; release();
+    await expect(queued).rejects.toThrow('duration');
+    expect(budget.snapshot().requests).toBe(1);
+  } finally { budget.dispose(); }
+});
+
+test('calendar rollback cannot reduce elapsed duration or defeat monotonic expiry', async () => {
+  let monotonic = 0, wall = 1000;
+  const budget = new RequestBudget({ ...DEFAULT_SESSION_LIMITS, maxDurationSeconds: 1 }, undefined, () => monotonic, () => wall);
+  try {
+    budget.start(); monotonic = 100; wall = 1400;
+    expect(budget.snapshot().elapsedMs).toBe(400);
+    monotonic = 200; wall = 500;
+    expect(budget.snapshot().elapsedMs).toBe(400);
+    monotonic = 1001;
+    await expect(budget.acquire('after-rollback', signal())).rejects.toThrow('duration');
+  } finally { budget.dispose(); }
+});
+
+test('idle duration expiry is noticed after suspend without another request', async () => {
+  let wall = 0, expired = 0;
+  const budget = new RequestBudget({ ...DEFAULT_SESSION_LIMITS, maxDurationSeconds: 60 }, () => { expired++; }, () => 0, () => wall);
+  try {
+    budget.start(); wall = 60001;
+    await new Promise(resolve => setTimeout(resolve, 1100));
+    expect(expired).toBe(1);
+    expect(budget.snapshot().requests).toBe(0);
+  } finally { budget.dispose(); }
+});
+
 test('provider budget exhaustion leaves the engine mutation queue drainable', async () => {
   const { SimEngine } = await import('../../engine/engine');
   const budget = new RequestBudget({ ...DEFAULT_SESSION_LIMITS, maxRequests: 1 });

@@ -111,6 +111,8 @@ jobs:
       - name: Run engine and local release/manifest tests
         run: |
           bun run test
+          bun test scripts/soak-clock.test.ts
+          ./node_modules/.bin/tsc --noEmit --moduleResolution bundler --module esnext --target es2022 --types bun --skipLibCheck scripts/soak-clock.ts scripts/soak-clock.test.ts
           node --test scripts/release-gates.test.mjs scripts/provider-attempt-journal.test.mjs scripts/monitor-services.test.mjs
           bun scripts/check-provider-manifest.mjs
 

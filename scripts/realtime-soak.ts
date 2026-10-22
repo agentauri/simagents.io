@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { buildSoakWorld } from './fixtures/soak-world';
 import { validateWorldSnapshotV1 } from '../packages/engine/src/engine/persistence';
 import { openSimulationTool, productText } from './browser-helpers.mjs';
+import { elapsedContinuous, openSoakClock, type ClockReading } from './soak-clock';
 const require = createRequire(import.meta.url);
 const playwright = process.env.PLAYWRIGHT_MODULE_DIR ? createRequire(`${process.env.PLAYWRIGHT_MODULE_DIR}/package.json`)('playwright') : require('playwright');
 const pilotArg = process.argv.find(value => value.startsWith('--pilot-seconds='));
@@ -19,7 +20,10 @@ const directory = `.tmp/soak/${runId}`; await mkdir(directory, { recursive: true
 const fixture = await buildSoakWorld();
 const fixtureJson = JSON.stringify(fixture.file), fixtureHash = createHash('sha256').update(fixtureJson).digest('hex');
 await writeFile(`${directory}/fixture.json`, fixtureJson);
-const protocol = { version: 1, pilot, durationSeconds, agents: 20, speed: 1, provider: 'synthetic HTTP transport', preconditioning: fixture.preconditioning,
+const nativeClock = openSoakClock();
+const protocol = { version: 2, pilot, durationSeconds, agents: 20, speed: 1, provider: 'synthetic HTTP transport', preconditioning: fixture.preconditioning,
+  clock: { source: nativeClock.kind, maximumSuspendDriftMs: 1000, maximumSampleGapMs: 30000, maximumCalibrationMs: 1000,
+    note: 'Native continuous time includes system suspend; browser active time is recorded separately. Interrupted runs cannot pass.' },
   limits: { maxRequests: 4000, maxDurationSeconds: 3600, maxOutputTokens: 128, maxConcurrentPerConnection: 2, requestsPerMinutePerConnection: 30 },
   sampleEverySeconds: 10, snapshotEverySeconds: 60, latencyEverySeconds: 30,
   gates: { minimumWallSeconds: pilot ? null : 3600, uiP95MsBelow: 200, speedRatioTolerance: 0.02, budgetStopBoundaryToleranceMs: 2000,
@@ -40,7 +44,7 @@ await context.route('https://api.anthropic.com/v1/messages', async (route: any) 
   if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
   const body = route.request().postDataJSON();
   assert(body.model === 'soak-fixture' && body.max_tokens === 128, 'Transport changed model or token cap');
-  calls++; callTimes.push(performance.now()); inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+  calls++; callTimes.push(nativeClock.read().continuousMs); inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
   try {
     await new Promise(resolve => setTimeout(resolve, 75));
     const action = calls === 1 ? { action: 'signal', params: { message: 'explicit probe', intensity: 1 } } : { action: 'sleep', params: { duration: 1 } };
@@ -96,10 +100,16 @@ async function measureLatency() {
   await page.keyboard.press('Escape'); return latency;
 }
 let began: { monotonic: number; wall: number } | undefined;
+let nativeStart: ClockReading, previousClock: ClockReading;
 try {
   await page.goto(base);
   summary.candidate = await (await context.request.get(new URL('candidate.json', base).href)).json();
   assert(summary.candidate.id, 'Candidate identity is missing'); await checkpoint();
+  assert(createHash('sha256').update(JSON.stringify(summary.candidate.identity)).digest('hex') === summary.candidate.id, 'Candidate identity hash is invalid');
+  if (!pilot) {
+    assert(!summary.candidate.identity.dirty && summary.candidate.identity.commit === execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(), 'A full soak requires the exact clean source commit');
+    assert(!execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim(), 'A full soak cannot certify a dirty checkout');
+  }
   await openSimulationTool(page, 'Configuration');
   await page.getByRole('button', { name: 'Connections', exact: true }).click(); await page.getByRole('button', { name: 'Edit Simulated soak transport', exact: true }).click();
   await page.getByLabel('Connection API key', { exact: true }).fill('synthetic-soak-key'); await page.getByRole('button', { name: 'Save connection', exact: true }).click();
@@ -116,14 +126,28 @@ try {
   assert(await page.getByLabel('Simulation speed', { exact: true }).filter({ visible: true }).first().inputValue() === '1', 'World did not start at real-time speed');
   began = await page.evaluate(() => (window as any).__soakStart);
   assert(began, 'Real-time start marker was not observed'); summary.startedAt = began!.wall; summary.started = true;
+  const beforeCalibration = nativeClock.read();
+  const browserNow = await page.evaluate(() => performance.now());
+  const afterCalibration = nativeClock.read();
+  const calibrationMs = elapsedContinuous(beforeCalibration, afterCalibration);
+  assert(calibrationMs <= 1000, 'Native/browser clock calibration was interrupted');
+  const sinceStart = browserNow - began!.monotonic;
+  nativeStart = { continuousMs: (beforeCalibration.continuousMs + afterCalibration.continuousMs) / 2 - sinceStart,
+    uptimeMs: (beforeCalibration.uptimeMs + afterCalibration.uptimeMs) / 2 - sinceStart, wallMs: began!.wall };
+  previousClock = afterCalibration;
+  summary.clockCalibrationMs = calibrationMs;
   let lastSnapshot = -60000, lastLatency = -30000, finalFile: any;
   for (;;) {
     const timing = await page.evaluate(() => ({ monotonic: performance.now(), visible: !document.hidden }));
-    const elapsedMs = timing.monotonic - began!.monotonic;
+    const currentClock = nativeClock.read();
+    const elapsedMs = elapsedContinuous(nativeStart, currentClock, previousClock);
+    previousClock = currentClock;
+    const browserElapsedMs = timing.monotonic - began!.monotonic;
+    assert(Math.abs(elapsedMs - browserElapsedMs) <= 1000, 'Browser active time diverged from native continuous time');
     assert(timing.visible, 'Page became hidden; protocol cannot continue unchanged');
     if (elapsedMs - lastLatency >= 30000) { await measureLatency(); lastLatency = elapsedMs; }
     if (elapsedMs - lastSnapshot >= 60000) { finalFile = await exportSnapshot(`sample-${Math.floor(elapsedMs / 1000)}`); lastSnapshot = elapsedMs; }
-    const memory = await memorySample(); const sample = { elapsedMs, ...memory, calls, inFlight };
+    const memory = await memorySample(); const sample = { elapsedMs, browserElapsedMs, calendarElapsedMs: currentClock.wallMs - began!.wall, ...memory, calls, inFlight };
     samples.push(sample); await appendFile(`${directory}/measurements.jsonl`, JSON.stringify(sample) + '\n');
     summary.elapsedMs = elapsedMs; summary.calls = calls; summary.memorySamples = samples.length; summary.latencySamples = latencies.length; await checkpoint();
     if (errors.length) throw new Error('Unhandled browser error during soak');
@@ -134,8 +158,18 @@ try {
   }
   if (await page.getByRole('button', { name: 'Pause', exact: true }).first().isVisible()) await page.getByRole('button', { name: 'Pause', exact: true }).first().click();
   finalFile = await exportSnapshot('final'); await writeFile(`${directory}/final-world.json`, JSON.stringify(finalFile));
-  const actualWallMs = (await page.evaluate(() => performance.now())) - began!.monotonic;
+  const activeBrowserMs = (await page.evaluate(() => performance.now())) - began!.monotonic;
+  const endedClock = nativeClock.read();
+  const actualWallMs = elapsedContinuous(nativeStart, endedClock, previousClock);
+  previousClock = endedClock;
+  assert(Math.abs(actualWallMs - activeBrowserMs) <= 1000, 'Final browser/native time diverged');
   const simElapsedMs = finalFile.snapshot.savedAtSimTimeMs - fixture.preconditioning.savedAtSimTimeMs;
+  let firstCall = 0, maximumRollingMinuteCalls = 0;
+  for (let index = 0; index < callTimes.length; index++) {
+    while (callTimes[firstCall] <= callTimes[index] - 60000) firstCall++;
+    maximumRollingMinuteCalls = Math.max(maximumRollingMinuteCalls, index - firstCall + 1);
+  }
+  assert(maxInFlight <= protocol.limits.maxConcurrentPerConnection && maximumRollingMinuteCalls <= protocol.limits.requestsPerMinutePerConnection, 'Synthetic traffic exceeded the controlled provider limits');
   assert(Math.abs(simElapsedMs / actualWallMs - 1) <= 0.02, 'Simulation did not stay at real-time speed');
   assert(finalFile.snapshot.metrics.agents.filter((agent: any) => agent.actionsCount > 0).length === 20, 'Not every simulated agent remained active');
   const sorted = [...latencies].sort((a, b) => a - b), p95 = sorted[Math.max(0, Math.ceil(sorted.length * 0.95) - 1)];
@@ -165,9 +199,11 @@ try {
   });
   assert(JSON.stringify(reloaded.snapshot.metrics) === JSON.stringify(persisted.snapshot.metrics), 'Reload changed cumulative counters');
   summary.status = pilot ? 'pilot-complete-not-a-soak' : 'local-soak-complete-not-a-release-gate';
-  Object.assign(summary, { actualWallMs, simElapsedMs, calls, maxInFlight, uiP95Ms: p95, memoryPlateau, snapshots, restoredCounters: true, completedAt: Date.now(), releaseGate: 'pending clean exact candidate and remaining exit criteria' });
+  elapsedContinuous(nativeStart, nativeClock.read(), previousClock);
+  Object.assign(summary, { actualWallMs, activeBrowserMs, calendarElapsedMs: endedClock.wallMs - began!.wall,
+    measuredWindowEndedAt: endedClock.wallMs, clockContinuityVerified: true, simElapsedMs, calls, maxInFlight, maximumRollingMinuteCalls, uiP95Ms: p95, memoryPlateau, snapshots, restoredCounters: true, completedAt: Date.now(), releaseGate: 'pending clean exact candidate and remaining exit criteria' });
   await page.screenshot({ path: `${directory}/after-reload.png` });
 } catch (error) { summary.status = 'failed'; summary.failure = error instanceof Error ? error.message : 'Unknown soak failure'; await page.screenshot({ path: `${directory}/failure.png` }).catch(() => {}); }
-finally { await checkpoint(); await context.close(); await browser.close(); }
+finally { await checkpoint(); await context.close(); await browser.close(); nativeClock.dispose(); }
 console.log(JSON.stringify({ status: summary.status, directory, elapsedMs: summary.elapsedMs, failure: summary.failure, uiP95Ms: summary.uiP95Ms }));
 if (summary.status === 'failed') process.exitCode = 1;

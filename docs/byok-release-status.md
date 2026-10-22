@@ -185,6 +185,48 @@ certify the corrected validator. A fresh clean candidate, remote CI and
 artifact. No schema layout/version, provider call or infrastructure setting
 was changed by this correction.
 
+## Suspend-aware duration and benchmark correction — 2026-10-22
+
+The clean `de9b561` / `9efb2089d5a5a7f91a45bf252bd58067c5766172a1f11be431475e6110df7c14`
+[CI run 39812827333](https://github.com/agentauri/simagents.io/actions/runs/39812827333)
+passed all eight required jobs. Review of the downloaded reports confirmed
+36 complete browser/language/size/100%-200% cases, 64 candidate-bound reports
+and 816 automated A/AA scans with zero violations. Twelve external documentation
+links were available; the four edit links redirected to authentication and had
+verified local source targets. Fresh native Firefox quota refusal in EN/IT,
+isolated filesystem ENOSPC and six local data-reader rollback cases passed.
+These remain scoped evidence, not human usability or live-provider certification.
+
+The subsequent hour run **did not pass continuous real-time acceptance**.
+It measured 3,600,237 ms of browser active time across 10,739,200 ms of calendar
+time; power history confirmed system sleep, and snapshot gaps reached
+2,757,914 ms. Its 1,200 synthetic actions, restored counters, p95 22.6 ms and
+native RSS statistics are partial observations only. The original report is
+preserved, with the rejecting review at `.tmp/soak-de9-continuity-review.json`.
+No hour gate is promoted from that run.
+
+This exposed a product duration bug: RequestBudget used only performance.now(),
+which can stop during system suspend. Production now combines calendar and
+monotonic elapsed time, never refunds observed duration on clock rollback,
+checks expiry before admission and polls idle expiry at most once per second.
+Four regressions cover suspension, queued requests, calendar rollback and
+idle expiry. The previous implementation fails three of these tests.
+
+Benchmark protocol 2 uses a native continuous clock that includes suspend,
+checks it against uptime and browser active time, and rejects suspension,
+missing samples or bad clock calibration. A full run also requires the exact
+clean source commit; dirty pilot builds cannot become hour evidence. Six clock
+checks, including an actual native adapter read, pass. They run in ordinary CI.
+A new 60-second pilot passed on macOS with continuous/native timing; it does
+not satisfy the 60-minute gate. All 450 workspace tests, TypeScript, ESLint and
+the public build passed locally. Evidence is in `.tmp/continuous-clock-pilot-20261022/`
+and `.tmp/soak/2026-10-22T20-21-58-369Z-pilot/`.
+
+Clock references: [browser sleep behavior](https://developer.mozilla.org/en-US/docs/Web/API/Performance/now#ticking_during_sleep)
+and [Apple continuous clock](https://developer.apple.com/documentation/kernel/1646199-mach_continuous_time).
+A fresh candidate/CI and a genuinely uninterrupted one-hour window are still
+required. Paid provider calls remain denied; no production rollout occurred.
+
 ## Historical implementation checkpoints
 
 

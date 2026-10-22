@@ -34,23 +34,33 @@ export class RequestBudget {
   private active = 0;
   private nextGlobalStart = 0;
   private startedAt?: number;
+  private startedWallAt?: number;
+  private observedElapsedMs = 0;
   private ended = false;
   private timer?: ReturnType<typeof setTimeout>;
   private readonly connections = new Map<string, { active: number; nextStart: number }>();
   private readonly waiters = new Set<() => void>();
-  constructor(limits: SessionLimits, private readonly onExpired: () => void = () => {}, private readonly now = () => performance.now()) {
+  private readonly now: () => number;
+  private readonly wallNow: () => number;
+  constructor(limits: SessionLimits, private readonly onExpired: () => void = () => {}, now?: () => number, wallNow?: () => number) {
     this.limits = validateSessionLimits(limits);
+    this.now = now ?? (() => performance.now());
+    // A supplied test clock continues to control both domains unless a
+    // separate wall clock is provided. Production uses both real clocks:
+    // performance.now() can stop during OS suspend on macOS/Linux browsers.
+    this.wallNow = wallNow ?? now ?? (() => Date.now());
   }
   start(): void {
     if (this.ended) throw new RequestBudgetError('session-ended');
     if (this.startedAt === undefined) {
       this.startedAt = this.now();
-      this.timer = setTimeout(() => { this.wake(); this.onExpired(); }, this.limits.maxDurationSeconds * 1000);
+      this.startedWallAt = this.wallNow();
+      this.scheduleExpiry();
     }
     this.check();
   }
   snapshot() {
-    return { requests: this.requests, limits: { ...this.limits }, elapsedMs: this.startedAt === undefined ? 0 : Math.max(0, this.now() - this.startedAt) };
+    return { requests: this.requests, limits: { ...this.limits }, elapsedMs: this.elapsedMs() };
   }
   async acquire(connectionId: string, signal: AbortSignal): Promise<() => void> {
     this.start();
@@ -73,9 +83,27 @@ export class RequestBudget {
     }
   }
   dispose(): void { this.ended = true; clearTimeout(this.timer); this.wake(); }
+  private elapsedMs(): number {
+    if (this.startedAt === undefined || this.startedWallAt === undefined) return 0;
+    // Neither a backward calendar adjustment nor a suspended monotonic clock
+    // may give back already consumed duration. A forward clock adjustment
+    // expires conservatively rather than allowing additional requests.
+    this.observedElapsedMs = Math.max(this.observedElapsedMs, 0,
+      this.now() - this.startedAt, this.wallNow() - this.startedWallAt);
+    return this.observedElapsedMs;
+  }
+  private scheduleExpiry(): void {
+    const remaining = this.limits.maxDurationSeconds * 1000 - this.elapsedMs();
+    this.timer = setTimeout(() => {
+      if (this.ended) return;
+      if (this.elapsedMs() >= this.limits.maxDurationSeconds * 1000) {
+        this.wake(); this.onExpired();
+      } else this.scheduleExpiry();
+    }, Math.min(1000, Math.max(0, remaining)));
+  }
   private check(): void {
     if (this.ended) throw new RequestBudgetError('session-ended');
-    if (this.startedAt !== undefined && this.now() - this.startedAt >= this.limits.maxDurationSeconds * 1000) throw new RequestBudgetError('duration-limit');
+    if (this.startedAt !== undefined && this.elapsedMs() >= this.limits.maxDurationSeconds * 1000) throw new RequestBudgetError('duration-limit');
     if (this.requests >= this.limits.maxRequests) throw new RequestBudgetError('request-limit');
   }
   private wake(): void { for (const wake of [...this.waiters]) wake(); }
