@@ -38,6 +38,18 @@ const corruptions: Array<[string, (snapshot: WorldSnapshotV1) => void]> = [
   ['duplicate relationship pair', s => { s.store.relationships.push({ ...s.store.relationships[0], id: 'duplicate' }); }],
   ['unknown memory reference', s => { s.store.memories[0].involvedAgentIds = ['missing']; }],
   ['negative escrow', s => { s.store.employments[0].escrowAmount = -1; }],
+  ['active contract cannot record overpayment', s => { s.store.employments[0].amountPaid = 11; }],
+  ['completed contract cannot add forfeited escrow', s => {
+    Object.assign(s.store.employments[0], { status: 'completed', amountPaid: 11 });
+    s.store.jobOffers[0].escrowAmount = 4;
+  }],
+  ['default payment cannot exceed salary plus its original deposit', s => {
+    Object.assign(s.store.employments[0], { status: 'unpaid', amountPaid: 15 });
+    s.store.jobOffers[0].escrowAmount = 4;
+  }],
+  ['abandoned contract without a deposit cannot record overpayment', s => {
+    Object.assign(s.store.employments[0], { status: 'abandoned', amountPaid: 11 });
+  }],
   ['unknown offer', s => { s.store.employments[0].jobOfferId = 'missing'; }],
   ['employment exceeds required work', s => { s.store.employments[0].ticksWorked = 3; }],
   ['invalid game reference', s => { s.store.puzzleFragments[0].gameId = 'missing'; }],
@@ -105,4 +117,20 @@ test('split puzzle awards accept exact and floating-point pool boundaries', asyn
     hydrateWorld(snapshot);
     expect(capture().store.puzzleGames[0].prizeDistribution).toEqual(snapshot.store.puzzleGames[0].prizeDistribution);
   }
+});
+
+test.each(['unpaid', 'abandoned'] as const)('%s contract permits only its documented original deposit beyond wages', async (status) => {
+  const snapshot = await fixture();
+  snapshot.store.jobOffers[0].escrowAmount = 4;
+  Object.assign(snapshot.store.employments[0], { status, amountPaid: 14, escrowAmount: 0 });
+  expect(() => validateWorldSnapshotV1(snapshot)).not.toThrow();
+  hydrateWorld(JSON.parse(JSON.stringify(snapshot)));
+  expect(capture().store.employments[0]).toEqual(snapshot.store.employments[0]);
+});
+
+test('decimal default settlement tolerates arithmetic roundoff at its deposit boundary', async () => {
+  const snapshot = await fixture();
+  Object.assign(snapshot.store.jobOffers[0], { salary: 0.3, escrowAmount: 0.1 });
+  Object.assign(snapshot.store.employments[0], { salary: 0.3, status: 'unpaid', amountPaid: 0.4, escrowAmount: 0 });
+  expect(() => validateWorldSnapshotV1(snapshot)).not.toThrow();
 });

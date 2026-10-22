@@ -8,6 +8,7 @@ import { resetRuntimeConfig } from '../../config';
 import { materializeVitals } from '../../engine/vitals';
 import { getAgentBusyUntil } from '../../engine/agent-meta';
 import { expireJobOffers } from '../../engine-memory/queries/employment';
+import { hydrateWorld, serializeWorld, validateWorldSnapshotV1 } from '../../engine/persistence';
 
 let now = 0;
 let executor: ActionExecutor;
@@ -64,6 +65,34 @@ describe('action invariants', () => {
 });
 
 describe('employment money conservation', () => {
+  test.each(['funds-exhausted', 'employer-dead'] as const)('%s after partial wages preserves the forfeited deposit on reload', async (failure) => {
+    await createAgent({ id: 'employer', llmType: 'fixture', balance: 60 });
+    await createAgent({ id: 'worker', llmType: 'fixture', balance: 0 });
+    expect((await act('employer', 'offer_job', { salary: 40, duration: 2, paymentType: 'per_tick', escrowPercent: 100 })).result.success).toBe(true);
+    const offer = [...store.jobOffers.values()][0];
+    expect((await act('worker', 'accept_job', { jobOfferId: offer.id })).result.success).toBe(true);
+    expect((await act('worker', 'work', {})).result.success).toBe(true);
+    expect(store.agents.get('employer')!.balance).toBe(0);
+    expect(store.agents.get('worker')!.balance).toBe(20);
+    expect(money()).toBe(60);
+    if (failure === 'employer-dead') await updateAgent('employer', { state: 'dead' });
+    const result = await act('worker', 'work', {});
+    expect(result.result.success).toBe(false);
+    expect(result.events.map(event => event.type)).toEqual(['action_failed']);
+    const employment = [...store.employments.values()][0];
+    expect(employment).toMatchObject({ salary: 40, amountPaid: 60, escrowAmount: 0, ticksWorked: 1,
+      status: failure === 'employer-dead' ? 'abandoned' : 'unpaid' });
+    expect(store.agents.get('worker')!.balance).toBe(60);
+    expect(money()).toBe(60);
+    const snapshot = serializeWorld({ savedAtSimTimeMs: now, worldSeed: 'default-escrow', speed: 1 });
+    expect(() => validateWorldSnapshotV1(snapshot)).not.toThrow();
+    hydrateWorld(JSON.parse(JSON.stringify(snapshot)));
+    expect(store.employments.get(employment.id)).toMatchObject({ amountPaid: 60, escrowAmount: 0 });
+    expect(money()).toBe(60);
+    expect((await act('worker', 'work', {})).result.success).toBe(false);
+    expect(store.agents.get('worker')!.balance).toBe(60);
+    expect(money()).toBe(60);
+  });
   test('completed work remains payable exactly once, escrow retained until payment', async () => {
     const { employer, worker, employment } = await contract('on_completion');
     expect(money()).toBe(200);

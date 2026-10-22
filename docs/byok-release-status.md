@@ -1,6 +1,6 @@
 # BYOK release implementation status
 
-Updated 2026-10-22. **The five-block release objective is incomplete.** This
+Updated 2026-10-23. **The five-block release objective is incomplete.** This
 review reconciles the retained 2026-10-04 receipts; it is not a fresh claim
 about today's deployed configuration, billing, dependencies or provider availability.
 Historical sections below apply only to their stated checkpoint. The October
@@ -346,6 +346,34 @@ mounted home, checkout root and `.git` directory with their process user, then
 require `git rev-parse HEAD` to succeed. The home environment variable is not
 reassigned, and Git's ownership check remains enabled. Failure logs are retained
 at `.tmp/ci-e8ebc46-failed.log`; the release gate remains open.
+
+## Defaulted employment snapshot correction — 2026-10-23
+
+Manual review reproduced a persistence defect through public engine actions:
+an employer with 60 CITY offers 40 CITY over two ticks with a 100% guarantee.
+The first work tick pays 20; the next tick defaults and transfers the 40 CITY
+deposit. The worker holds 60, the employer zero, and total money is conserved.
+The old validator nevertheless rejected this genuine world because cumulative
+payments exceeded the salary. The existing guarantee-forfeiture behavior agrees
+with the [employment specification](PRD.md); changing that economic rule would
+change the experiment.
+
+Snapshot validation now permits payments beyond salary only for `unpaid` or
+`abandoned` contracts, bounded by the original deposit retained on the linked
+offer, with bounded decimal roundoff. Active and normally completed contracts
+retain their original salary cap. Five new positive regressions failed before
+the change; after it, they and four negative import cases pass. Tests cover
+partial payment followed by insolvency or employer death, unchanged total money,
+actual serialize/hydrate roundtrip and no duplicate payout after restoring.
+The complete local suite passes 459 tests, TypeScript and ESLint. Evidence is
+`.tmp/escrow-default-{before,after}.json` and `.tmp/escrow-default-{red,green,tests,typecheck,lint}.log`.
+
+The correction is being copied into the retained rollback reader. The previous
+candidate `e96fdf5d8916535e60189ebacd04a6183bc601bf1d53521ac0dcdd339fa0e023`
+and its successful CI remain preserved evidence for that earlier commit.
+This schema-domain correction requires a new clean candidate, exact CI and
+reader-pair verification. The continuous hour, remaining manual review and
+external release gates remain open; paid provider calls remain denied.
 
 ## Historical implementation checkpoints
 

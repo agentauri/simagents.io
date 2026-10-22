@@ -166,7 +166,13 @@ export function validateSnapshotDomain(snapshot: WorldSnapshotV1): void {
       if (field === 'employments') {
         reference(value.jobOfferId, offers, `${label}.jobOfferId`);
         if (offers.get(value.jobOfferId as string)?.employerId !== value.employerId) fail(`Employment employer mismatch ${label}`);
-        if ((value.ticksWorked as number) > (value.ticksRequired as number) || (value.amountPaid as number) > (value.salary as number) || (value.escrowAmount as number) > (value.salary as number)) fail(`Invalid employment settlement ${label}`);
+        // Default forfeits the original guarantee in addition to wages already
+        // paid. The offer retains that deposit after the contract releases it.
+        const forfeiture = value.status === 'unpaid' || value.status === 'abandoned'
+          ? offers.get(value.jobOfferId as string)!.escrowAmount as number : 0;
+        const paid = value.amountPaid as number, salary = value.salary as number;
+        const roundoff = forfeiture > 0 ? Number.EPSILON * Math.max(paid, salary, forfeiture) * 2 : 0;
+        if ((value.ticksWorked as number) > (value.ticksRequired as number) || paid - salary - forfeiture > roundoff || (value.escrowAmount as number) > salary) fail(`Invalid employment settlement ${label}`);
       }
       if (field === 'puzzleGames') {
         if ((value.minParticipants as number) > (value.maxParticipants as number)) fail(`Invalid participant limits ${label}`);
