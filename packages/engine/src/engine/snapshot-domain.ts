@@ -175,7 +175,16 @@ export function validateSnapshotDomain(snapshot: WorldSnapshotV1): void {
           if (!agents.has(value.winnerId as string) && !teams.has(value.winnerId as string)) fail(`Unknown puzzle winner ${label}`);
           if (teams.has(value.winnerId as string) && teams.get(value.winnerId as string)?.gameId !== value.id) fail(`Cross-game winner ${label}`);
         }
-        if (Array.isArray(value.prizeDistribution)) for (const prize of value.prizeDistribution) reference((prize as JsonObject).agentId, agents, `${label}.prizeDistribution`);
+        if (Array.isArray(value.prizeDistribution)) {
+          const prizes = value.prizeDistribution as JsonObject[];
+          for (const prize of prizes) reference(prize.agentId, agents, `${label}.prizeDistribution`);
+          const awarded = prizes.reduce((sum, prize) => sum + (prize.amount as number), 0);
+          const pool = value.prizePool as number;
+          // Split decimal awards can round just above their pool. Bound only
+          // arithmetic roundoff; a zero pool still permits no positive award.
+          const tolerance = Number.EPSILON * pool * Math.max(1, prizes.length);
+          if (!Number.isFinite(awarded) || awarded - pool > tolerance) fail(`Puzzle awards exceed prize pool ${label}`);
+        }
       }
     }
   }

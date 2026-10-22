@@ -63,6 +63,20 @@ async function exported() {
   const pending = page.waitForEvent('download'); await openTool(page, 'Export current world');
   return JSON.parse(await (await pending).createReadStream().then(async stream => { let raw = ''; for await (const chunk of stream) raw += chunk; return raw; }));
 }
+async function committedWorld() {
+  return page.evaluate(() => new Promise((resolve, reject) => {
+    const request = indexedDB.open('simagents-app-data');
+    request.onupgradeneeded = () => request.transaction.abort();
+    request.onerror = () => reject(new Error('Existing world database is unavailable'));
+    request.onsuccess = () => {
+      const db = request.result, tx = db.transaction(['records', 'accounting'], 'readonly');
+      const world = tx.objectStore('records').get('world:current');
+      const keys = tx.objectStore('accounting').getAllKeys(), usage = tx.objectStore('accounting').getAll();
+      tx.oncomplete = () => { db.close(); resolve(JSON.stringify({ world: world.result, accounting: { keys: keys.result, usage: usage.result } })); };
+      tx.onabort = tx.onerror = () => { db.close(); reject(new Error('World/accounting read failed')); };
+    };
+  }));
+}
 try {
   await page.goto(base);
   const candidateResponse = await context.request.get(new URL('candidate.json', base).href);
@@ -180,13 +194,28 @@ try {
   assert(calls === 3, `Expected one probe and two decisions, saw ${calls}`); await audit('budget-error');
   const saved = await exported();
   const unchanged = JSON.stringify(saved.snapshot);
+  const committedBeforeInvalid = await committedWorld();
   await openTool(page, 'Import saved world');
   await page.locator('input[type=file]').setInputFiles({ name: 'invalid.json', mimeType: 'application/json', buffer: Buffer.from('{"invalid":true}') });
   const afterInvalid = await exported(); assert(JSON.stringify(afterInvalid.snapshot) === unchanged, 'Invalid import changed the world');
+  assert(await committedWorld() === committedBeforeInvalid, 'Invalid envelope import changed the committed world or byte accounting');
   // Review and dismiss the persistent import notification before inspecting
   // other pages, just as the public recovery flow requires.
   const importAlert = page.getByRole('alert').filter({ has: page.getByRole('button', { name: productText('Close'), exact: true }) });
   await activate(importAlert.getByRole('button', { name: productText('Close'), exact: true }));
+  const invalidAwards = structuredClone(saved), winner = saved.snapshot.store.agents[0].id;
+  invalidAwards.snapshot.store.puzzleGames.push({ id: 'invalid-import-awards', tenantId: null, gameType: 'password',
+    status: 'completed', solution: 'fixture', solutionHash: null, prizePool: 1, entryStake: 0,
+    maxParticipants: 1, minParticipants: 1, fragmentCount: 0, createdAtTick: 0, startsAtTick: 0,
+    endsAtTick: saved.snapshot.store.worldState.currentTick, winnerId: winner, createdAt: null,
+    prizeDistribution: [{ agentId: winner, amount: 2, type: 'solo_winner' }] });
+  await openTool(page, 'Import saved world');
+  await page.locator('input[type=file]').setInputFiles({ name: 'invalid-awards.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(invalidAwards)) });
+  await importAlert.waitFor({ state: 'visible' });
+  assert(JSON.stringify((await exported()).snapshot) === unchanged, 'Invalid puzzle awards import changed the live world');
+  assert(await committedWorld() === committedBeforeInvalid, 'Invalid puzzle awards import changed the committed world or byte accounting');
+  await activate(importAlert.getByRole('button', { name: productText('Close'), exact: true }));
+  result.invalidImportCases = ['invalid-envelope', 'puzzle-awards-exceed-pool'];
   for (const [tool, heading] of [['Analytics', 'Analytics Dashboard'], ['Puzzle Games', 'Puzzle Games'], ['Prompt Gallery', 'Prompt Gallery']]) {
     await openTool(page, tool);
     await page.getByRole('heading', { name: productText(heading), exact: true }).first().waitFor(); await audit(tool.toLowerCase().replaceAll(' ', '-'));

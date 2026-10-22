@@ -160,7 +160,33 @@ uses its optional threaded renderer. Security logs and the worker check are
 retained in `.tmp/accessibility-review-20261022/`. The next clean commit still
 requires its own successful remote CI, candidate artifacts and release gates.
 
+## Puzzle import conservation correction — 2026-10-22
+
+Further snapshot review found that recorded puzzle awards were validated
+individually but could sum above their prize pool, including finite terms
+whose sum overflowed. The pre-fix regression failed for both cases.
+Validation now rejects excess/nonfinite totals before hydration, permits only
+bounded floating-point roundoff, and permits no positive award from a zero
+pool. Tests also accept and restore exact and decimal split-award boundaries.
+
+The public UI regression now imports both an invalid envelope and a structurally
+valid snapshot with excessive puzzle awards. It checks the live world, the
+committed `world:current` record and IndexedDB byte accounting remain unchanged,
+with no inference. Chromium EN and WebKit IT each passed the complete 390px
+flow (19 surfaces) locally. All 446 workspace tests (318 engine, 80 web, 32
+relay, 16 admission), TypeScript, lint and the public build pass. Evidence is
+`.tmp/snapshot-prize-review-20261022/`, with red/green unit logs at
+`.tmp/snapshot-prize-{before,tests}-20261022.log`.
+
+The downloaded `b01acbe` candidate `3aa447e3025fd9528e610da8f008d02f06129579a548123af668ab536d2b7c4f`
+is retained in `.tmp/ci-candidate-b01acbe` as preceding evidence. It cannot
+certify the corrected validator. A fresh clean candidate, remote CI and
+60-minute run are required; no duration run was started on the superseded
+artifact. No schema layout/version, provider call or infrastructure setting
+was changed by this correction.
+
 ## Historical implementation checkpoints
+
 
 The sections below preserve the implementation history. Their pending-work,
 no-deployment and test-count statements describe those earlier checkpoints;

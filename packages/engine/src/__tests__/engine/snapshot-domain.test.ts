@@ -43,6 +43,21 @@ const corruptions: Array<[string, (snapshot: WorldSnapshotV1) => void]> = [
   ['invalid game reference', s => { s.store.puzzleFragments[0].gameId = 'missing'; }],
   ['unknown team', s => { s.store.puzzleParticipants[0].teamId = 'missing'; }],
   ['unknown puzzle winner', s => { s.store.puzzleGames[0].winnerId = 'missing'; }],
+  ['puzzle awards exceed the prize pool', s => {
+    Object.assign(s.store.puzzleGames[0], { status: 'completed', winnerId: 'a', prizePool: 50,
+      prizeDistribution: [{ agentId: 'a', amount: 51, type: 'solo_winner' }] });
+  }],
+  ['a zero prize pool cannot award a positive amount', s => {
+    Object.assign(s.store.puzzleGames[0], { status: 'completed', winnerId: 'a', prizePool: 0,
+      prizeDistribution: [{ agentId: 'a', amount: Number.MIN_VALUE, type: 'solo_winner' }] });
+  }],
+  ['puzzle awards overflow when summed', s => {
+    Object.assign(s.store.puzzleGames[0], { status: 'completed', winnerId: 'a', prizePool: Number.MAX_VALUE,
+      prizeDistribution: [
+        { agentId: 'a', amount: Number.MAX_VALUE, type: 'solo_winner' },
+        { agentId: 'a', amount: Number.MAX_VALUE, type: 'contributor' },
+      ] });
+  }],
   ['duplicate participant', s => { s.store.puzzleParticipants.push({ ...s.store.puzzleParticipants[0], id: 'duplicate' }); }],
   ['duplicate metadata', s => { s.engine.agentMeta = [['a', { busyUntil: 0 }], ['a', { busyUntil: 1 }]]; }],
   ['unknown metadata owner', s => { s.engine.agentMeta = [['missing', { busyUntil: 0 }]]; }],
@@ -79,4 +94,15 @@ test('a team winner belongs to the same game and is accepted', async () => {
   snapshot.store.puzzleGames.push({ ...snapshot.store.puzzleGames[0], id: 'other-game' });
   snapshot.store.puzzleTeams[0].gameId = 'other-game';
   expect(() => validateWorldSnapshotV1(snapshot)).toThrow('Cross-game');
+});
+
+test('split puzzle awards accept exact and floating-point pool boundaries', async () => {
+  const snapshot = await fixture();
+  for (const [pool, amounts] of [[50, [30, 20]], [0.3, [0.1, 0.2]]] as const) {
+    Object.assign(snapshot.store.puzzleGames[0], { status: 'completed', winnerId: 'a', prizePool: pool,
+      prizeDistribution: amounts.map((amount, index) => ({ agentId: 'a', amount, type: index === 0 ? 'solo_winner' : 'contributor' })) });
+    expect(() => validateWorldSnapshotV1(snapshot)).not.toThrow();
+    hydrateWorld(snapshot);
+    expect(capture().store.puzzleGames[0].prizeDistribution).toEqual(snapshot.store.puzzleGames[0].prizeDistribution);
+  }
 });
