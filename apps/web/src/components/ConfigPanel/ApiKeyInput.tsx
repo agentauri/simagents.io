@@ -53,7 +53,8 @@ export function ApiKeyInput({
   const isEditing = pendingKey !== undefined;
 
   return (
-    <div className="py-3 px-4 border-b border-gray-700/50 last:border-b-0">
+    <div role="group" aria-label={translate("Credentials for {provider}", { provider: provider.displayName })}
+      className="py-3 px-4 border-b border-gray-700/50 last:border-b-0">
       {/* Header row: Provider name + Badge */}
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-gray-200">
@@ -85,7 +86,8 @@ export function ApiKeyInput({
             onClick={() => setShowKey(!showKey)}
             disabled={isLoading || status.disabled}
             className="absolute min-w-11 min-h-11 flex items-center justify-center right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none"
-            aria-label={translate(showKey ? 'Hide key' : 'Show key')}
+            aria-label={translate(showKey ? 'Hide key for {provider}' : 'Show key for {provider}', { provider: provider.displayName })}
+            aria-pressed={showKey}
           >
             {showKey ? (
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -105,6 +107,7 @@ export function ApiKeyInput({
           <button
             onClick={onToggleDisabled}
             disabled={isLoading}
+            aria-label={translate(status.disabled ? 'Enable key for {provider}' : 'Disable key for {provider}', { provider: provider.displayName })}
             className={`px-2 py-1.5 text-xs rounded transition-colors focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed ${
               status.disabled
                 ? 'bg-green-800/50 text-green-300 hover:bg-green-800'
@@ -120,6 +123,7 @@ export function ApiKeyInput({
           <button
             onClick={onClear}
             disabled={isLoading}
+            aria-label={translate('Clear session key for {provider}', { provider: provider.displayName })}
             className="px-2 py-1.5 text-xs rounded bg-red-800/50 text-red-300 hover:bg-red-800 transition-colors focus:outline-none focus:ring-1 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >{translate("Clear session key")}</button>
         )}

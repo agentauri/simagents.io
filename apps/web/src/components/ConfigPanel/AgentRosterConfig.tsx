@@ -27,17 +27,17 @@ const BASELINE_LABELS: Record<string, string> = {
 };
 
 const COLOR_PALETTE = [
-  '#ef4444',
-  '#3b82f6',
-  '#10b981',
-  '#f59e0b',
-  '#8b5cf6',
-  '#ec4899',
-  '#1d4ed8',
-  '#9ca3af',
-  '#6b7280',
-  '#4b5563',
-];
+  { value: '#ef4444', name: 'Red' },
+  { value: '#3b82f6', name: 'Blue' },
+  { value: '#10b981', name: 'Green' },
+  { value: '#f59e0b', name: 'Amber' },
+  { value: '#8b5cf6', name: 'Violet' },
+  { value: '#ec4899', name: 'Pink' },
+  { value: '#1d4ed8', name: 'Dark blue' },
+  { value: '#9ca3af', name: 'Light gray' },
+  { value: '#6b7280', name: 'Gray' },
+  { value: '#4b5563', name: 'Dark gray' },
+] as const;
 
 function providerLabel(provider: AgentRosterProvider): string {
   if (isLLMProviderId(provider)) {
@@ -47,8 +47,8 @@ function providerLabel(provider: AgentRosterProvider): string {
 }
 
 function availabilityLabel(reason?: 'no-key' | 'needs-proxy'): string {
-  if (reason === 'needs-proxy') return 'needs proxy';
-  if (reason === 'no-key') return 'no key';
+  if (reason === 'needs-proxy') return translate('needs proxy');
+  if (reason === 'no-key') return translate('no key');
   return '';
 }
 
@@ -245,27 +245,34 @@ export function AgentRosterConfig() {
                   <span className="text-[11px] text-gray-400">{translate("Color")}</span>
                   <input
                     type="color"
+                    aria-label={translate('Color for {agent}', { agent: entry.name })}
                     value={entry.color}
                     onChange={(event) => update(index, { color: event.target.value })}
-                    className="mt-1 w-10 h-8 p-0.5 bg-gray-900 border border-gray-700 rounded"
+                    className="mt-1 w-11 h-11 p-0.5 bg-gray-900 border border-gray-700 rounded"
                   />
                 </label>
               </div>
 
               <div className="flex flex-wrap gap-1">
-                {COLOR_PALETTE.map((color) => (
+                {COLOR_PALETTE.map(({ value: color, name }) => (
                   <button
                     key={color}
                     type="button"
                     onClick={() => update(index, { color })}
-                    className={`w-5 h-5 rounded border ${
+                    aria-label={translate('Use {color} for {agent}', { color: translate(name), agent: entry.name })}
+                    aria-pressed={entry.color.toLowerCase() === color}
+                    className={`w-11 h-11 grid place-items-center rounded border ${
                       entry.color.toLowerCase() === color.toLowerCase()
                         ? 'border-white'
                         : 'border-white/10'
                     }`}
                     style={{ backgroundColor: color }}
-                    title={color}
-                  />
+                    title={`${translate(name)} (${color})`}
+                  >
+                    {entry.color.toLowerCase() === color && (
+                      <span aria-hidden="true" className="w-5 h-5 grid place-items-center rounded bg-gray-950 text-white">✓</span>
+                    )}
+                  </button>
                 ))}
               </div>
 

@@ -1,6 +1,10 @@
 # Browser-Only Release Checklist
 
-Prepared: July 6, 2026.
+Prepared: July 6, 2026. **Historical checklist, superseded for the public BYOK
+release.** Use [the current five-block status](byok-release-status.md) and
+[release gates](release-gates.json) for promotion. The original baseline,
+plaintext-key and localStorage steps below must not be used to approve the
+current public SPA.
 
 This checklist is for the first Backend Zero release candidate: SimAgents as a browser-only SPA with no product backend, no remote engine mode, and no product-owned proxy.
 

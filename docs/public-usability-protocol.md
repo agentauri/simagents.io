@@ -2,6 +2,11 @@
 
 Status: unexecuted. No participants have been contacted or counted. Automated browser sessions and simulated agents are not human usability or beta-session evidence.
 
+On 2026-10-22 the user designated himself (Matteo Scurati) as study organizer
+and operational owner. Participant arrangements, the authorized alarm channel
+and availability for genuine anti-bot verification remain unspecified. This
+designation does not authorize participant messages or provider charges.
+
 Freeze the clean staging candidate before recruiting. Record commit/candidate ID, SPA/relay/admission/catalog/schema versions, public destinations, operator, participant instructions and the exact task order. Recruitment/messages and any provider spending require their separate authorization. Give participants explicit cost/token/request limits and explain any dedicated test-key provision before an inference is sent.
 
 Use five people who have not previously used the product. Include both English and Italian and at least two mobile sessions. Record a pseudonymous study ID, language, device/browser/zoom, familiarity declaration, task start/end and whether assistance occurred. Do not record provider keys, prompts, responses, full payload-bearing stacks, email addresses or raw network addresses in the study log.

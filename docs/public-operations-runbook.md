@@ -1,6 +1,15 @@
 # Staging, public beta and rollback
 
-Status: preparation only. Direct production deployment, the existing Cloudflare account, production origins and one Free Turnstile widget are authorized/prepared in the [production dossier](production-deployment-2026-10-04.md). The user chose reuse of the existing Paid subscription without a new subscription or downgrade; additional usage charges remain unauthorized. An operator, monitoring destinations and a cloud-tested compatible rollback are still required. No Worker/Pages rollout has occurred.
+Status reviewed 2026-10-22: protected backends and a technical Pages preview
+were deployed on October 4, admission stayed closed and the main SPA was not
+replaced. The protected backend/preview rollback took 99.55 seconds; this was
+not a public-beta opening. Retained evidence is indexed in the
+[release status](byok-release-status.md) and [production dossier](production-deployment-2026-10-04.md).
+The user chose reuse of the existing Paid subscription without a new
+subscription or downgrade; additional usage charges remain unauthorized and
+paid provider calls are explicitly denied. On October 22 he designated himself
+(Matteo Scurati) as operator and study organizer. Alarm destination, scheduled
+execution, delivery testing and a live billing signal remain unconfigured.
 
 Before any rollout request, present the exact clean candidate: commit and verified build-source receipt; immutable SPA, relay/admission bundles; catalog and schema versions; staging/production HTTPS origins; Turnstile hostname/action/site-key configuration; private secret references; subject coordinator migration/bindings and rate namespaces; expected infrastructure cost and hard account controls; operator/on-call owner; observability/log/backup retention settings; previous compatible candidate and tested rollback commands. Secret values never belong to this artifact.
 
@@ -47,8 +56,8 @@ implied by these counters.
 `scripts/monitor-services.mjs` performs a one-shot provider-free health,
 readiness and authorized aggregate read. It projects only allowed technical
 fields, rejects redirects, bounds bodies/time and never logs raw errors or
-responses. `docs/monitoring-config.example.json` is a proposal with no owner
-or notification destination. Tests cover availability, 5xx, traffic,
+responses. `docs/monitoring-config.example.json` records the designated owner;
+its notification destination and billing source are unset. Tests cover availability, 5xx, traffic,
 renewals, both latency components, spend and unavailable billing signals.
 An optional local billing snapshot must be fresh and contain only
 `additionalUsageUsd` and `observedAt`; no live billing integration has been

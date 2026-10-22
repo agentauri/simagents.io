@@ -1,9 +1,9 @@
 {
-  "status": "proposal-not-configured",
+  "status": "operator-designated-delivery-not-configured",
   "spaOrigin": "https://app.simagents.io",
   "secretFile": ".tmp/production-private/monitoring.json",
   "billingSnapshotFile": null,
-  "operator": null,
+  "operator": "Matteo Scurati",
   "notificationDestination": null,
   "rules": {
     "minimumFiveMinuteRequests": 20,

@@ -1,73 +1,136 @@
 # BYOK release implementation status
 
-Updated 2026-10-04. This is an implementation checkpoint, **not a completed production release**. The agreed order remains P0 → P1 → P2 → P3. No provider certification, paid inference, deployment or release has been performed.
+Updated 2026-10-22. **The five-block release objective is incomplete.** This
+review reconciles the retained 2026-10-04 receipts; it is not a fresh claim
+about today's deployed configuration, billing, dependencies or provider availability.
+Historical sections below apply only to their stated checkpoint. The October
+22 continuation adds action-matrix verification, accessible configuration
+controls and documentation corrections. Promotion requires fresh evidence on
+its own clean candidate; the October 4 receipts do not certify these changes.
 
-Current continuation: the user subsequently authorized direct production deployment, bypassing staging. The latest checkpoint below supersedes earlier pending-work summaries. Historical sections record their own artifacts and do not transfer evidence to newer candidates. One Free Turnstile widget has been created; no Worker/Pages rollout or paid provider inference has occurred yet.
+## Candidate and preserved evidence
 
-Latest infrastructure decision: reuse the existing Workers Paid subscription, with no downgrade or new subscription. Dashboard verification found approximately 23,880 requests and USD 0 additional billable usage in the current cycle. Additional usage charges remain unauthorized; included allocations are not a hard spending cap. Complete 24-hour technical retention remains required, using the RAM-only coordinator described below. Earlier Free-only pending-plan statements are historical and superseded by this verification. See [production dossier](production-deployment-2026-10-04.md).
+The last frozen candidate is
+`5e6fb5b447beaad6f639c8f63e31b2e2c5888854f1a5e8f38b4cb3cd83e3325f`,
+commit `088034f27d86ebb3f8df8fe2ca190a83cdb0d67f`. Its manifest was reverified
+before this continuation's edits. The evidence archive is
+`.tmp/release-evidence-5e6f-completed.tar.gz`, 72,583,622 bytes, SHA-256
+`108f3f60b349ba6c976b14427ac78f34e2448923d369b30c6613a2883612a9d1`;
+the archive checksum was reverified on 2026-10-22. These ignored local files
+must be retained with the frozen artifacts; a clean clone alone does not
+contain the evidence. New candidate identities require their own evidence.
 
-Latest correctness continuation: the rollback check exposed positional replay
-event IDs that changed when new events entered the reversed/bounded history.
-Replay now preserves the engine's `store-N` identity, with three regressions
-for appending/reordering/eviction, original content and invalid identities.
-Public startup failures now carry structured error codes into the reviewed
-dialog instead of a raw browser alert. EN/IT failed-resume browser checks
-verify preserved world/accounting, no inference, no raw payload and operable
-controls; Italian passed all three engines. 420 workspace tests passed.
+| Original block | Proven scope on the frozen candidate | Remaining release requirements |
+| --- | --- | --- |
+| 1. Responsive, accessible EN/IT UI | Three-engine public matrices, desktop/tablet/390px, EN/IT and native 200% zoom; 816 automated A/AA reports with zero violations | Complete manual keyboard, pointer and accessibility review; resolve any blocking findings. Automated checks do not establish full accessibility. |
+| 2. Correctness, storage and duration | Snapshot/action regressions, indexed transactional storage; native Firefox quota denial in EN/IT, isolated physical disk pressure, and a real 60-minute/20-agent run with restored counters | Complete review of every action's effects/costs/events. The 2026-10-22 matrix expansion is local work, not transferred evidence for the frozen candidate. |
+| 3. Public relay and 11 providers | Protected Cloudflare backends, hostile-origin/target and token guards, real 15-minute expiry, coordinated 6/50/4 limits, `hasStoredData:false` | Genuine Turnstile hostname/action/single-use checks, autonomous SPA renewal, full platform retention verification, and all 11 real providers. Admission was deliberately closed. |
+| 4. CI and exact candidate | [Remote run 37208753220](https://github.com/agentauri/simagents.io/actions/runs/37208753220) passed; downloaded SPA/relay/admission matched frozen bytes; documentation links/assets checked | Changed source requires a fresh clean candidate and remote CI; no blanket transfer of the old security/browser evidence. |
+| 5. Usability and operations | Six local EN/IT data-reader rollback cases; actual protected backend plus Pages preview rollback/restore in 99.55 seconds; user designated himself as operator/study organizer on October 22 | Five new people, EN/IT and two mobile sessions, at least 4/5 unaided; authorized alarm destination, schedule/delivery and live billing signal; public beta and stable exit evidence. |
 
-The clean RAM candidate `7d2d40f46517c771b75ce6b934a1df67eb0e9c0e2b9530d4bbdd79e0fb9123a3`
-completed 60 real minutes with 20 agents, synthetic transport only, UI p95
-16 ms, restored counters and no unhandled errors. Native RSS passed the
-recorded plateau thresholds (net rise 8.7 MB, slope about 0.37 MB/min).
-Receipt: `.tmp/soak/2026-10-04T10-23-54-456Z-60m/summary.json`.
-The replay/startup corrections supersede that bundle and require a new
-final-candidate run; this result is not transferred to it.
+The hour report is `.tmp/soak-5e6f-reviewed.json`: 3,600,233.8 ms wall time,
+1x simulation, 20 living agents, 1,200 world actions and 1,201 synthetic
+HTTP calls, with **zero paid provider calls**. UI p95 was 16.3 ms on an
+Apple M4 Max / 64 GiB / Chromium 151 reference machine. There were 359 native
+RSS samples and 61 invariant checks. The final five-window memory slope was
+913,899.52 bytes/minute and net rise 20,463,616 bytes: within the frozen
+1 MiB/minute and 32 MiB thresholds, not zero growth. Controlled needs and
+preconditioning are recorded separately from the elapsed hour. Native quota
+and disk reports are `.tmp/native-quota-5e6f-1024-{en,it}/report.json` and
+`.tmp/physical-space-evidence-5e6f.json`; the disk test used an isolated volume,
+not the user's main disk.
 
-Remote run `37197153556` passed lint/types, tests, docs/build, Firefox and
-WebKit matrices and the Chromium public matrix. The Chromium storage-fault
-script logged both English passes and then stopped advancing. This obsolete
-run was explicitly cancelled after the replay/startup changes; its CI
-summary correctly failed. Complete logs are retained locally. The fault
-runner now uses a Node bundle, logs bounded cleanup phases and has a
-five-minute mandatory CI step deadline. Both local languages passed including
-cleanup; actual native quota refusal remains uncertified.
+Cloud rollback evidence is `.tmp/cloud-rollback-5e6f-reviewed.json` plus
+`.tmp/cloud-rollback-5e6f/chromium-en/report.json`. It tested protected production
+backends and the technical Pages preview alias, using synthetic upstreams;
+**the main SPA was not replaced and the public beta was not opened**. The
+compatible retained reader is candidate `07e6a25c48a8e6f6272e01c0175aa047c48a6f67266918ab02797721cc693f08`.
+This does not certify the old public production SPA as an IndexedDB-v2 reader.
 
-A separate clean rollback worktree backports the replay identity correction
-to the preceding RAM candidate (`a23ada7`, artifact
-`07e6a25c48a8e6f6272e01c0175aa047c48a6f67266918ab02797721cc693f08`).
-Its data compatibility needs the new same-origin browser drill. It is retained
-locally and has not been deployed or certified by a Cloudflare rollback.
+## Authorization and external inputs
 
-Operational instrumentation continuation: the relay now measures its own
-critical-path overhead separately from upstream HTTP/network/body-transfer
-time. Provider internal processing remains unavailable. Relay/admission send
-numeric/categorical samples to the existing RAM-only coordinator; strict
-sample validation rejects keys, content and identities. Five-minute buckets
-expire after23 hours, and metrics never use SQLite or logs. Protected
-operational reads require a distinct `METRICS_SECRET`. A provider-free probe
-and alarm evaluator have tests for service/metric/billing unavailability,
-5xx, renewal failures, traffic, both latency components and extra spending.
-Owner, schedule, live billing source, notification delivery and Cloudflare
-runtime evidence remain unconfigured. These source changes supersede the
-`ff15763` candidate; its successful CI, exact-hour run and native quota/disk
-receipts stay archived and cannot be transferred to the replacement.
-429 workspace tests, ten Node release/journal/monitor contracts, TypeScript
-and ESLint passed locally. Actual local workerd verified the numeric timing
-aggregate and payload rejection with zero SQLite keys, in addition to the
-real91-second warmup and97-second RAM-subject cleanup. This is local runtime
-evidence only. The dedicated operational secret is in a protected ignored
-file and has not been uploaded.
+The user authorized direct production deployment, bypassing staging, and
+subsequently chose reuse of the existing Workers Paid subscription without a
+downgrade, new subscription or additional usage charges. The October 4 billing
+observation covers its recorded cycle only; included allocations are not a
+hard cap or proof of today's bill. Complete technical retention within 24 hours
+remains required. See the [deployment dossier](production-deployment-2026-10-04.md).
 
-Generated documentation continuation: the exact `59a2d16` documentation
-artifact had four broken GitHub edit targets containing `main/../docs/`.
-An actual external HTTP check returned404 for all four. The configuration
-now builds explicit `/edit/main/docs/public/<docPath>` links. The rebuilt
-site passes123 internal links,60 asset references and four locally verified
-source targets; all12 public external references returned200 (edit links
-redirect to GitHub login). The new checker rejects the previous broken
-artifact and runs in mandatory documentation CI. This documentation change
-needs a replacement exact-commit candidate; the active `59a2d16` soak keeps
-its original identity and is not restarted or relabelled.
+The latest provider decision is **“Non autorizzo chiamate pagate”**. The proposed
+48-call/USD 5 campaign is unexecuted and must not be treated as an outstanding
+approval granted by resuming the goal. All 11 provider certifications remain
+unverified. On 2026-10-22 the user designated himself (Matteo Scurati) as
+operational owner and study organizer. Dedicated key references, availability
+for genuine anti-bot verification, an authorized alarm channel, and concrete
+arrangements for the five-person study are still missing. No participant messages or alarm
+notifications have been sent. Stable also requires seven real public-beta days,
+20 completed sessions from five distinct humans, no open critical/high issue
+and verified compatible rollback. Calendar time since these receipts does not
+count as beta time.
+
+Basecamp discovery on 2026-10-22 returned `auth_required` because the CLI could
+not find credentials in the keyring; no project updates were obtained or sent.
+
+## Local verification continuation — 2026-10-22
+
+The registry-derived matrix now requires explicit success effects, actor
+energy/hunger/health/balance deltas and exact decision/result event sequences
+for all 33 actions. Depleted-resource cases check both zero-cost rejection
+and actions that need no additional funds. Dead actors and invalid references
+also check events/invariants; malformed attempts check the configured penalty.
+Five seeded unfavorable outcomes check charged failed purchases/attacks/theft
+and completed searches/wrong answers without rewards. Eight repeated
+settlements check that contracts, refunds and puzzle awards cannot pay twice.
+The team fixture now includes the existing member's stake; exhaustion is
+materialized before measuring an action's own cost.
+
+All 201 matrix cases pass. The complete local suite passes 442 tests (314
+engine, 80 web, 32 relay, 16 admission), plus ESLint and TypeScript. Logs are
+`.tmp/action-matrix-resume.log` and `.tmp/resume-{tests,lint,typecheck}-20261022.log`.
+The first pass changed tests and release documentation/configuration. A later
+whole-suite run exposed a wall-clock-only comparison flake in the repeated
+settlement checks: every executor attempt materializes vitals and refreshes
+the actor's `updatedAt`. That comparison now excludes only this actor audit
+timestamp, while retaining every balance, contract, ledger and other entity
+field. The corrected full suite passes; the failed log is preserved locally.
+
+## Direct accessibility review and corrections — 2026-10-22
+
+Direct Chrome keyboard/accessibility-tree review found ambiguous repeated
+key controls and color presets named only by hex code, with selection conveyed
+only by a border. Key groups and show/hide/enable/disable/clear controls now
+identify their provider. Palette controls identify the color and agent,
+measure 44 by 44 CSS pixels, expose pressed state and show a checkmark.
+English Start instructions now name the actual control; Italian provider
+availability labels no longer contain untranslated `no key`/`needs proxy`.
+
+The local revised build passed 18 automated A/AA checks across EN/IT and
+1440/768/390 px, EN/IT browser vault save/reload/unlock/lock/migration checks,
+and the Italian mobile public UI flow (19 surfaces, no violations or page
+errors), all with external provider traffic blocked. The public UI regression
+now exercises named show/hide controls and keyboard palette selection/state,
+visible selection indication, input update and 44-pixel dimensions. Build,
+bundle guard, 442 tests, TypeScript and ESLint pass locally.
+
+Native Chrome review verified provider-specific visibility state, keyboard
+color selection, focus restoration, Italian labels/document language and no
+390-pixel overflow. Evidence: `.tmp/accessibility-review-20261022/review.json`
+and `mobile-it-controls.png` in that directory. A first ambiguous group/input
+label was found by the existing vault test and corrected; its failed log is
+retained. This scoped agent review is not a VoiceOver/human session, complete
+running-world accessibility acceptance or fresh native-200-percent coverage.
+The review build is explicitly dirty and separate from the configured clean
+production candidate. Fresh exact-candidate CI and duration evidence remain
+required. No provider charge, infrastructure rollout or notification was
+performed during these corrections.
+
+## Historical implementation checkpoints
+
+The sections below preserve the implementation history. Their pending-work,
+no-deployment and test-count statements describe those earlier checkpoints;
+the candidate-specific table above supersedes them for the retained October 4
+artifact. Source changes and newly observed external state must be reviewed
+before any further promotion.
 
 ## Implemented and covered by regression tests
 
