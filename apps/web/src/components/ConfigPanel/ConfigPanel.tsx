@@ -226,10 +226,10 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
       className="config-dialog fixed right-0 top-0 h-full w-full max-w-sm sm:max-w-md bg-gray-900 border-l border-gray-700 shadow-xl z-[210] flex flex-col"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
-        <div className="flex items-center gap-2">
-          <span className="text-lg" aria-hidden="true">⚙️</span>
-          <h2 id="config-panel-title" className="font-semibold text-gray-100">{translate("Configuration")}{" "}{hasPendingChanges && (
+      <div className="flex shrink-0 items-center justify-between gap-2 px-4 py-3 border-b border-gray-700 bg-gray-800">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="shrink-0 text-lg" aria-hidden="true">⚙️</span>
+          <h2 id="config-panel-title" className="min-w-0 font-semibold text-gray-100" style={{ overflowWrap: 'anywhere' }}>{translate("Configuration")}{" "}{hasPendingChanges && (
               <span className="ml-2 text-xs font-normal text-yellow-400">
                 {isLocalMode
                   ? localAppliedSections.length > 0
@@ -243,7 +243,7 @@ export function ConfigPanel({ onClose }: ConfigPanelProps) {
         <button
           onClick={handleClose}
           aria-label={translate("Close configuration panel")}
-          className="p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-700 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="shrink-0 min-w-11 min-h-11 grid place-items-center p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-700 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -889,15 +889,15 @@ function isLocalAppliedConfigSection(section: string): boolean {
 }
 
 function formatSections(sections: string[]): string {
-  return sections.length === 0 ? 'none' : sections.join(', ');
+  return sections.length === 0 ? translate('none') : sections.join(', ');
 }
 
 function formatPersistenceStatus(info: PersistenceInfo): string {
-  if (info.pending) return 'saving…';
-  if (info.disabled) return 'paused';
-  if (info.lastSavedSimTimeMs === undefined) return 'not saved yet';
+  if (info.pending) return translate('Saving…');
+  if (info.disabled) return translate('Saving paused');
+  if (info.lastSavedSimTimeMs === undefined) return translate('Not saved yet');
   const minutes = Math.floor(info.lastSavedSimTimeMs / 60_000);
-  return `saved at ${minutes}m`;
+  return translate('Saved at {minutes}m', { minutes });
 }
 
 function formatBytes(bytes: number): string {

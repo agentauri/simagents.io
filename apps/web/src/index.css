@@ -490,7 +490,8 @@ body.modal-open {
 .app-header { padding: 8px 16px; background: var(--color-city-surface); border-bottom: 1px solid var(--color-city-border); width: 100%; }
 .simulation-header { width: 100%; min-width: 0; }
 .simulation-header-primary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
-.simulation-brand { font-weight: 650; white-space: nowrap; font-size: 16px; }
+.simulation-brand { min-width: 0; font-weight: 650; white-space: nowrap; font-size: 16px; }
+.simulation-brand-name { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .simulation-brand small { display: block; font-size: 11px; font-weight: 400; color: var(--color-city-text-muted); }
 .session-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .session-state { font-size: 13px; }

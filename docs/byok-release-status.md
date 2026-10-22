@@ -227,6 +227,38 @@ and [Apple continuous clock](https://developer.apple.com/documentation/kernel/16
 A fresh candidate/CI and a genuinely uninterrupted one-hour window are still
 required. Paid provider calls remain denied; no production rollout occurred.
 
+## Narrow native-zoom configuration correction — 2026-10-22
+
+The `ffbeb37` / `7dac04709a07259845536de456859e03c219c72fb5295ef11260e2e71b4a4310`
+[CI run 39849299381](https://github.com/agentauri/simagents.io/actions/runs/39849299381)
+passed all eight jobs, including native clock tests on Linux. Its six local
+reader trials and native EN/IT quota/isolated ENOSPC cases also passed, but
+these do not close the still-unexecuted continuous real-hour gate.
+
+Visual inspection of its 390px/200% screenshots found the brand overlapping
+Tools and the configuration close control partly outside the 195-CSS-pixel
+viewport. A targeted native probe reproduced the close rectangle ending at
+202.63 CSS pixels. The configuration title now wraps with a nonshrinking
+44px close control; the decorative brand truncates within its own space.
+Persistence footer states (saving, paused, not saved, saved simulation minute)
+and the empty section indicator now use the EN/IT catalog.
+
+The revised local build passes the complete narrow 200% public flow in all
+three engines. Chrome/WebKit pointer checks also pass; the close rectangle
+ends at 179 CSS pixels, leaving the whole 44x44 target visible. The regression
+checks the real DOM geometry and activates the control (native keyboard for
+the documented Firefox zoom automation limitation). Evidence is in
+`.tmp/config-close-review-20261022/` and `.tmp/config-close-pointer-review-20261022/`;
+`.tmp/config-close-before-20261022.json` retains the original failing geometry.
+450 workspace tests, lint and the public TypeScript/build check passed. The
+fix is also backported to the isolated rollback source.
+
+These are scoped visual/keyboard/automated checks, not complete manual
+accessibility or five-person usability acceptance. The replacement clean
+candidate still needs exact remote CI, an uninterrupted awake-Mac hour,
+genuine anti-bot/provider verification and the other original release gates.
+No provider charge, production rollout or notification occurred.
+
 ## Historical implementation checkpoints
 
 

@@ -110,7 +110,14 @@ try {
   result.configurationKeyboardControls = { namedVisibility: true, visibleSelectionMark: true, colorTarget: colorBox };
   await activate(page.getByRole('button', { name: productText('Verify model for Agent 1 (1 request)'), exact: true }));
   await page.getByText(productText('Verified in this tab'), { exact: true }).waitFor();
-  await audit('configuration'); await page.keyboard.press('Escape');
+  const closeControl = page.getByRole('button', { name: productText('Close configuration panel'), exact: true });
+  const closeGeometry = await closeControl.evaluate(element => ({ rect: element.getBoundingClientRect().toJSON(), viewport: { width: innerWidth, height: innerHeight } }));
+  assert(closeGeometry.rect.left >= 0 && closeGeometry.rect.right <= closeGeometry.viewport.width &&
+    closeGeometry.rect.top >= 0 && closeGeometry.rect.bottom <= closeGeometry.viewport.height &&
+    closeGeometry.rect.width >= 44 && closeGeometry.rect.height >= 44, 'Configuration close control is clipped or smaller than 44 CSS pixels');
+  result.configurationCloseGeometry = closeGeometry;
+  await page.getByText(productText('Not saved yet'), { exact: true }).waitFor();
+  await audit('configuration'); await activate(closeControl);
   await activate(page.getByRole('button', { name: productText('Start'), exact: true }).first());
   await page.getByLabel(productText('Requests'), { exact: true }).fill('2');
   const capture = page.getByRole('checkbox', { name: productText('Capture actual requests for this session'), exact: true });

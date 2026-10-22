@@ -71,7 +71,7 @@ export function SimulationHeader(props: Props) {
   };
   return <div className="simulation-header">
     <div className="simulation-header-primary">
-      <span className="simulation-brand">{translate("SimAgents")}{" "}<small>{translate("Beta")}</small></span>
+      <span className="simulation-brand"><span className="simulation-brand-name">{translate("SimAgents")}</span><small>{translate("Beta")}</small></span>
       <ModeControls mutationPending={props.mutationPending} stoppedByError={!!props.errorMessage} onStartSimulation={props.onStart} onPause={props.onPause} onResume={props.onResume} onReset={props.onReset} onOpenConfig={props.onConfigure} />
       <details ref={menu} className="simulation-tools" onKeyDown={event => { if (event.key === 'Escape' && menu.current?.open) { event.preventDefault(); closeMenu(); } }}>
         <summary title={translate('Open tools')}>{translate('Tools')}</summary>
