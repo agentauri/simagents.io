@@ -221,6 +221,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      - name: Align mounted job directory ownership
+        run: |
+          chown "$(id -u):$(id -g)" "$HOME" "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/.git"
+          git rev-parse HEAD
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:

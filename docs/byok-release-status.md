@@ -338,6 +338,15 @@ checked (`bin/bun`); this avoids introducing OS package installation. Other
 jobs retain their existing Bun action. See [Bun installation](https://bun.sh/docs/installation).
 Remote verification remains required; neither failed run is a CI pass.
 
+The next run (`39861667165`, `e8ebc46`) installed Bun and launched Chromium
+and WebKit. Git then rejected the mounted checkout's owner; Firefox separately
+reported that the mounted home directory belonged to a different user than the
+container process. Browser jobs now align ownership of only their temporary
+mounted home, checkout root and `.git` directory with their process user, then
+require `git rev-parse HEAD` to succeed. The home environment variable is not
+reassigned, and Git's ownership check remains enabled. Failure logs are retained
+at `.tmp/ci-e8ebc46-failed.log`; the release gate remains open.
+
 ## Historical implementation checkpoints
 
 
