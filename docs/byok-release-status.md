@@ -303,6 +303,31 @@ blocked. Evidence is `.tmp/public-data-pending-20261022/`; the failed remote
 trace is under `.tmp/ci-evidence-7288fd7/webkit/`. No product behavior or budget
 limit was changed. Fresh exact-commit CI remains required.
 
+## Pinned browser image after package-download timeout — 2026-10-22
+
+Run `39859456047` on `42989f3` passed docs, types/lint, unit tests and the build,
+but all three browser jobs timed out during APT setup before running their
+suites. Logs show continuing, slow package downloads from the official Ubuntu
+archive (119 MB and 181 new packages); this is not another product test result.
+The required-job summary correctly failed. Complete job logs are retained as
+`.tmp/ci-429-{chromium,firefox,webkit}.log`.
+
+Browser jobs now use the official Playwright 1.62.1 Noble image, pinned by its
+verified OCI digest, on an Ubuntu 24.04 host. The matching npm package remains
+pinned at 1.62.1. Each job must launch its bundled browser successfully before
+testing; no APT or browser downloads are needed inside the job. Bash remains
+explicit for existing scripts, and Chromium uses shared host IPC as recommended
+by Playwright. All three engines and their original acceptance checks remain
+required. The image manifest and its amd64/arm64 variants were verified against
+Microsoft's registry; this is preparation, not a passing remote execution.
+
+References: [official image contents and configuration](https://playwright.dev/docs/docker)
+and [CI image support](https://playwright.dev/docs/ci).
+Candidate `47b1eb78269277eaef647efb888ea7c8b2f4ebd6cc9ae5b2602e3d3e8ffbc8f8`
+and its six local rollback-reader cases, EN/IT native quota refusal and isolated
+ENOSPC reports remain retained, without promotion to a successful CI candidate.
+The continuous-hour and external release requirements remain open.
+
 ## Historical implementation checkpoints
 
 

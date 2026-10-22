@@ -202,7 +202,14 @@ jobs:
   # ============================================================================
   browser-smoke:
     name: Browser Smoke (${{ matrix.browser }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    # Playwright 1.62.1 Noble: browsers and OS libraries are preinstalled.
+    container:
+      image: mcr.microsoft.com/playwright@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
+      options: --init --ipc=host
+    defaults:
+      run:
+        shell: bash
     timeout-minutes: 60
     needs: build-web
     strategy:
@@ -239,22 +246,24 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Bound runner package-manager waits
-        timeout-minutes: 2
-        run: |
-          printf 'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "2";\n' | sudo tee /etc/apt/apt.conf.d/99simagents-network >/dev/null
-          if [ -f /etc/apt/apt-mirrors.txt ]; then
-            printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
-          fi
-
-      - name: Install Playwright browsers
+      - name: Install matching Playwright package and verify bundled browser
         timeout-minutes: 10
+        env:
+          SIMAGENTS_BROWSER_UNDER_TEST: ${{ matrix.browser }}
         run: |
           mkdir -p "$RUNNER_TEMP/playwright"
           cd "$RUNNER_TEMP/playwright"
           npm init -y
           npm install playwright@1.62.1
-          npx playwright install --with-deps chromium firefox webkit
+          node --input-type=module <<'NODE'
+          import { createRequire } from 'node:module';
+          const require = createRequire(import.meta.url);
+          if (require('playwright/package.json').version !== '1.62.1') throw new Error('Unexpected Playwright version');
+          const kind = process.env.SIMAGENTS_BROWSER_UNDER_TEST;
+          const browser = await require('playwright')[kind].launch({ headless: true });
+          console.log(JSON.stringify({ browser: kind, version: browser.version(), imagePlaywright: '1.62.1' }));
+          await browser.close();
+          NODE
 
       - name: Download the production candidate
         uses: actions/download-artifact@v4
