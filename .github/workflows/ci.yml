@@ -239,7 +239,16 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Bound runner package-manager waits
+        timeout-minutes: 2
+        run: |
+          printf 'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "2";\n' | sudo tee /etc/apt/apt.conf.d/99simagents-network >/dev/null
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          fi
+
       - name: Install Playwright browsers
+        timeout-minutes: 10
         run: |
           mkdir -p "$RUNNER_TEMP/playwright"
           cd "$RUNNER_TEMP/playwright"

@@ -259,6 +259,31 @@ candidate still needs exact remote CI, an uninterrupted awake-Mac hour,
 genuine anti-bot/provider verification and the other original release gates.
 No provider charge, production rollout or notification occurred.
 
+## Bounded CI browser setup — 2026-10-22
+
+The `af9c4e0` candidate `34af5a8f14cafb1070ba3b29a28a8040468648598c862c388c04c8ee10b98f2a`
+passed six local reader trials, native quota denial in EN/IT and isolated
+filesystem ENOSPC with preserved world/accounting. Chromium, Firefox,
+documentation, build, types and unit jobs passed remotely, but the whole
+[run 39854418278](https://github.com/agentauri/simagents.io/actions/runs/39854418278)
+was not green: WebKit setup remained active on an Azure Ubuntu mirror index
+fetch for more than 25 minutes. The active log was inspected in GitHub after
+the logs-download endpoint returned BlobNotFound; neither condition was
+reported as a terminal job failure. Diagnostic: `.tmp/webkit-af9-live-log.txt`.
+
+Browser runners now configure 30-second APT connection/data timeouts, two
+package retries and the official Ubuntu archive in the runner's mirror list.
+Setup is bounded separately: two minutes for runner configuration and ten
+minutes for browser installation. Repository signatures and all three browser
+suites remain required; no provider inference is retried. Workflow YAML and
+both shell blocks passed parsing checks. The source change starts a replacement
+exact-commit CI; the superseded run is not certified by its successful subset.
+These settings affect temporary CI runners, not the user's Mac or production.
+
+APT semantics: [Ubuntu apt.conf](https://manpages.ubuntu.com/manpages/noble/man5/apt.conf.5.html).
+The continuous-hour, genuine provider/admission, human usability, operational
+and beta requirements remain open. Paid provider calls remain denied.
+
 ## Historical implementation checkpoints
 
 
