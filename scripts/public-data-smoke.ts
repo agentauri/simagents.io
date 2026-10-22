@@ -12,9 +12,13 @@ const evidenceRoot=process.env.SIMAGENTS_EVIDENCE_ROOT??'.tmp';
 await mkdir(`${evidenceRoot}/public-data`,{recursive:true});
 await context.tracing.start({screenshots:true,snapshots:true,sources:false});
 let failed=false;
+let holdResumedRequest=false;
+let releaseResumedRequest!:()=>void;
+const resumedRequestGate=new Promise<void>(resolve=>{releaseResumedRequest=resolve});
 await context.route('**/*',(r:any)=>new URL(r.request().url()).origin===new URL(base).origin?r.continue():r.abort());
 await context.route('https://api.anthropic.com/v1/messages',async(r:any)=>{
  const headers={'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'POST, OPTIONS'};if(r.request().method()==='OPTIONS')return r.fulfill({status:204,headers});calls++;
+ if(holdResumedRequest){await resumedRequestGate;return r.abort('aborted');}
  return r.fulfill({headers,contentType:'application/json',body:JSON.stringify({model:'synthetic-reported-model',usage:{input_tokens:12,output_tokens:9},content:[{type:'text',text:'{"action":"signal","params":{"message":"public data fixture","intensity":1},"reasoning":"Original unmodified model text"}'}]})});
 });
 const page=await context.newPage();await setSmokeLanguage(page);page.setDefaultTimeout(15000);page.on('pageerror',(e:Error)=>errors.push(e.message));
@@ -35,13 +39,21 @@ try{
  assert(await itemCounts()>=before,'Valid import silently deleted replay/trace archives');assert(calls===2,'Import issued inference');
  await page.getByRole('status').filter({hasText:productText('World imported. Use Start to resume the saved world.')}).getByRole('button',{name:productText('Close'),exact:true}).click();
  await page.getByRole('button',{name:productText('Start'),exact:true}).first().click();
+ // Keep the imported world's first synthetic inference pending until Pause.
+ // An immediate one-request response can exhaust the session before WebKit
+ // observes the transient running controls; that is valid product behavior.
+ holdResumedRequest=true;
+ const resumedRequestObserved=page.waitForRequest(request=>request.url()==='https://api.anthropic.com/v1/messages'&&request.method()==='POST');
  await page.getByRole('dialog').getByRole('button',{name:productText('Resume'),exact:true}).click();
+ await resumedRequestObserved;
  await page.getByRole('button',{name:productText('Pause'),exact:true}).first().waitFor();await page.getByRole('button',{name:productText('Pause'),exact:true}).first().click();
+ await page.getByRole('button',{name:productText('Resume'),exact:true}).first().waitFor();releaseResumedRequest();
  const callsAfterExplicitResume=calls;
+ assert(callsAfterExplicitResume===3,'Expected one probe, one initial decision and one cancelled resumed request');
  await openSimulationTool(page,'Puzzle Games');await page.getByRole('button').filter({hasText:productText('Password')}).first().click();await page.getByRole('heading').filter({hasText:productText('Participants (')}).waitFor();assert(await page.getByText('Synthetic fragment 1',{exact:false}).count()===0,'Open puzzle revealed protected fragment content');await audit('puzzle-details');
  if(width<1024)await page.getByRole('button',{name:productText('Back to puzzle list'),exact:true}).click();
  await page.getByRole('button',{name:productText('History'),exact:true}).click();await page.getByRole('button').filter({hasText:productText('Password')}).filter({hasText:productText('Completed')}).first().click();await page.getByText('Synthetic fragment 1',{exact:false}).first().waitFor();await audit('puzzle-history');await page.getByRole('button',{name:productText('Back to City'),exact:true}).click();
  await openSimulationTool(page,'Replay');await page.getByRole('note').filter({hasText:productText('Saved replay:')}).waitFor();await page.getByLabel(productText('Inspect replay agent'),{exact:true}).selectOption(saved.snapshot.store.agents[0].id);await audit('replay-agent');await page.getByRole('button',{name:productText('Exit Replay'),exact:true}).click();
  assert(calls===callsAfterExplicitResume,'Public data readers made provider requests');assert(!errors.length,`Unhandled errors: ${errors.join(',')}`);
  await writeFile(`${evidenceRoot}/public-data/${browserName}-${width}-${smokeLanguage}-summary.json`,JSON.stringify({status:'passed',browser:browserName,width,language:smokeLanguage,providerCalls:calls,archiveRetention:true,openPuzzleContentsProtected:true,completedFragmentsVisible:true,candidate:await(await context.request.get(new URL('candidate.json',base).href)).json()},null,2));assert(calls===callsAfterExplicitResume,'Public data readers made provider requests');assert(!errors.length,`Unhandled errors: ${errors.join(',')}`);await page.screenshot({path:`${evidenceRoot}/public-data/${browserName}-${width}-${smokeLanguage}.png`});console.log(`PASS ${browserName} ${width}px ${smokeLanguage}: captured bodies, valid import history retention, populated puzzles/history, replay native agent selection; no paid traffic.`);
-}catch(error){failed=true;await page.screenshot({path:`${evidenceRoot}/public-data/${browserName}-${width}-${smokeLanguage}-failure.png`});throw error;}finally{await context.tracing.stop(failed?{path:`${evidenceRoot}/public-data/${browserName}-${width}-${smokeLanguage}-failure-trace.zip`}:{});await context.close();await browser.close();}
+}catch(error){failed=true;await page.screenshot({path:`${evidenceRoot}/public-data/${browserName}-${width}-${smokeLanguage}-failure.png`});throw error;}finally{releaseResumedRequest();await context.tracing.stop(failed?{path:`${evidenceRoot}/public-data/${browserName}-${width}-${smokeLanguage}-failure-trace.zip`}:{});await context.close();await browser.close();}

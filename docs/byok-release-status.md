@@ -10,7 +10,7 @@ its own clean candidate; the October 4 receipts do not certify these changes.
 
 ## Candidate and preserved evidence
 
-The last frozen candidate is
+The retained October 4 candidate is
 `5e6fb5b447beaad6f639c8f63e31b2e2c5888854f1a5e8f38b4cb3cd83e3325f`,
 commit `088034f27d86ebb3f8df8fe2ca190a83cdb0d67f`. Its manifest was reverified
 before this continuation's edits. The evidence archive is
@@ -283,6 +283,25 @@ These settings affect temporary CI runners, not the user's Mac or production.
 APT semantics: [Ubuntu apt.conf](https://manpages.ubuntu.com/manpages/noble/man5/apt.conf.5.html).
 The continuous-hour, genuine provider/admission, human usability, operational
 and beta requirements remain open. Paid provider calls remain denied.
+
+## Deterministic imported-world pause check — 2026-10-22
+
+The replacement run on `7288fd7` passed WebKit installation, then failed its
+768px English data-reader check while waiting for Pause. The saved screenshot
+and trace show the one-request synthetic session already stopped at its
+request limit: its response completed before the test observed the transient
+running control. Candidate `dc5826e14d6eb4aebd82cd194222108ee68fabc286ddf06b40cb74474229dd0a`
+is retained; this failed run does not satisfy the CI gate.
+
+The test now holds the first resumed synthetic request pending, observes that
+request with a bounded wait, pauses through the real UI and then releases the
+cancelled route. It still requires exactly three attempts total (probe,
+initial decision, cancelled resumed request), unchanged public-reader counts
+and no unhandled errors. WebKit 768px EN, Chromium 390px EN and Firefox 768px
+IT passed locally against the retained artifact with all other upstreams
+blocked. Evidence is `.tmp/public-data-pending-20261022/`; the failed remote
+trace is under `.tmp/ci-evidence-7288fd7/webkit/`. No product behavior or budget
+limit was changed. Fresh exact-commit CI remains required.
 
 ## Historical implementation checkpoints
 
