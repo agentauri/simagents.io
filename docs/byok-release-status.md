@@ -124,6 +124,42 @@ production candidate. Fresh exact-candidate CI and duration evidence remain
 required. No provider charge, infrastructure rollout or notification was
 performed during these corrections.
 
+## Security refresh after remote CI — 2026-10-22
+
+Checkpoint `844c890fc297c3db5e8cb5bc69a105dc7074907f` was committed and pushed.
+[CI run 39809317580](https://github.com/agentauri/simagents.io/actions/runs/39809317580)
+failed the application and documentation audits against newly reviewed
+advisories; dependent build/browser jobs were skipped and the summary failed.
+This run is failed evidence, not candidate certification.
+
+The replacement pins Vite 6.4.4 and source-map-js 1.2.2 for the application.
+Documentation overrides now select compression 1.8.2, follow-redirects 1.16.1,
+launch-editor 2.14.2, source-map-js 1.2.2, proxy-addr 2.0.8, shell-quote 1.11.0
+and Tinypool 2.1.2. The private bounded braces fork remains in use. Bun types
+are pinned to the previously locked 1.4.2 in all three consumers, preventing
+unrelated `latest` updates during lockfile resolution.
+
+The separate local Cloudflare runtime fixture also required sharp 0.35.5
+for the reviewed librsvg issue; its own lockfile and audit were updated.
+
+Patch references: [source-map-js advisory](https://github.com/advisories/GHSA-68fv-2mgg-jv7q),
+[Vite/launch-editor advisory](https://github.com/advisories/GHSA-587h-7wmj-h5pm),
+[compression advisory](https://github.com/advisories/GHSA-vc2v-76pw-4v95),
+[follow-redirects advisory](https://github.com/advisories/GHSA-q3jh-wrc6-jgq8),
+[proxy-addr advisory](https://github.com/advisories/GHSA-jqcg-44mw-7w3h),
+[shell-quote advisory](https://github.com/advisories/GHSA-pqg4-j6r4-53mv),
+[Tinypool 2.1.2 release](https://github.com/tinylibs/tinypool/releases/tag/v2.1.2),
+and [sharp advisory](https://github.com/advisories/GHSA-wq5f-xc86-pv6w).
+
+Local locked audits now report zero high/critical findings (341 application
+package names; 40 moderate documentation findings remain). Application and
+documentation builds and 442 tests pass. The Tinypool major override also
+passed actual two-worker task execution and inherited constructor/run-option
+isolation checks; this does not assert that the normal documentation build
+uses its optional threaded renderer. Security logs and the worker check are
+retained in `.tmp/accessibility-review-20261022/`. The next clean commit still
+requires its own successful remote CI, candidate artifacts and release gates.
+
 ## Historical implementation checkpoints
 
 The sections below preserve the implementation history. Their pending-work,
