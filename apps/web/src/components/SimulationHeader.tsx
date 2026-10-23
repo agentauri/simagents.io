@@ -24,6 +24,7 @@ interface Props {
   onExport: () => void;
   onConfigure: () => void;
   onReplay: () => void;
+  onNavigate?: () => void;
 }
 export function SimulationHeader(props: Props) {
   useLocale();
@@ -63,7 +64,7 @@ export function SimulationHeader(props: Props) {
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
   }, []);
   const closeMenu = () => { if (menu.current) { menu.current.open = false; menu.current.querySelector('summary')?.focus(); } };
-  const action = (run: () => void) => () => { closeMenu(); run(); };
+  const action = (run: () => void) => () => { closeMenu(); props.onNavigate?.(); run(); };
   const changeSpeed = async (next: number) => {
     setError(undefined);
     try { await getEngineClient().setSpeed(next); setSpeed(next); }

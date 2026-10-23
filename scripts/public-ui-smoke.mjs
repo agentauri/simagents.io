@@ -199,6 +199,62 @@ try {
   await activate(page.getByRole('button', { name: productText('Resume'), exact: true }).first());
   await page.getByRole('alert').filter({ hasText: productText('The request budget is exhausted. Start a new session explicitly to make more requests.') }).waitFor();
   assert(calls === 3, `Expected one probe and two decisions, saw ${calls}`); await audit('budget-error');
+  const beforeGraph = await exported();
+  const graphReports = [];
+  for (const reopening of [false, true]) {
+    await openTool(page, 'Social Graph');
+    const graph = page.getByRole('dialog', { name: productText('Social Graph'), exact: true });
+    await graph.waitFor();
+    const graphSvg = graph.getByRole('img', { name: productText('Social Graph'), exact: true });
+    const graphNode = graphSvg.locator('g.nodes > g').first();
+    await graphNode.waitFor();
+    assert(await graphSvg.locator('g.nodes > g').count() === beforeGraph.snapshot.store.agents.filter(agent => agent.state !== 'dead').length, 'Social graph lost nodes on open/reopen');
+    assert(await graph.locator('.session-controls').count() === 1, 'Graph hides essential session controls');
+    const close = graph.getByRole('button', { name: productText('Close social graph'), exact: true });
+    const closeRect = await close.evaluate(el => ({ ...el.getBoundingClientRect().toJSON(), widthLimit: innerWidth, heightLimit: innerHeight, css: { minHeight: getComputedStyle(el).minHeight, height: getComputedStyle(el).height, boxSizing: getComputedStyle(el).boxSizing, transform: getComputedStyle(el).transform, zoom: getComputedStyle(el).zoom }, className: el.className }));
+    assert(closeRect.width >= 44 && closeRect.height >= 44 && closeRect.left >= 0 && closeRect.right <= closeRect.widthLimit && closeRect.bottom <= closeRect.heightLimit, `Graph close control is clipped or too small: ${JSON.stringify(closeRect)}`);
+    if (!reopening) {
+      const filter = graph.getByRole('button', { name: productText('Trade'), exact: true });
+      assert(await filter.getAttribute('aria-pressed') === 'true' && (await filter.textContent()).includes('✓'), 'Graph filter has no exposed/non-color selection');
+      await activate(filter); assert(await filter.getAttribute('aria-pressed') === 'false', 'Graph filter keyboard/pointer toggle failed');
+      await activate(filter);
+      const originalZoom = Number(await graphSvg.getAttribute('data-zoom'));
+      await activate(graph.getByRole('button', { name: productText('Zoom in'), exact: true }));
+      assert(Number(await graphSvg.getAttribute('data-zoom')) > originalZoom, 'Graph zoom command did not change view');
+      await activate(graph.getByRole('button', { name: productText('Reset camera'), exact: true }));
+      await activate(graph.getByRole('button', { name: productText('Move map view'), exact: true }));
+      const pan = graph.getByRole('group', { name: productText('Move map view'), exact: true });
+      await activate(pan.getByRole('button', { name: productText('Move right'), exact: true }));
+      assert(Number(await graphSvg.getAttribute('data-pan-x')) > 0, 'Graph cannot pan without dragging');
+      await activate(pan.getByRole('button', { name: productText('Reset camera'), exact: true }));
+      await page.keyboard.press('Escape');
+      assert(await graph.isVisible() && !(await pan.isVisible()), 'Escape did not close only the graph pan controls');
+      await graph.getByLabel(productText('Select agent'), { exact: true }).selectOption(beforeGraph.snapshot.store.agents[0].id);
+      await activate(graph.getByRole('button', { name: productText('Move selected graph agent'), exact: true }));
+      const movement = graph.getByRole('group', { name: productText('Move selected graph agent'), exact: true });
+      const nodeBefore = await graphNode.getAttribute('transform');
+      await activate(movement.getByRole('button', { name: productText('Move right'), exact: true }));
+      await page.waitForFunction(before => document.querySelector('[aria-labelledby="social-graph-title"] g.nodes > g')?.getAttribute('transform') !== before, nodeBefore);
+      await activate(movement.getByRole('button', { name: productText('Release agent position'), exact: true }));
+      await activate(movement.getByRole('button', { name: productText('Close'), exact: true }));
+    }
+    const plot = await graphSvg.boundingBox();
+    const graphViewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+    assert(plot && plot.width >= 100 && plot.height >= 30 && plot.x >= 0 && plot.y >= 0 && plot.x + plot.width <= graphViewport.width + 1 && plot.y + plot.height <= graphViewport.height + 1, `Graph plot has no usable visible area: ${JSON.stringify({ plot, viewport: graphViewport })}`);
+    graphReports.push({ reopened: reopening, nodes: await graphSvg.locator('g.nodes > g').count(), closeRect, plot });
+    await audit(reopening ? 'social-graph-reopened' : 'social-graph');
+    if (reopening) {
+      await activate(graph.locator('.simulation-tools:visible > summary'));
+      await page.keyboard.press('Escape');
+      assert(await graph.isVisible(), 'Escape from graph tools closed the whole graph');
+      await openTool(graph, 'Configuration');
+      await page.getByRole('button', { name: productText('Close configuration panel'), exact: true }).waitFor();
+      assert(await graph.count() === 0, 'Graph blocks navigation to configuration');
+      await activate(page.getByRole('button', { name: productText('Close configuration panel'), exact: true }));
+    } else await activate(close);
+  }
+  assert(JSON.stringify((await exported()).snapshot) === JSON.stringify(beforeGraph.snapshot), 'Graph controls changed the experiment, RNG or world');
+  result.socialGraphControls = { views: graphReports, worldPreserved: true, nodeMovementWithoutDrag: true, pressedAndVisibleFilterState: true, sessionControlsPresent: true };
   const saved = await exported();
   const unchanged = JSON.stringify(saved.snapshot);
   const committedBeforeInvalid = await committedWorld();

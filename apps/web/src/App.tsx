@@ -238,10 +238,11 @@ export default function App() {
     });
   };
 
-  const headerContent = <SimulationHeader status={status} mutationPending={importBusy} errorMessage={localConnection.error ?? undefined} onStart={handleStartSimulation}
+  const renderHeader = (onNavigate?: () => void) => <SimulationHeader status={status} mutationPending={importBusy} errorMessage={localConnection.error ?? undefined} onStart={handleStartSimulation}
     onPause={handlePause} onResume={handleResume} onReset={handleReset}
     onConfigure={openConfiguration} onImport={() => importInputRef.current?.click()}
-    onExport={() => void handleExportWorld()} onReplay={() => void handleEnterReplay()} />;
+    onExport={() => void handleExportWorld()} onReplay={() => void handleEnterReplay()} onNavigate={onNavigate} />;
+  const headerContent = renderHeader();
 
   const importNotice = (importComplete || importIssue || exportIssue) && <div role={importIssue || exportIssue ? 'alert' : 'status'} tabIndex={0} className="simulation-error-notice rounded-lg border border-city-border bg-gray-950 p-4 text-sm text-white">
     <p>{importIssue || exportIssue ? formatIssue((importIssue ?? exportIssue)!) : translate('World imported. Use Start to resume the saved world.')}</p>
@@ -253,7 +254,7 @@ export default function App() {
     return <>
       {importNotice}
       <StorageNotice />
-      <SocialGraphView />
+      <SocialGraphView controls={renderHeader} />
       <input ref={importInputRef} type="file" accept="application/json,.json" className="hidden" onChange={event => void handleImportFile(event.currentTarget.files?.[0])} />
       {showConfigPanel && <ConfigPanel onClose={closeConfiguration} />}
       <div inert={showConfigPanel} className="feature-shell">
@@ -341,7 +342,7 @@ export default function App() {
         </div>
       )}
       {/* Social Graph Overlay */}
-      <SocialGraphView />
+      <SocialGraphView controls={renderHeader} />
 
       {/* Config Panel */}
       <input

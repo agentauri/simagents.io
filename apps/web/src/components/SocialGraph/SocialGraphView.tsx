@@ -12,7 +12,8 @@ import { useDialogFocus } from '../../hooks/useDialogFocus';
  * - Interactive: click nodes to select agent
  */
 
-import { useEffect, useRef, useMemo, useCallback } from 'react';
+import { useEffect, useRef, useMemo, useCallback, type ReactNode, type KeyboardEvent } from 'react';
+import { CanvasPanControls } from '../Canvas/CanvasPanControls';
 import * as d3 from 'd3';
 import { useAgents, useEvents, useWorldStore } from '../../stores/world';
 import {
@@ -34,6 +35,7 @@ const EDGE_COLORS: Record<SocialEdgeType, string> = {
 interface GraphNode extends d3.SimulationNodeDatum {
   id: string;
   llmType: string;
+  name?: string;
   color: string;
   health: number;
   state: string;
@@ -45,10 +47,12 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
   weight: number;
 }
 
-export function SocialGraphView() {
-  useLocale();
+export function SocialGraphView({ controls }: { controls?: (close: () => void) => ReactNode }) {
+  const locale = useLocale();
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const plotRef = useRef<HTMLDivElement>(null);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const simulationRef = useRef<d3.Simulation<GraphNode, GraphLink> | null>(null);
   const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
 
@@ -59,7 +63,19 @@ export function SocialGraphView() {
   const selectAgent = useWorldStore((s) => s.selectAgent);
   const toggleSocialGraph = useVisualizationStore((s) => s.toggleSocialGraph);
 
-  useDialogFocus(containerRef, visible, toggleSocialGraph);
+  const dismiss = useCallback(() => {
+    const root = containerRef.current;
+    const popover = root?.querySelector<HTMLElement>('[popover]:popover-open');
+    if (popover) {
+      popover.hidePopover();
+      [...(root?.querySelectorAll<HTMLButtonElement>('button[popovertarget]') ?? [])].find(button => button.getAttribute('popovertarget') === popover.id)?.focus();
+      return;
+    }
+    const menu = root?.querySelector<HTMLDetailsElement>('.simulation-tools[open]');
+    if (menu) { menu.open = false; menu.querySelector('summary')?.focus(); return; }
+    toggleSocialGraph();
+  }, [toggleSocialGraph]);
+  useDialogFocus(containerRef, visible, dismiss);
 
   // Build graph data from events
   const graphData = useMemo(() => {
@@ -69,6 +85,7 @@ export function SocialGraphView() {
       .map((a) => ({
         id: a.id,
         llmType: a.llmType,
+        name: a.name,
         color: a.color,
         health: a.health,
         state: a.state,
@@ -136,52 +153,79 @@ export function SocialGraphView() {
     return { nodes, links };
   }, [agents, events, edgeTypes]);
 
-  // Initialize D3 graph (only once when visible)
+  // Each visible SVG owns its simulation/zoom listeners. Closing unmounts it.
   useEffect(() => {
-    if (!svgRef.current || !containerRef.current || !visible) return;
-
-    const svg = d3.select(svgRef.current);
-    const container = containerRef.current;
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-
-    // Only initialize once
-    if (!gRef.current) {
-      svg.selectAll('*').remove();
+    if (!svgRef.current || !plotRef.current || !visible) return;
+    const svg = d3.select(svgRef.current), plot = plotRef.current;
+    svg.selectAll('*').remove();
+    gRef.current = svg.append('g');
+    gRef.current.append('g').attr('class', 'links');
+    gRef.current.append('g').attr('class', 'nodes');
+    const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.3, 3]).on('zoom', event => {
+      gRef.current?.attr('transform', event.transform);
+      svg.attr('data-zoom', event.transform.k).attr('data-pan-x', event.transform.x).attr('data-pan-y', event.transform.y);
+    });
+    zoomRef.current = zoom;
+    svg.call(zoom).call(zoom.transform, d3.zoomIdentity);
+    const resize = () => {
+      const { width, height } = plot.getBoundingClientRect();
       svg.attr('width', width).attr('height', height);
-
-      // Create zoom behavior
-      const zoom = d3.zoom<SVGSVGElement, unknown>()
-        .scaleExtent([0.3, 3])
-        .on('zoom', (event) => {
-          gRef.current?.attr('transform', event.transform);
-        });
-
-      svg.call(zoom);
-
-      // Create main group for zoom/pan
-      gRef.current = svg.append('g');
-      gRef.current.append('g').attr('class', 'links');
-      gRef.current.append('g').attr('class', 'nodes');
-    }
-
-    // Cleanup only when hiding
+      simulationRef.current?.force('center', d3.forceCenter(width / 2, height / 2)).alpha(0.1).restart();
+    };
+    resize();
+    const observer = new ResizeObserver(resize); observer.observe(plot);
     return () => {
-      if (!visible && simulationRef.current) {
-        simulationRef.current.stop();
-        simulationRef.current = null;
-        gRef.current = null;
-        svg.selectAll('*').remove();
-      }
+      observer.disconnect();
+      simulationRef.current?.stop(); simulationRef.current = null;
+      zoomRef.current = null; gRef.current = null;
+      svg.on('.zoom', null).selectAll('*').remove();
     };
   }, [visible]);
 
+  const zoomBy = useCallback((factor: number) => {
+    if (svgRef.current && zoomRef.current) d3.select(svgRef.current).call(zoomRef.current.scaleBy, factor);
+  }, []);
+  const moveView = useCallback((x: number, y: number) => {
+    if (!svgRef.current || !zoomRef.current) return;
+    const scale = d3.zoomTransform(svgRef.current).k;
+    d3.select(svgRef.current).call(zoomRef.current.translateBy, x / scale, y / scale);
+  }, []);
+  const resetView = useCallback(() => {
+    if (svgRef.current && zoomRef.current) d3.select(svgRef.current).call(zoomRef.current.transform, d3.zoomIdentity);
+  }, []);
+  const moveSelected = useCallback((x: number, y: number) => {
+    const simulation = simulationRef.current, node = simulation?.nodes().find(item => item.id === selectedAgentId);
+    if (!node || !svgRef.current) return;
+    const scale = d3.zoomTransform(svgRef.current).k;
+    node.fx = (node.fx ?? node.x ?? 0) + x / scale;
+    node.fy = (node.fy ?? node.y ?? 0) + y / scale;
+    simulation!.alpha(0.3).restart();
+  }, [selectedAgentId]);
+  const releaseSelected = useCallback(() => {
+    const node = simulationRef.current?.nodes().find(item => item.id === selectedAgentId);
+    if (!node) return;
+    node.fx = null; node.fy = null; simulationRef.current?.alpha(0.3).restart();
+  }, [selectedAgentId]);
+  const handleViewKey = (event: KeyboardEvent) => {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    const moves: Record<string, [number, number]> = { ArrowLeft: [-40, 0], ArrowRight: [40, 0], ArrowUp: [0, -40], ArrowDown: [0, 40] };
+    if (moves[event.key]) { event.preventDefault(); moveView(...moves[event.key]); }
+    else if (['+', '=', '-'].includes(event.key)) { event.preventDefault(); zoomBy(event.key === '-' ? 1 / 1.25 : 1.25); }
+    else if (event.key === 'Home' || event.key.toLowerCase() === 'r') { event.preventDefault(); resetView(); }
+  };
+  const handleNodeKey = (event: KeyboardEvent) => {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    const moves: Record<string, [number, number]> = { ArrowLeft: [-40, 0], ArrowRight: [40, 0], ArrowUp: [0, -40], ArrowDown: [0, 40] };
+    if (moves[event.key]) { event.preventDefault(); moveSelected(...moves[event.key]); }
+    else if (event.key === 'Home') { event.preventDefault(); releaseSelected(); }
+  };
+
   // Update graph data (nodes and links) - preserves simulation
   useEffect(() => {
-    if (!svgRef.current || !containerRef.current || !visible || !gRef.current) return;
+    if (!svgRef.current || !plotRef.current || !visible || !gRef.current) return;
 
     const g = gRef.current;
-    const container = containerRef.current;
+    const container = plotRef.current;
     const width = container.clientWidth;
     const height = container.clientHeight;
 
@@ -202,6 +246,7 @@ export function SocialGraphView() {
           n.y = old.y;
           n.vx = old.vx;
           n.vy = old.vy;
+          n.fx = old.fx; n.fy = old.fy;
         }
       });
 
@@ -285,7 +330,7 @@ export function SocialGraphView() {
       .append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', 4)
-      .attr('fill', '#ffffff')
+      .attr('fill', d => nodeTextColor(d.color))
       .attr('font-size', '10px')
       .attr('font-weight', 'bold')
       .text((d) => d.llmType.charAt(0).toUpperCase());
@@ -308,7 +353,10 @@ export function SocialGraphView() {
       .attr('height', 3)
       .attr('rx', 1);
 
+    nodeEnter.append('title');
     const nodeMerge = nodeEnter.merge(node);
+    nodeMerge.select('text').attr('fill', d => nodeTextColor(d.color));
+    nodeMerge.select('title').text(d => `${d.name ?? d.llmType} · ${translate('Health')}: ${Math.round(d.health)}`);
 
     // Update health bars for all nodes
     nodeMerge.select('.health-bar')
@@ -328,7 +376,7 @@ export function SocialGraphView() {
 
     // Restart simulation with low alpha for smooth updates
     simulation.alpha(0.3).restart();
-  }, [graphData, visible, selectAgent, selectedAgentId]);
+  }, [graphData, visible, selectAgent, selectedAgentId, locale]);
 
   // Separate effect for selection highlight (no simulation restart needed)
   useEffect(() => {
@@ -350,19 +398,20 @@ export function SocialGraphView() {
       aria-modal="true"
       aria-labelledby="social-graph-title"
       tabIndex={-1}
-      className="fixed inset-0 bg-city-bg/95 backdrop-blur-sm z-[210] flex flex-col"
+      className="social-graph-dialog fixed inset-0 bg-city-bg/95 backdrop-blur-sm z-[210] flex min-h-0 flex-col overflow-hidden"
     >
+      {controls && <div className="shrink-0">{controls(toggleSocialGraph)}</div>}
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-city-border">
-        <div className="flex items-center gap-3">
-          <h2 id="social-graph-title" className="text-lg font-semibold text-city-text">{translate("Social Graph")}</h2>
+      <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-1 border-b border-city-border">
+        <div className="min-w-0 flex-1">
+          <h2 id="social-graph-title" className="break-words text-base font-semibold text-city-text">{translate("Social Graph")}</h2>
           <span className="text-xs text-city-text-muted">
             {graphData.nodes.length}{" "}{translate("agents,")}{" "}{graphData.links.length}{" "}{translate("connections")}</span>
         </div>
         <button
           onClick={toggleSocialGraph}
           aria-label={translate('Close social graph')}
-          className="min-h-11 min-w-11 p-2 rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
+          className="min-h-[44px] min-w-[44px] shrink-0 p-2 rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -370,27 +419,31 @@ export function SocialGraphView() {
         </button>
       </div>
 
-      <label className="flex items-center gap-3 px-4 py-2 text-sm">{translate('Select agent')}
-        <select className="min-h-11 bg-city-surface border border-city-border rounded px-2" value={selectedAgentId ?? ''} onChange={event => selectAgent(event.target.value || null)}>
-          <option value="">—</option>
-          {agents.filter(agent => agent.state !== 'dead').map(agent => <option key={agent.id} value={agent.id}>{agent.name ?? agent.llmType}</option>)}
-        </select>
-      </label>
-      {/* Legend */}
-      <div className="flex items-center gap-4 px-4 py-2 border-b border-city-border/50 bg-city-surface/50">
-        <span className="text-xs text-city-text-muted">{translate("Edge Types:")}</span>
-        <EdgeTypeToggle type="trade" label={translate("Trade")} />
-        <EdgeTypeToggle type="harm" label={translate("Harm")} />
-        <EdgeTypeToggle type="gossip" label={translate("Gossip")} />
-        <EdgeTypeToggle type="distrust" label={translate("Deceive")} />
+      <div role="region" aria-label={translate('Graph controls')} tabIndex={0} className="min-h-0 shrink max-h-[24dvh] overflow-y-auto border-b border-city-border/50 bg-city-surface/50 p-2 space-y-2">
+        <label className="flex min-w-0 flex-wrap items-center gap-2 text-sm">{translate('Select agent')}
+          <select aria-label={translate('Select agent')} className="min-h-[44px] min-w-0 max-w-full flex-1 bg-city-surface border border-city-border rounded px-2" value={selectedAgentId ?? ''} onChange={event => selectAgent(event.target.value || null)}>
+            <option value="">—</option>
+            {agents.filter(agent => agent.state !== 'dead').map(agent => <option key={agent.id} value={agent.id}>{agent.name ?? agent.llmType}</option>)}
+          </select>
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-city-text-muted">{translate('Edge Types:')}</span>
+          <EdgeTypeToggle type="trade" label={translate('Trade')} />
+          <EdgeTypeToggle type="harm" label={translate('Harm')} />
+          <EdgeTypeToggle type="gossip" label={translate('Gossip')} />
+          <EdgeTypeToggle type="distrust" label={translate('Deceive')} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <CanvasPanControls move={moveView} reset={resetView} onKeyDown={handleViewKey} />
+          <button type="button" aria-label={translate('Zoom in')} onClick={() => zoomBy(1.25)} className="h-[44px] w-[44px] shrink-0 rounded border border-city-border bg-city-surface text-city-text">+</button>
+          <button type="button" aria-label={translate('Zoom out')} onClick={() => zoomBy(1 / 1.25)} className="h-[44px] w-[44px] shrink-0 rounded border border-city-border bg-city-surface text-city-text">−</button>
+          <button type="button" aria-label={translate('Reset camera')} onClick={resetView} className="h-[44px] w-[44px] shrink-0 rounded border border-city-border bg-city-surface text-city-text">↺</button>
+          <CanvasPanControls label="Move selected graph agent" resetLabel="Release agent position" disabled={!graphData.nodes.some(node => node.id === selectedAgentId)} move={moveSelected} reset={releaseSelected} onKeyDown={handleNodeKey} />
+        </div>
+        <p id="social-graph-help" className="text-xs text-city-text-muted">{translate('Use the controls to move and zoom the graph. Select an agent to reposition it.')}</p>
       </div>
-
-      {/* Graph */}
-      <div className="flex-1 relative">
-        <svg ref={svgRef} className="w-full h-full" />
-
-        {/* Instructions */}
-        <div className="absolute bottom-4 left-4 text-xs text-city-text-muted bg-city-surface/80 px-3 py-2 rounded-lg">{translate("Drag nodes to reposition • Scroll to zoom • Click node to select")}</div>
+      <div ref={plotRef} className="min-h-[44px] flex-1 relative overflow-hidden">
+        <svg ref={svgRef} role="img" aria-label={translate('Social Graph')} aria-describedby="social-graph-help" tabIndex={0} onKeyDown={handleViewKey} className="h-full w-full" />
       </div>
     </div>
   );
@@ -409,21 +462,15 @@ function EdgeTypeToggle({ type, label }: { type: SocialEdgeType; label: string }
   return (
     <button
       onClick={() => toggleSocialEdgeType(type)}
-      className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-all ${
-        isActive
-          ? 'text-white'
-          : 'text-city-text-muted bg-city-bg/50 hover:bg-city-border'
-      }`}
-      style={{
-        backgroundColor: isActive ? color : undefined,
-        opacity: isActive ? 1 : 0.5,
-      }}
+      aria-pressed={isActive}
+      className={`flex min-h-[44px] min-w-[44px] items-center gap-1.5 px-2 py-1 rounded border text-xs font-medium transition-all ${isActive ? 'bg-city-border text-city-text' : 'text-city-text-muted bg-city-bg/50 hover:bg-city-border'}`}
+      style={{ borderColor: isActive ? color : undefined }}
     >
       <div
         className="w-3 h-0.5 rounded"
-        style={{ backgroundColor: isActive ? '#fff' : color }}
+        aria-hidden="true" style={{ backgroundColor: color }}
       />
-      {translateLabel(label)}
+      <span aria-hidden="true">{isActive ? '✓' : '○'}</span>{translateLabel(label)}
     </button>
   );
 }
@@ -438,7 +485,7 @@ export function SocialGraphButton() {
   return (
     <button
       onClick={toggleSocialGraph}
-      className="p-2 rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
+      className="min-h-[44px] min-w-[44px] p-2 rounded-lg bg-city-surface border border-city-border hover:bg-city-border text-city-text transition-colors"
       title={translate("Social Graph")}
     >
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -449,4 +496,10 @@ export function SocialGraphButton() {
       </svg>
     </button>
   );
+}
+
+/** Pick a readable label color independently of an agent's chosen swatch. */
+function nodeTextColor(color: string) {
+  const channels = [1, 3, 5].map(index => parseInt(color.slice(index, index + 2), 16) / 255).map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722 > 0.179 ? '#000000' : '#ffffff';
 }

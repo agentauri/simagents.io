@@ -1,5 +1,9 @@
 /** Product-only text. Model output, user prompts and experiment values stay original. */
 export const en = {
+  "Graph controls": "Graph controls",
+  "Move selected graph agent": "Move selected graph agent",
+  "Release agent position": "Release agent position",
+  "Use the controls to move and zoom the graph. Select an agent to reposition it.": "Use the controls to move and zoom the graph. Select an agent to reposition it.",
   "Scientific Mode": "Scientific Mode",
   "This experiment observes emergent behavior in an AI agent population.": "This experiment observes emergent behavior in an AI agent population.",
   "What's Imposed:": "What's Imposed:",
@@ -1066,6 +1070,10 @@ export const en = {
 } as const;
 export type TranslationKey = keyof typeof en;
 export const it: Record<TranslationKey, string> = {
+  "Graph controls": "Controlli del grafo",
+  "Move selected graph agent": "Sposta l’agente selezionato nel grafo",
+  "Release agent position": "Sblocca la posizione dell’agente",
+  "Use the controls to move and zoom the graph. Select an agent to reposition it.": "Usa i controlli per spostare e ingrandire il grafo. Seleziona un agente per riposizionarlo.",
   "Scientific Mode": "Modalità scientifica",
   "This experiment observes emergent behavior in an AI agent population.": "Questo esperimento osserva comportamenti emergenti in una popolazione di agenti IA.",
   "What's Imposed:": "Regole iniziali:",

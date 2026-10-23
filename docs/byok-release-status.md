@@ -8,7 +8,56 @@ Historical sections below apply only to their stated checkpoint. The October
 controls and documentation corrections. Promotion requires fresh evidence on
 its own clean candidate; the October 4 receipts do not certify these changes.
 
-## Candidate and preserved evidence
+## Current continuation — 2026-10-23
+
+The last clean checkpoint is `8f9a6770245017f2d36a1f6a6e309ab320b43d38`,
+candidate `1c0575c1df1ccdd56327b45905fac916894bd4fad274d1a96621f7494fc19960`.
+[CI run 39865099229](https://github.com/agentauri/simagents.io/actions/runs/39865099229)
+passed all eight required jobs. Downloaded evidence contains 36 public UI cases,
+816 automated A/AA reports without violations, 18 populated-reader cases and
+18 synthetic admission cases. Review also passed the 33-action matrix and
+snapshot/import preservation checks. These are synthetic or local checks,
+not real-provider, genuine anti-bot or human-usability certification.
+
+That exact candidate passed a continuous real hour with 20 living agents,
+1,200 new actions and 1,201 synthetic calls. Native elapsed time was
+3,600,222.5 ms; UI p95 was 16.5 ms. The Apple M4 Max / 64 GiB / Chromium 151
+run recorded 359 native RSS samples and 61 invariant snapshots. Final memory
+windows rose at 0.568 MiB/minute, with a 10.984 MiB net rise, within the frozen
+thresholds rather than zero growth. Restored counters and artifact hashes
+were checked. Receipts: `.tmp/soak-8f9-reviewed.json`,
+`.tmp/action-snapshot-8f9-reviewed.json`, `.tmp/ci-evidence-8f9/summary.json`.
+
+Subsequent UI review found a graph that reopened empty, low-contrast filters,
+missing alternatives to dragging/zoom gestures and inaccessible session
+controls inside the full-screen graph. This continuation fixes simulation
+cleanup, adds camera and selected-agent controls, reuses the session header,
+provides visible/announced filter selection and enforces 44-pixel controls.
+Graph layout changes do not alter the world or trigger inference. EN/IT
+instructions are included. Regression coverage now opens the graph twice,
+checks pan/zoom/selection, nested Escape, configuration navigation, unchanged
+exported world and unchanged synthetic call count.
+
+The revised source passes 459 workspace tests, TypeScript and ESLint. Local
+mobile EN/IT keyboard flows passed in Chromium, Firefox and WebKit at native
+200% zoom, with 21 reviewed surfaces per case and no direct-focus or native
+selection fallback in the separate natural-keyboard probe. Additional desktop
+Chromium and tablet WebKit keyboard cases passed. Evidence is retained in
+`.tmp/social-graph-natural-sequential`, `.tmp/social-graph-natural-desktop`
+and `.tmp/social-graph-natural-tablet`. This is scoped automation, not a human
+accessibility study. The retained rollback source receives the same UI fixes.
+The changed source needs its own clean checkpoint, remote CI, frozen artifact
+and continuous hour; the successful `1c0575c1` hour cannot be transferred.
+
+Read-only HTTP checks on October 23 found the relay health endpoint available
+and admission returning `503 not-configured`. The public SPA candidate route
+returned HTML, so its deployed candidate identity was not established.
+Public access/renewal, complete platform retention, all 11 real providers,
+the five-person study, alarm delivery, current Cloudflare rollback and beta/
+stable criteria remain open. No paid provider call, public-beta opening or
+notification was performed. The user's denial of paid calls remains binding.
+
+## Historical October 4 candidate and preserved evidence
 
 The retained October 4 candidate is
 `5e6fb5b447beaad6f639c8f63e31b2e2c5888854f1a5e8f38b4cb3cd83e3325f`,
@@ -368,12 +417,15 @@ actual serialize/hydrate roundtrip and no duplicate payout after restoring.
 The complete local suite passes 459 tests, TypeScript and ESLint. Evidence is
 `.tmp/escrow-default-{before,after}.json` and `.tmp/escrow-default-{red,green,tests,typecheck,lint}.log`.
 
-The correction is being copied into the retained rollback reader. The previous
+The correction was also copied into retained rollback reader `59eead51`.
+Six local reader cases and six defaulted-world reader cases passed on the
+`8f9a677`/`59eead51` pair; they do not certify later UI artifacts. The previous
 candidate `e96fdf5d8916535e60189ebacd04a6183bc601bf1d53521ac0dcdd339fa0e023`
 and its successful CI remain preserved evidence for that earlier commit.
-This schema-domain correction requires a new clean candidate, exact CI and
-reader-pair verification. The continuous hour, remaining manual review and
-external release gates remain open; paid provider calls remain denied.
+The `8f9a677` clean candidate subsequently passed exact CI, reader-pair checks
+and its continuous hour, as recorded above. Later source changes require new
+evidence. Remaining manual review and external release gates are still open;
+paid provider calls remain denied.
 
 ## Historical implementation checkpoints
 
