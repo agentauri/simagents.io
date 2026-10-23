@@ -121,6 +121,13 @@ try {
   await activate(page.getByRole('button', { name: productText('Start'), exact: true }).first());
   await page.getByLabel(productText('Requests'), { exact: true }).fill('2');
   const capture = page.getByRole('checkbox', { name: productText('Capture actual requests for this session'), exact: true });
+  await capture.focus();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const captureGeometry = await capture.evaluate(el => { const r = el.getBoundingClientRect(); return { rect: r.toJSON(), visible: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight }; });
+  assert(captureGeometry.visible, 'Focused request-capture consent is outside the viewport');
+  const startActions = await page.locator('.start-confirmation-actions button').evaluateAll(buttons => buttons.map(el => ({ label: el.textContent.trim(), rect: el.getBoundingClientRect().toJSON(), viewportWidth: innerWidth, viewportHeight: innerHeight })));
+  assert(startActions.length >= 2 && startActions.every(({ rect: r, viewportWidth: w, viewportHeight: h }) => r.width >= 44 && r.height >= 44 && r.left >= 0 && r.right <= w && r.top >= 0 && r.bottom <= h), `Start-review actions are clipped or smaller than 44 pixels: ${JSON.stringify(startActions)}`);
+  result.startReviewGeometry = { capture: captureGeometry, actions: startActions };
   if (keyboardOnly) { if (!(await capture.isChecked())) await capture.press('Space'); assert(await capture.isChecked(), 'Keyboard capture consent failed'); } else await capture.check();
   await audit('start-review');
   await activate(page.getByRole('button', { name: productText('Start'), exact: true }).last());

@@ -169,7 +169,7 @@ export function StartConfirmationModal({
       />
 
       {/* Modal */}
-      <div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="start-dialog-title" className="relative bg-gray-900 rounded-lg border border-gray-700 shadow-2xl w-full max-w-md max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden">
+      <div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="start-dialog-title" className="start-confirmation-dialog relative bg-gray-900 rounded-lg border border-gray-700 shadow-2xl w-full max-w-md max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="shrink-0 px-5 py-4 border-b border-gray-700 bg-gray-800/50">
           <h2 id="start-dialog-title" className="text-lg font-semibold text-gray-100 flex items-center gap-2">
@@ -191,7 +191,10 @@ export function StartConfirmationModal({
         </div>
 
         {/* Content */}
-        <div className="min-h-0 overflow-y-auto px-5 py-4 space-y-4">
+        <div className="min-h-0 overflow-y-auto px-5 py-4 space-y-4" onFocusCapture={event => {
+          const target = event.target;
+          requestAnimationFrame(() => { if (target.isConnected && document.activeElement === target) target.scrollIntoView({ block: 'nearest', inline: 'nearest' }); });
+        }}>
           {/* Deployment Mode */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -401,7 +404,7 @@ export function StartConfirmationModal({
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 px-5 py-4 border-t border-gray-700 bg-gray-800/30 flex gap-3">
+        <div className="start-confirmation-actions shrink-0 px-5 py-4 border-t border-gray-700 bg-gray-800/30 flex flex-wrap gap-3">
           <button
             onClick={onCancel}
             disabled={isLoading}

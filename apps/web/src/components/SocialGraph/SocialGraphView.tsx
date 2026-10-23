@@ -463,7 +463,7 @@ function EdgeTypeToggle({ type, label }: { type: SocialEdgeType; label: string }
     <button
       onClick={() => toggleSocialEdgeType(type)}
       aria-pressed={isActive}
-      className={`flex min-h-[44px] min-w-[44px] items-center gap-1.5 px-2 py-1 rounded border text-xs font-medium transition-all ${isActive ? 'bg-city-border text-city-text' : 'text-city-text-muted bg-city-bg/50 hover:bg-city-border'}`}
+      className={`flex min-h-[44px] min-w-[44px] items-center gap-1.5 px-2 py-1 rounded border text-xs font-medium text-city-text transition-all ${isActive ? 'bg-city-border' : 'bg-city-bg/50 hover:bg-city-border'}`}
       style={{ borderColor: isActive ? color : undefined }}
     >
       <div

@@ -599,6 +599,8 @@ canvas:focus-visible { outline: 3px solid #f2cc8f; outline-offset: -4px; }
 .canvas-pan-popover > button { min-height: 44px; margin-top: 8px; border: 1px solid var(--color-city-border); padding: 8px 12px; border-radius: 4px; }
 .canvas-view-controls button { box-shadow: none; }
 .social-graph-dialog :is(button, select) { min-height: 44px; min-width: 44px; }
+.start-confirmation-dialog button { min-height: 44px; }
+.start-confirmation-actions > button { min-width: 44px; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 
 @media (max-width: 1023px) { .prompt-viewer { min-height: 420px; } }
 

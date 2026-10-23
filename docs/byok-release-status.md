@@ -10,7 +10,7 @@ its own clean candidate; the October 4 receipts do not certify these changes.
 
 ## Current continuation — 2026-10-23
 
-The last clean checkpoint is `8f9a6770245017f2d36a1f6a6e309ab320b43d38`,
+The last checkpoint with reviewed complete CI and a continuous hour is `8f9a6770245017f2d36a1f6a6e309ab320b43d38`,
 candidate `1c0575c1df1ccdd56327b45905fac916894bd4fad274d1a96621f7494fc19960`.
 [CI run 39865099229](https://github.com/agentauri/simagents.io/actions/runs/39865099229)
 passed all eight required jobs. Downloaded evidence contains 36 public UI cases,
@@ -56,6 +56,23 @@ Public access/renewal, complete platform retention, all 11 real providers,
 the five-person study, alarm delivery, current Cloudflare rollback and beta/
 stable criteria remain open. No paid provider call, public-beta opening or
 notification was performed. The user's denial of paid calls remains binding.
+
+The clean graph checkpoint is `bd22678bf9b200398c9196fa18eb8e4e35e0fd3e`,
+candidate `186cfa9d237546f20f1110a1d5a1e96ed49ddb40616cc369e016b8619c950654`.
+Its later natural-keyboard run exposed a start-review defect in Firefox/Italian
+at native 200% zoom: the capture checkbox could retain focus outside the
+visible scroll area, and footer actions could be clipped. The follow-up keeps
+focused content visible and wraps the action footer, with explicit geometry
+regressions. Failed evidence remains in `.tmp/natural-keyboard-bd22678`; it is
+not a full keyboard pass. Its remote WebKit run also caught an inactive graph
+filter whose hover background reduced text contrast to 3.77:1; filter text
+now retains its readable foreground in both states. No hour was started on
+this superseded candidate. The final follow-up source passed all six mobile
+EN/IT natural-keyboard cases at native 200% zoom (97 reached targets and 21
+surfaces each), the WebKit tablet contrast regression, TypeScript and ESLint.
+Receipts are `.tmp/start-review-focus-44px/summary.json` and
+`.tmp/graph-hover-review/public-ui/webkit-768-en-2x-report.json`. These are
+local preflight results; clean-candidate CI and duration are still required.
 
 ## Historical October 4 candidate and preserved evidence
 
