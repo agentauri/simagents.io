@@ -1,5 +1,7 @@
 /** Product-only text. Model output, user prompts and experiment values stay original. */
 export const en = {
+  "No decision recorded": "No decision recorded",
+  "No raw response recorded": "No raw response recorded",
   "Graph controls": "Graph controls",
   "Move selected graph agent": "Move selected graph agent",
   "Release agent position": "Release agent position",
@@ -1070,6 +1072,8 @@ export const en = {
 } as const;
 export type TranslationKey = keyof typeof en;
 export const it: Record<TranslationKey, string> = {
+  "No decision recorded": "Nessuna decisione registrata",
+  "No raw response recorded": "Nessuna risposta originale registrata",
   "Graph controls": "Controlli del grafo",
   "Move selected graph agent": "Sposta l’agente selezionato nel grafo",
   "Release agent position": "Sblocca la posizione dell’agente",

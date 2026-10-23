@@ -8,9 +8,48 @@ Historical sections below apply only to their stated checkpoint. The October
 controls and documentation corrections. Promotion requires fresh evidence on
 its own clean candidate; the October 4 receipts do not certify these changes.
 
+Post-checkpoint evidence is recorded outside the frozen commit in
+`.tmp/current-release-status.json` and `.tmp/current-release-status.md`.
+Those receipts identify the candidate actually tested, pending gates and the
+immutable archive. Dated preparation notes below are not a substitute for
+those candidate-specific results.
+
+## Localization follow-up — 2026-10-23
+
+Checkpoint `35c1970d0b6f38c814b81a57b66e624560259331`, candidate
+`18f35be5d9f1e9b9d977db456b530a0d579da5d7fdd8725d30336e7aa30bf7fa`,
+passed all eight jobs in
+[CI39886524590](https://github.com/agentauri/simagents.io/actions/runs/39886524590),
+including 36 public UI cases and 888 automated accessibility reports without
+violations. Its reviewed continuous hour recorded 20 living simulated agents,
+1,200 new actions, 1,201 synthetic requests, restored counters, 359 native RSS
+samples and Tools click-to-render p95 of 16 ms. All 2,167 archived files were
+checksum-verified; the archive is `.tmp/local-evidence-18f35be5-with-hour.tar.gz`.
+These remain evidence for that frozen artifact, not for subsequent edits.
+
+A later bounded source/localization review reproduced English `reasoning high`
+in the Italian start review. The summary now uses the existing localized
+reasoning/on/off/level labels, and the legacy effort selector translates only
+its visible options. Legacy reasoning controls identify their agent in the
+accessible name, matching the profile-based controls. Raw model parameters and stored roster values are
+unchanged. The agent/model/reasoning review wraps instead of hiding the final
+value behind an ellipsis, including at native 200% zoom. Missing action and
+missing decision/response placeholders in the inspector are also localized;
+actual model text and captured request/response bodies remain original.
+
+Literal JSX text, display expressions, accessibility attributes and direct
+helper return strings were checked. Remaining raw display units/symbols are
+`ms`, `CITY`, `ISO`, `B` and `KB`; CSS values, identifiers and internal baseline
+metadata are not product-language failures. This is a bounded source review,
+not full linguistic or assistive-technology acceptance. The changed UI needs
+its own clean candidate, CI and continuous-hour evidence. No paid provider
+call, notification, recruitment or deployment was performed during this review.
+The earlier direct-production authorization does not waive the remaining
+release gates or the denial of paid provider calls.
+
 ## Current continuation — 2026-10-23
 
-The last checkpoint with reviewed complete CI and a continuous hour is `8f9a6770245017f2d36a1f6a6e309ab320b43d38`,
+An earlier checkpoint with reviewed complete CI and a continuous hour is `8f9a6770245017f2d36a1f6a6e309ab320b43d38`,
 candidate `1c0575c1df1ccdd56327b45905fac916894bd4fad274d1a96621f7494fc19960`.
 [CI run 39865099229](https://github.com/agentauri/simagents.io/actions/runs/39865099229)
 passed all eight required jobs. Downloaded evidence contains 36 public UI cases,

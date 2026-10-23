@@ -65,10 +65,10 @@ function rosterModelLabel(entry: AgentRosterEntry): string {
 
 function reasoningLabel(entry: AgentRosterEntry): string {
   if (entry.reasoningLevel === undefined) return '';
-  if (typeof entry.reasoningLevel === 'boolean') {
-    return entry.reasoningLevel ? 'reasoning on' : 'reasoning off';
-  }
-  return `reasoning ${entry.reasoningLevel}`;
+  const value = typeof entry.reasoningLevel === 'boolean'
+    ? translate(entry.reasoningLevel ? 'On' : 'Off')
+    : translateLabel(String(entry.reasoningLevel));
+  return `${translate('Reasoning')}: ${value}`;
 }
 
 export function StartConfirmationModal({
@@ -238,8 +238,8 @@ export function StartConfirmationModal({
                         style={{ backgroundColor: entry.color }}
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="text-xs text-gray-200 truncate">{entry.name}</div>
-                        <div className="text-[10px] text-gray-400 truncate">
+                        <div className="text-xs text-gray-200 break-words">{entry.name}</div>
+                        <div className="text-[10px] text-gray-400 break-words">
                           {rosterProviderLabel(entry)} · {rosterModelLabel(entry)}
                           {reasoning ? ` · ${reasoning}` : ''}
                         </div>

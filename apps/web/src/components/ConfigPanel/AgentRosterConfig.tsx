@@ -86,13 +86,14 @@ function ReasoningControl({ entry, reasoning, onUpdate }: ReasoningControlProps)
       <label className="block">
         <span className="text-[11px] text-gray-400">{translate("Reasoning effort")}</span>
         <select
+          aria-label={translate('Reasoning value for {agent}', { agent: entry.name })}
           value={value}
           onChange={(event) => onUpdate({ reasoningLevel: event.target.value })}
           className="mt-1 w-full px-2 py-1.5 text-xs bg-gray-900 border border-gray-700 rounded focus:outline-none focus:border-blue-500"
         >
           {reasoning.levels.map((level) => (
             <option key={level} value={level}>
-              {level}
+              {translateLabel(level)}
             </option>
           ))}
         </select>
@@ -106,6 +107,7 @@ function ReasoningControl({ entry, reasoning, onUpdate }: ReasoningControlProps)
       <label className="block">
         <span className="text-[11px] text-gray-400">{translate("Thinking budget")}</span>
         <input
+          aria-label={translate('Reasoning value for {agent}', { agent: entry.name })}
           type="number"
           min={reasoning.min}
           max={reasoning.max}
@@ -130,6 +132,7 @@ function ReasoningControl({ entry, reasoning, onUpdate }: ReasoningControlProps)
         <button
           type="button"
           role="switch"
+          aria-label={translate('Reasoning value for {agent}', { agent: entry.name })}
           aria-checked={value}
           onClick={() => onUpdate({ reasoningLevel: !value })}
           className={`w-9 h-5 rounded-full relative transition-colors ${value ? 'bg-blue-500' : 'bg-gray-600'}`}
@@ -149,6 +152,7 @@ function ReasoningControl({ entry, reasoning, onUpdate }: ReasoningControlProps)
     <label className="flex items-center justify-between gap-3">
       <span className="text-[11px] text-gray-400">{translate("Use reasoning variant")}</span>
       <input
+        aria-label={translate('Reasoning value for {agent}', { agent: entry.name })}
         type="checkbox"
         checked={checked}
         onChange={(event) => {

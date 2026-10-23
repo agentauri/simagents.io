@@ -213,9 +213,9 @@ export function PromptViewer() {
       case 'decision':
         return currentLog.decision
           ? JSON.stringify(currentLog.decision, null, 2)
-          : 'No decision recorded';
+          : translate('No decision recorded');
       case 'raw':
-        return currentLog.rawResponse ?? 'No raw response recorded';
+        return currentLog.rawResponse ?? translate('No raw response recorded');
       default:
         return '';
     }

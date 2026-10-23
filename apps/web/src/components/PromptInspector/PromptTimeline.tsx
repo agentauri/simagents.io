@@ -120,7 +120,7 @@ export function PromptTimeline() {
 
               <div className="flex items-center justify-between">
                 <span className={`text-sm ${isSelected ? 'text-city-text' : 'text-city-text-muted'}`}>
-                  {entry.action ?? 'unknown'}
+                  {entry.action ?? translate('Unknown')}
                 </span>
                 {entry.processingTimeMs !== null && (
                   <span className="text-[10px] text-city-text-muted">
