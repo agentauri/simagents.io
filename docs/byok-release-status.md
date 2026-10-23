@@ -73,6 +73,13 @@ surfaces each), the WebKit tablet contrast regression, TypeScript and ESLint.
 Receipts are `.tmp/start-review-focus-44px/summary.json` and
 `.tmp/graph-hover-review/public-ui/webkit-768-en-2x-report.json`. These are
 local preflight results; clean-candidate CI and duration are still required.
+The preceding remote Firefox tablet/Italian report also captured enabled
+Start text at 3.45:1 during the disabled-to-enabled opacity transition. Start
+now keeps opaque white text and uses a dark background plus the native
+disabled state/cursor, preserving contrast during readiness changes. The
+follow-up passed the full Firefox tablet/Italian and WebKit mobile/English
+flows at native 200% zoom (21 surfaces each), TypeScript and ESLint. Reports:
+`.tmp/start-opacity-review/public-ui/{firefox-768-it,webkit-390-en}-2x-report.json`.
 
 ## Historical October 4 candidate and preserved evidence
 

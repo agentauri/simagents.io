@@ -436,7 +436,7 @@ export function StartConfirmationModal({
           <button
             onClick={() => onConfirm(startChoice)}
             disabled={isLoading || loadingSave || !!saveError || !!connectionIssue || !limitsValid}
-            className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-700 hover:bg-blue-600 rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-700 hover:bg-blue-600 rounded transition-colors disabled:cursor-not-allowed disabled:bg-gray-700 flex items-center justify-center gap-2"
           >
             {isLoading ? (
               <>
